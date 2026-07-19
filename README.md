@@ -57,7 +57,7 @@ central dans `StructuralAxis`.
 ## Interface web locale
 
 ```bash
-python3 -m libretto.cli serve          # http://127.0.0.1:8765
+python3 -m libretto.cli serve          # http://127.0.0.1:8787
 ```
 
 Glisser-déposer des `.mid` → analyse complète (radar 6 groupes + 29 axes),

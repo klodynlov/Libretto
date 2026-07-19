@@ -4,8 +4,8 @@
     {
       "name": "libretto-ui",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "libretto.cli", "serve", "--port", "8765"],
-      "port": 8765
+      "runtimeArgs": ["-m", "libretto.cli", "serve", "--port", "8787"],
+      "port": 8787
     }
   ]
 }

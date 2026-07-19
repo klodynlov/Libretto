@@ -1,7 +1,8 @@
 """
 Libretto — interface web locale (stdlib pure, aucun framework).
 
-`libretto serve` puis http://127.0.0.1:8765 :
+`libretto serve` puis http://127.0.0.1:8787 (bascule auto sur un port libre
+si occupé — 8765 appartient au dashboard Library Brain sur cette machine) :
 - glisser-déposer des .mid → analyse SMS complète (radar + 29 axes) ;
 - comparateur : les analyses de la session s'empilent, triées par score ;
 - bouton « ▶ Reaper » : pousse le fichier dans REAPER via le pont Klody
@@ -296,14 +297,30 @@ def make_handler(store: _Store):
     return Handler
 
 
-def serve(host: str = "127.0.0.1", port: int = 8765) -> ThreadingHTTPServer:
+# 8765 est pris par le dashboard Library Brain sur cette machine, et le range
+# 808x/809x par le gateway Klody — 8787 est hors de ces plages.
+DEFAULT_PORT = 8787
+
+
+def serve(host: str = "127.0.0.1", port: int = DEFAULT_PORT) -> ThreadingHTTPServer:
     """Crée le serveur (sans le lancer) — utilisé par la CLI et les tests."""
     store = _Store()
     return ThreadingHTTPServer((host, port), make_handler(store))
 
 
-def main(host: str = "127.0.0.1", port: int = 8765) -> int:
-    httpd = serve(host, port)
+def main(host: str = "127.0.0.1", port: int | None = None) -> int:
+    import sys
+    want = DEFAULT_PORT if port is None else port
+    try:
+        httpd = serve(host, want)
+    except OSError as exc:
+        if port is not None:
+            print(f"libretto: port {want} déjà occupé ({exc.strerror}) — un autre service "
+                  f"écoute dessus ; choisis un autre port (--port 0 = automatique)",
+                  file=sys.stderr)
+            return 1
+        print(f"port {want} occupé — bascule sur un port libre", file=sys.stderr)
+        httpd = serve(host, 0)
     real_port = httpd.server_address[1]
     print(f"Libretto SMS — interface sur http://{host}:{real_port} (Ctrl-C pour quitter)")
     try:

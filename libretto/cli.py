@@ -61,7 +61,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p_serve = sub.add_parser("serve", help="interface web locale (drag & drop + Reaper)")
     p_serve.add_argument("--host", default="127.0.0.1")
-    p_serve.add_argument("--port", type=int, default=8765)
+    p_serve.add_argument("--port", type=int, default=None,
+                         help="défaut 8787, bascule auto si occupé ; 0 = port automatique")
 
     p_reaper = sub.add_parser("reaper", help="pousser un MIDI dans REAPER (pont Klody :9000) et jouer")
     p_reaper.add_argument("path", help="fichier .mid/.midi")
