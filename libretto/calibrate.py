@@ -132,6 +132,25 @@ DEGRADATIONS = {
     "scramble_melody": degrade_scramble_melody,
 }
 
+# Distance L∞ sous laquelle un vecteur dégradé est un quasi no-op : la paire
+# a une marge ≈ 0 par construction et compterait à tort comme mal classée.
+NOOP_EPS = 0.01
+
+
+def _applicable(name: str, md: MidiData) -> bool:
+    """Pré-test bon marché : False si la dégradation ne peut rien changer
+    sur ce fichier (inutile de payer l'analyse d'un négatif no-op)."""
+    if name == "flatten_dynamics":
+        vels = [n.velocity for n in md.notes]
+        if not vels:
+            return False
+        mean = sum(vels) / len(vels)
+        std = (sum((v - mean) ** 2 for v in vels) / len(vels)) ** 0.5
+        return std >= 1.0
+    if name == "shuffle_bars":
+        return len(_bar_starts(md)) >= 4
+    return True
+
 
 # ──────────────────────────────────────────────
 # Précalcul des vecteurs d'axes (la seule partie chère)
@@ -147,9 +166,13 @@ def axis_vector(md: MidiData) -> list[float] | None:
     return [a.score for a in sms.axes]
 
 
-def file_vectors(path: str | Path, seed: int, variants: int) -> tuple[list[float], list[list[float]]] | None:
-    """(vecteur positif, vecteurs négatifs) pour un fichier, ou None si
-    inexploitable. Déterministe : graine dérivée du nom + graine globale."""
+def file_vectors(path: str | Path, seed: int, variants: int) -> tuple[list[float], list[list[float]], int] | None:
+    """(vecteur positif, vecteurs négatifs, nb de no-ops exclus) pour un
+    fichier, ou None si inexploitable. Un négatif est exclu quand la
+    dégradation est inapplicable (pré-test) ou laisse le vecteur d'axes
+    quasi identique au positif (L∞ < NOOP_EPS) — ex. flatten_dynamics sur
+    des vélocités déjà uniformes, shuffle_bars sur < 4 mesures.
+    Déterministe : graine dérivée du nom + graine globale."""
     try:
         md = parse_midi(path)
     except (ValueError, OSError, IndexError):
@@ -158,13 +181,21 @@ def file_vectors(path: str | Path, seed: int, variants: int) -> tuple[list[float
     if pos is None:
         return None
     negs = []
+    skipped = 0
     for name, fn in sorted(DEGRADATIONS.items()):
+        if not _applicable(name, md):
+            skipped += variants
+            continue
         for k in range(variants):
             rng = random.Random(f"{seed}:{Path(path).name}:{name}:{k}")
             vec = axis_vector(fn(md, rng))
-            if vec is not None:
-                negs.append(vec)
-    return pos, negs
+            if vec is None:
+                continue
+            if max(abs(p - v) for p, v in zip(pos, vec)) < NOOP_EPS:
+                skipped += 1
+                continue
+            negs.append(vec)
+    return pos, negs, skipped
 
 
 def _worker(job: tuple[str, int, int]):
@@ -173,7 +204,7 @@ def _worker(job: tuple[str, int, int]):
 
 
 def corpus_vectors(paths: list[Path], seed: int, variants: int,
-                   jobs: int = 1) -> dict[str, tuple[list[float], list[list[float]]]]:
+                   jobs: int = 1) -> dict[str, tuple[list[float], list[list[float]], int]]:
     """Précalcule les vecteurs de tout le corpus. `jobs` > 1 parallélise via
     multiprocessing (l'analyse est CPU-bound ; la recherche de poids, elle,
     n'en a pas besoin : elle travaille sur ces vecteurs en cache)."""
@@ -192,7 +223,7 @@ def corpus_vectors(paths: list[Path], seed: int, variants: int,
 # ──────────────────────────────────────────────
 
 def _pairs(corpus: dict) -> list[tuple[list[float], list[float]]]:
-    return [(pos, neg) for pos, negs in corpus.values() for neg in negs]
+    return [(pos, neg) for pos, negs, _ in corpus.values() for neg in negs]
 
 
 def evaluate(weights: list[float],
@@ -270,7 +301,7 @@ def run_calibration(corpus_dir: str | Path, seed: int = 42, variants: int = 2,
     corpus = corpus_vectors(paths, seed, variants, jobs)
     pairs = _pairs(corpus)
     if not pairs:
-        raise ValueError(f"aucun MIDI exploitable dans {corpus_dir}")
+        raise ValueError(f"aucune paire contrastive exploitable dans {corpus_dir}")
     acc0, mar0 = evaluate(EXPERT_WEIGHTS, pairs)
     w_star = optimize_weights(pairs, seed=seed, iters=iters, lam=lam)
     acc1, mar1 = evaluate(w_star, pairs)
@@ -278,6 +309,7 @@ def run_calibration(corpus_dir: str | Path, seed: int = 42, variants: int = 2,
         "corpus": str(corpus_dir),
         "n_files": len(corpus),
         "n_pairs": len(pairs),
+        "skipped_noop": sum(sk for _, _, sk in corpus.values()),
         "seed": seed,
         "variants": variants,
         "before": {"accuracy": round(acc0, 4), "margin": round(mar0, 4)},

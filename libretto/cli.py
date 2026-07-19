@@ -124,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         b, a = report["before"], report["after"]
         print(f"corpus : {report['n_files']} fichiers, {report['n_pairs']} paires "
-              f"original/dégradé")
+              f"original/dégradé ({report['skipped_noop']} négatifs no-op exclus)")
         print(f"accuracy {b['accuracy']:.3f} → {a['accuracy']:.3f}   "
               f"marge {b['margin']:.3f} → {a['margin']:.3f}")
         disc = sorted(report["discrimination"].items(), key=lambda kv: -kv[1])
