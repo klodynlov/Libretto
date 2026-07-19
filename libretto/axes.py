@@ -188,16 +188,22 @@ LABEL_ENERGY = {
 # ──────────────────────────────────────────────
 
 class SenseOfMusicalStructure:
-    """Calculateur des 29 axes structurels du SMS."""
+    """Calculateur des 29 axes structurels du SMS.
 
-    def __init__(self, score: Score):
+    `weights` : surcharge optionnelle {axis_id: poids} (sortie de
+    `libretto.calibrate`). Les scores d'axes n'en dépendent pas — seuls
+    l'agrégat global et les scores de groupes changent."""
+
+    def __init__(self, score: Score, weights: dict[str, float] | None = None):
         self.score = score
         self.axes: list[StructuralAxis] = []
+        self._weights = weights or {}
 
     # ── fabrique d'axe (id/nom/poids centralisés) ──
 
     def _make(self, num: int, score: float, details: dict | None = None) -> StructuralAxis:
         axis_id, name, weight, _group = AXES_META[num]
+        weight = self._weights.get(axis_id, weight)
         return StructuralAxis(axis_id, name, weight, score, details or {})
 
     # ── features partagées ──

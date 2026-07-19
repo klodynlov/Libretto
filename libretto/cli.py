@@ -4,12 +4,15 @@ Libretto — CLI.
   libretto analyze chanson.mid                   rapport texte
   libretto analyze chanson.mid --html rapport.html --json rapport.json
   libretto analyze chanson.mid --min-score 0.5   gate CI (exit 2 si en dessous)
+  libretto analyze chanson.mid --weights w.json  poids calibrés
   libretto demo                                  analyse de la partition de démo
+  libretto calibrate corpus/ --out w.json        calibration contrastive des poids
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -54,6 +57,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p_analyze = sub.add_parser("analyze", help="analyser un fichier MIDI")
     p_analyze.add_argument("path", help="fichier .mid/.midi (SMF format 0 ou 1)")
+    p_analyze.add_argument("--weights", metavar="JSON",
+                           help="poids calibrés (sortie de `libretto calibrate`)")
     _add_common(p_analyze)
 
     p_demo = sub.add_parser("demo", help="analyser la partition de démonstration intégrée")
@@ -67,6 +72,22 @@ def main(argv: list[str] | None = None) -> int:
     p_reaper = sub.add_parser("reaper", help="pousser un MIDI dans REAPER (pont Klody :9000) et jouer")
     p_reaper.add_argument("path", help="fichier .mid/.midi")
     p_reaper.add_argument("--no-play", action="store_true", help="pousser sans lancer la lecture")
+
+    p_cal = sub.add_parser(
+        "calibrate",
+        help="calibrer les poids des axes par contraste original/dégradé")
+    p_cal.add_argument("corpus", help="dossier de fichiers .mid (positifs)")
+    p_cal.add_argument("--out", metavar="JSON", default="weights.json",
+                       help="fichier de poids en sortie (défaut weights.json)")
+    p_cal.add_argument("--seed", type=int, default=42)
+    p_cal.add_argument("--variants", type=int, default=2,
+                       help="négatifs par dégradation et par fichier (défaut 2)")
+    p_cal.add_argument("--iters", type=int, default=4000,
+                       help="itérations de hill climbing (défaut 4000)")
+    p_cal.add_argument("--jobs", type=int, default=1,
+                       help="processus parallèles pour le précalcul du corpus")
+    p_cal.add_argument("--lam", type=float, default=0.3,
+                       help="régularisation vers les poids experts (défaut 0.3)")
 
     args = parser.parse_args(argv)
 
@@ -90,6 +111,28 @@ def main(argv: list[str] | None = None) -> int:
               + (", lecture lancée" if result["playing"] else ""))
         return 0
 
+    if args.command == "calibrate":
+        from .calibrate import run_calibration
+        try:
+            report = run_calibration(args.corpus, seed=args.seed,
+                                     variants=args.variants, iters=args.iters,
+                                     jobs=args.jobs, lam=args.lam)
+        except ValueError as exc:
+            print(f"libretto: {exc}", file=sys.stderr)
+            return 1
+        Path(args.out).write_text(
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        b, a = report["before"], report["after"]
+        print(f"corpus : {report['n_files']} fichiers, {report['n_pairs']} paires "
+              f"original/dégradé")
+        print(f"accuracy {b['accuracy']:.3f} → {a['accuracy']:.3f}   "
+              f"marge {b['margin']:.3f} → {a['margin']:.3f}")
+        disc = sorted(report["discrimination"].items(), key=lambda kv: -kv[1])
+        print("axes les plus discriminants : "
+              + ", ".join(f"{aid} ({d:+.2f})" for aid, d in disc[:5]))
+        print(f"poids  → {args.out}", file=sys.stderr)
+        return 0
+
     if args.command == "demo":
         return _run(SenseOfMusicalStructure(demo_score()), args, "partition de démonstration")
 
@@ -97,6 +140,14 @@ def main(argv: list[str] | None = None) -> int:
     if not path.exists():
         print(f"libretto: fichier introuvable : {path}", file=sys.stderr)
         return 1
+    weights = None
+    if args.weights:
+        from .calibrate import load_weights
+        try:
+            weights = load_weights(args.weights)
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
+            print(f"libretto: poids invalides : {exc}", file=sys.stderr)
+            return 1
     try:
         score = build_score(parse_midi(path))
     except ValueError as exc:
@@ -105,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
     if not score.sections:
         print(f"libretto: aucune note exploitable dans {path}", file=sys.stderr)
         return 1
-    return _run(SenseOfMusicalStructure(score), args, path.name)
+    return _run(SenseOfMusicalStructure(score, weights=weights), args, path.name)
 
 
 if __name__ == "__main__":

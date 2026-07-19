@@ -54,6 +54,27 @@ Pondérations centralisées dans `libretto/axes.py::AXES_META`, somme exacte
 = 1.0 (vérifiée par les tests). Tous les scores sont bornés par un clamp
 central dans `StructuralAxis`.
 
+## Calibration des poids (contrastive, auto-supervisée)
+
+Pas besoin de corpus annoté : chaque MIDI réel est un positif, ses versions
+**dégradées** (mesures permutées, segments transposés, vélocités aplaties,
+attaques décalées, mélodie brouillée) sont des négatifs par construction.
+`calibrate` cherche les poids qui maximisent la marge
+score(original) − score(dégradé), par hill climbing sur le simplexe
+(somme = 1, plancher par axe), régularisé vers les poids experts.
+
+```bash
+python3 -m libretto.cli calibrate mon_corpus/ --out weights.json --jobs 4
+python3 -m libretto.cli analyze chanson.mid --weights weights.json
+```
+
+Les scores des 29 axes ne dépendant pas des poids, l'analyse (~10 ms/fichier)
+est précalculée une seule fois (`--jobs` parallélise via multiprocessing) ;
+la recherche de poids ne fait ensuite que des produits scalaires — 6000
+itérations < 1 s. Le rapport JSON inclut `discrimination` (moyenne positifs
+− négatifs par axe) : diagnostic direct des axes qui détectent réellement
+la structure et de ceux qui récompensent le chaos. Déterministe (`--seed`).
+
 ## Interface web locale
 
 ```bash
