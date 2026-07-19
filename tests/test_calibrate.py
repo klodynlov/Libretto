@@ -16,6 +16,7 @@ from libretto.calibrate import (  # noqa: E402
     AXIS_IDS,
     DEGRADATIONS,
     EXPERT_WEIGHTS,
+    NOOP_EPS,
     axis_vector,
     evaluate,
     file_vectors,
@@ -24,7 +25,7 @@ from libretto.calibrate import (  # noqa: E402
     run_calibration,
 )
 from libretto.cli import main as cli_main  # noqa: E402
-from libretto.midi import parse_midi  # noqa: E402
+from libretto.midi import parse_midi, write_midi  # noqa: E402
 
 
 class TestCalibrate(unittest.TestCase):
@@ -63,13 +64,33 @@ class TestCalibrate(unittest.TestCase):
             self.assertEqual(len(self.md.notes), 564)
 
     def test_degraded_scores_lower_on_average(self):
-        pos, negs = file_vectors(self.mid_path, seed=42, variants=2)
+        pos, negs, _skipped = file_vectors(self.mid_path, seed=42, variants=2)
         _acc, margin = evaluate(EXPERT_WEIGHTS, [(pos, n) for n in negs])
         self.assertGreater(margin, 0.0,
                            "les dégradations doivent baisser le score moyen")
 
+    def test_noop_negatives_excluded(self):
+        # 2 mesures (< 4 → shuffle_bars inapplicable) et vélocités uniformes
+        # (std = 0 → flatten_dynamics inapplicable) : ces négatifs seraient
+        # des no-ops à marge nulle, ils doivent être exclus et comptés.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "tiny_uniform.mid"
+            pitches = [60, 64, 67, 72, 71, 67, 64, 62]
+            write_midi(path, [[(float(i), 0.9, p, 80, 0)
+                               for i, p in enumerate(pitches)]])
+            result = file_vectors(path, seed=42, variants=2)
+        self.assertIsNotNone(result)
+        pos, negs, skipped = result
+        # au moins flatten_dynamics + shuffle_bars × 2 variantes
+        self.assertGreaterEqual(skipped, 4)
+        self.assertGreater(len(negs), 0)
+        # aucun négatif conservé n'est un quasi no-op
+        for neg in negs:
+            self.assertGreaterEqual(
+                max(abs(p - n) for p, n in zip(pos, neg)), NOOP_EPS)
+
     def test_optimize_respects_simplex(self):
-        pos, negs = file_vectors(self.mid_path, seed=42, variants=2)
+        pos, negs, _skipped = file_vectors(self.mid_path, seed=42, variants=2)
         pairs = [(pos, n) for n in negs]
         w = optimize_weights(pairs, seed=42, iters=500)
         self.assertAlmostEqual(sum(w), 1.0, places=9)
@@ -101,6 +122,8 @@ class TestCalibrate(unittest.TestCase):
         self.assertEqual(report["n_files"], 1)
         self.assertEqual(set(report["weights"]), set(AXIS_IDS))
         self.assertIn("discrimination", report)
+        self.assertIsInstance(report["skipped_noop"], int)
+        self.assertGreaterEqual(report["skipped_noop"], 0)
         # rejouable : même graine → mêmes poids
         report2 = run_calibration(self.corpus, variants=1, iters=300)
         self.assertEqual(report["weights"], report2["weights"])
