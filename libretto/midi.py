@@ -43,7 +43,11 @@ def _read_varlen(data: bytes, i: int) -> tuple[int, int]:
 
 
 def parse_midi(path: str | Path) -> MidiData:
-    data = Path(path).read_bytes()
+    return parse_midi_bytes(Path(path).read_bytes(), origin=str(path))
+
+
+def parse_midi_bytes(data: bytes, origin: str = "<bytes>") -> MidiData:
+    path = origin
     if data[:4] != b"MThd":
         raise ValueError(f"{path}: pas un fichier MIDI (en-tête MThd absent)")
     header_len = int.from_bytes(data[4:8], "big")

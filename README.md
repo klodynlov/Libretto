@@ -54,6 +54,20 @@ Pondérations centralisées dans `libretto/axes.py::AXES_META`, somme exacte
 = 1.0 (vérifiée par les tests). Tous les scores sont bornés par un clamp
 central dans `StructuralAxis`.
 
+## Interface web locale
+
+```bash
+python3 -m libretto.cli serve          # http://127.0.0.1:8765
+```
+
+Glisser-déposer des `.mid` → analyse complète (radar 6 groupes + 29 axes),
+les analyses de la session s'empilent triées par score (comparateur de
+fichiers/packs), et **« ▶ Reaper »** pousse le fichier dans REAPER via le
+pont Klody (`127.0.0.1:9000` — pistes nommées, ReaSynth, marqueurs, lecture).
+Stdlib pure (`http.server`), tout en mémoire, rien d'écrit sur disque.
+
+En CLI directe : `python3 -m libretto.cli reaper chanson.mid [--no-play]`.
+
 ## Pipeline MIDI → Score
 
 `libretto/midi.py` : parseur SMF pur stdlib (running status, note-on vél. 0,

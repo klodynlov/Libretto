@@ -59,7 +59,35 @@ def main(argv: list[str] | None = None) -> int:
     p_demo = sub.add_parser("demo", help="analyser la partition de démonstration intégrée")
     _add_common(p_demo)
 
+    p_serve = sub.add_parser("serve", help="interface web locale (drag & drop + Reaper)")
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=8765)
+
+    p_reaper = sub.add_parser("reaper", help="pousser un MIDI dans REAPER (pont Klody :9000) et jouer")
+    p_reaper.add_argument("path", help="fichier .mid/.midi")
+    p_reaper.add_argument("--no-play", action="store_true", help="pousser sans lancer la lecture")
+
     args = parser.parse_args(argv)
+
+    if args.command == "serve":
+        from .server import main as serve_main
+        return serve_main(args.host, args.port)
+
+    if args.command == "reaper":
+        from .reaper import BridgeError, push_mididata
+        path = Path(args.path)
+        if not path.exists():
+            print(f"libretto: fichier introuvable : {path}", file=sys.stderr)
+            return 1
+        try:
+            result = push_mididata(parse_midi(path), play=not args.no_play)
+        except (ValueError, BridgeError) as exc:
+            print(f"libretto: {exc}", file=sys.stderr)
+            return 1
+        print(f"REAPER {result['reaper']} : {result['total_notes']} notes sur "
+              f"{len(result['tracks'])} pistes, {result['markers']} marqueurs"
+              + (", lecture lancée" if result["playing"] else ""))
+        return 0
 
     if args.command == "demo":
         return _run(SenseOfMusicalStructure(demo_score()), args, "partition de démonstration")
