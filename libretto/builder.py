@@ -124,6 +124,10 @@ def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: in
         if novelty[b] >= threshold and novelty[b] == max(novelty[max(0, b - 2):b + 3]):
             if b - boundaries[-1] >= min_len:
                 boundaries.append(b)
+    # Une note qui sonne au-delà de la dernière mesure pleine crée une queue
+    # d'une poignée de mesures : on la fusionne avec la section précédente.
+    if len(boundaries) > 1 and n - boundaries[-1] < min_len:
+        boundaries.pop()
     return boundaries
 
 

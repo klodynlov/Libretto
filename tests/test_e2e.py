@@ -75,6 +75,22 @@ class TestEndToEnd(unittest.TestCase):
     def test_cli_missing_file(self):
         self.assertEqual(cli_main(["analyze", "/nonexistent/x.mid", "--quiet"]), 1)
 
+    def test_loop_tail_merged_into_single_section(self):
+        # Loop 8 mesures sans marqueurs dont la dernière note déborde :
+        # la queue résiduelle ne doit pas devenir une section à part.
+        from libretto.midi import write_midi
+        path = Path(self._tmp.name) / "loop.mid"
+        notes = []
+        for bar in range(8):
+            root = 64 if bar % 2 == 0 else 62  # vamp Em/Dm
+            for iv in (0, 3, 7, 10):
+                notes.append((bar * 4.0, 3.8, root + iv, 70, 0))
+        notes.append((28.0, 6.0, 76, 55, 0))  # déborde en "mesure 9"
+        write_midi(path, [notes], bpm=102)
+        score = build_score(parse_midi(path))
+        self.assertEqual(len(score.sections), 1)
+        self.assertGreaterEqual(score.sections[0].n_bars, 8)
+
 
 if __name__ == "__main__":
     unittest.main()
