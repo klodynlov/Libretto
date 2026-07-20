@@ -80,8 +80,8 @@ def notes_in_seconds(md: MidiData) -> list[list]:
     return out
 
 
-def build_tasks(corpus_dir: str | Path, seed: int = 1,
-                per_file: int = 2) -> list[dict]:
+def build_tasks(corpus_dir: str | Path, seed: int = 1, per_file: int = 2,
+                only: list[str] | None = None) -> list[dict]:
     """Prépare le lot de comparaisons. Chaque tâche porte le nom de la
     dégradation et la position de l'original — que le client ne reçoit
     jamais.
@@ -94,7 +94,11 @@ def build_tasks(corpus_dir: str | Path, seed: int = 1,
 
     La position de l'original est alternée puis mélangée, ce qui garantit un
     équilibre exact plutôt qu'approximatif — un déséquilibre se repère à la
-    longue sans rien entendre."""
+    longue sans rien entendre.
+
+    `only` restreint le lot à certaines dégradations : une session ciblée sur
+    celles qui restent à trancher vaut mieux qu'un lot général où chacune
+    n'obtient que quelques jugements."""
     rng = random.Random(seed)
     paths = sorted(p for p in Path(corpus_dir).rglob("*.mid*") if p.is_file())
     tasks: list[dict] = []
@@ -107,6 +111,8 @@ def build_tasks(corpus_dir: str | Path, seed: int = 1,
         if not md.notes:
             continue
         usable = [name for name in sorted(DEGRADATIONS) if _applicable(name, md)]
+        if only:
+            usable = [name for name in usable if name in only]
         if not usable:
             continue
         # les moins servies d'abord ; le tirage ne départage que les ex aequo
@@ -347,8 +353,15 @@ def _handler(store: _Judgements, seed: int):
 
 
 def main(corpus_dir: str, out: str, host: str = "127.0.0.1",
-         port: int | None = None, seed: int = 1, per_file: int = 2) -> int:
-    tasks = build_tasks(corpus_dir, seed=seed, per_file=per_file)
+         port: int | None = None, seed: int = 1, per_file: int = 2,
+         only: list[str] | None = None) -> int:
+    if only:
+        inconnues = sorted(set(only) - set(DEGRADATIONS))
+        if inconnues:
+            print(f"libretto: dégradation(s) inconnue(s) : {', '.join(inconnues)}")
+            print(f"          disponibles : {', '.join(sorted(DEGRADATIONS))}")
+            return 1
+    tasks = build_tasks(corpus_dir, seed=seed, per_file=per_file, only=only)
     if not tasks:
         print(f"libretto: aucun MIDI exploitable dans {corpus_dir}")
         return 1

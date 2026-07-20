@@ -10,8 +10,10 @@ axes redressés repartait à l'envers.
 
 from __future__ import annotations
 
+import random
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 
 from libretto.axes import SenseOfMusicalStructure
@@ -24,7 +26,11 @@ from libretto.builder import (
     meter_context,
 )
 from libretto.calibrate import (
+    AUDIBLE_DEGRADATIONS,
     AXIS_IDS,
+    DEGRADATIONS,
+    _applicable,
+    degrade_scramble_dynamics,
     axis_auc,
     axis_auc_by_degradation,
     cross_validate,
@@ -324,6 +330,98 @@ class TestRepetitionSegmentation(unittest.TestCase):
         # inventé sur du bruit numérique.
         feats = [[1.0, 0.5, 0.2]] * 5
         self.assertEqual(len(set(_assign_letters(feats))), 1)
+
+
+class TestScrambleDynamics(unittest.TestCase):
+    """`scramble_dynamics` doit détruire l'ORGANISATION de la dynamique sans
+    toucher à sa quantité — c'est ce qui la distingue de `flatten_dynamics`,
+    que l'écoute a réfutée."""
+
+    def _midi(self, tmp: Path) -> Path:
+        notes = []
+        for bar in range(16):
+            vel = 40 + (bar // 4) * 25           # paliers d'intensité
+            for iv in (0, 4, 7):
+                notes.append((bar * 4.0, 3.6, 60 + iv, vel, 0))
+            notes.append((bar * 4.0 + 2.0, 0.4, 38, vel + 5, 9))   # percussion
+        path = tmp / "d.mid"
+        write_midi(path, [notes], ppq=480, bpm=100)
+        return path
+
+    def test_preserves_velocity_histogram_per_channel(self):
+        """L'amplitude dynamique est conservée : seule sa place change. Sans
+        cette propriété, on ne saurait pas si l'oreille réagit au désordre ou
+        à un simple écrasement de la plage."""
+        with tempfile.TemporaryDirectory() as d:
+            md = parse_midi(self._midi(Path(d)))
+            out = degrade_scramble_dynamics(md, random.Random(1))
+        for channel in {n.channel for n in md.notes}:
+            before = Counter(n.velocity for n in md.notes if n.channel == channel)
+            after = Counter(n.velocity for n in out.notes if n.channel == channel)
+            self.assertEqual(before, after, f"canal {channel}")
+
+    def test_does_not_mix_velocities_across_channels(self):
+        """Une permutation globale enverrait les vélocités des percussions sur
+        le piano : ça déséquilibre le mixage, un artefact d'orchestration sans
+        rapport avec la structure."""
+        with tempfile.TemporaryDirectory() as d:
+            md = parse_midi(self._midi(Path(d)))
+            out = degrade_scramble_dynamics(md, random.Random(2))
+        drums_before = {n.velocity for n in md.notes if n.channel == 9}
+        drums_after = {n.velocity for n in out.notes if n.channel == 9}
+        self.assertEqual(drums_before, drums_after)
+
+    def test_pitches_and_rhythm_untouched(self):
+        with tempfile.TemporaryDirectory() as d:
+            md = parse_midi(self._midi(Path(d)))
+            out = degrade_scramble_dynamics(md, random.Random(3))
+        self.assertEqual([(n.pitch, n.start, n.end) for n in md.notes],
+                         [(n.pitch, n.start, n.end) for n in out.notes])
+
+    def test_actually_destroys_the_arc(self):
+        """Le contraste d'intensité entre sections doit s'effondrer — c'est
+        la grandeur que mesurent les axes 26 et 28."""
+        with tempfile.TemporaryDirectory() as d:
+            md = parse_midi(self._midi(Path(d)))
+            out = degrade_scramble_dynamics(md, random.Random(4))
+
+        def spread(m):
+            secs = build_score(m).sections
+            vels = [s.mean_velocity for s in secs if s.mean_velocity > 0]
+            return (max(vels) - min(vels)) if len(vels) >= 2 else 0.0
+
+        self.assertGreater(spread(md), spread(out))
+
+    def test_is_deterministic(self):
+        with tempfile.TemporaryDirectory() as d:
+            md = parse_midi(self._midi(Path(d)))
+            a = degrade_scramble_dynamics(md, random.Random(7))
+            b = degrade_scramble_dynamics(md, random.Random(7))
+        self.assertEqual([n.velocity for n in a.notes],
+                         [n.velocity for n in b.notes])
+
+    def test_original_is_not_mutated(self):
+        with tempfile.TemporaryDirectory() as d:
+            md = parse_midi(self._midi(Path(d)))
+            before = [n.velocity for n in md.notes]
+            degrade_scramble_dynamics(md, random.Random(9))
+        self.assertEqual([n.velocity for n in md.notes], before)
+
+    def test_skipped_when_velocities_are_uniform(self):
+        # Sans dispersion, permuter est un no-op : la paire serait vide de sens.
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "flat.mid"
+            write_midi(path, [[(float(i), 0.9, 60, 80, 0) for i in range(16)]],
+                       ppq=480, bpm=100)
+            self.assertFalse(_applicable("scramble_dynamics", parse_midi(path)))
+
+    def test_audible_set_excludes_the_untested(self):
+        """`flatten_dynamics` est réfutée par l'écoute, `scramble_dynamics`
+        n'est pas encore testée : ni l'une ni l'autre ne doit figurer parmi
+        les dégradations validées."""
+        self.assertNotIn("flatten_dynamics", AUDIBLE_DEGRADATIONS)
+        self.assertNotIn("scramble_dynamics", AUDIBLE_DEGRADATIONS)
+        self.assertTrue(AUDIBLE_DEGRADATIONS <= set(DEGRADATIONS))
 
 
 class TestConfidence(unittest.TestCase):

@@ -125,6 +125,40 @@ def degrade_flatten_dynamics(md: MidiData, rng: random.Random) -> MidiData:
     return _clone(md, [replace(n, velocity=mean_vel) for n in md.notes])
 
 
+def degrade_scramble_dynamics(md: MidiData, rng: random.Random) -> MidiData:
+    """Permute les vélocités **à l'intérieur de chaque canal** : l'amplitude
+    dynamique est conservée, son organisation est détruite.
+
+    Pendant exact de `scramble_melody`, qui permute les hauteurs sans toucher
+    au rythme. Ici l'histogramme des vélocités de chaque piste est intact —
+    donc la gamme dynamique globale, que mesure l'axe 26, ne bouge pas — mais
+    plus rien ne relie une nuance à sa place dans la forme : l'arc énergétique
+    et les paliers de section sont brouillés.
+
+    Deux raisons de permuter plutôt que de tirer au hasard, et par canal
+    plutôt que globalement. Un tirage changerait la distribution, et l'on ne
+    saurait plus si l'oreille réagit à la désorganisation ou à un simple
+    écrasement de la plage. Une permutation globale enverrait les vélocités
+    des percussions sur le piano et réciproquement, ce qui déséquilibre le
+    mixage — un artefact d'orchestration, sans rapport avec la structure.
+
+    Cette dégradation est proposée en remplacement de `flatten_dynamics`, que
+    l'écoute a réfutée (voir sa docstring et `resultats_ecoute.md`).
+    L'hypothèse musicale : l'incohérence dynamique s'entend comme un défaut,
+    là où l'uniformité passe pour de la production. **Elle n'est pas encore
+    validée** — il y faut une session d'écoute."""
+    by_channel: dict[int, list[int]] = {}
+    for i, n in enumerate(md.notes):
+        by_channel.setdefault(n.channel, []).append(i)
+    notes = [replace(n) for n in md.notes]
+    for _channel, idxs in sorted(by_channel.items()):
+        vels = [md.notes[i].velocity for i in idxs]
+        rng.shuffle(vels)
+        for i, vel in zip(idxs, vels):
+            notes[i] = replace(notes[i], velocity=vel)
+    return _clone(md, notes)
+
+
 def degrade_jitter_onsets(md: MidiData, rng: random.Random) -> MidiData:
     """Décale chaque attaque de ±0.2..0.6 temps : carrure, contretemps et
     complexité rythmique sortent de leurs zones optimales."""
@@ -152,9 +186,17 @@ DEGRADATIONS = {
     "shuffle_bars": degrade_shuffle_bars,
     "transpose_segments": degrade_transpose_segments,
     "flatten_dynamics": degrade_flatten_dynamics,
+    "scramble_dynamics": degrade_scramble_dynamics,
     "jitter_onsets": degrade_jitter_onsets,
     "scramble_melody": degrade_scramble_melody,
 }
+
+# Dégradations validées par l'écoute (voir `resultats_ecoute.md`).
+# `flatten_dynamics` en est absente : l'oreille la préfère à l'original.
+# `scramble_dynamics` aussi, mais faute de test — elle attend sa session.
+AUDIBLE_DEGRADATIONS = frozenset({
+    "shuffle_bars", "transpose_segments", "jitter_onsets", "scramble_melody",
+})
 
 # Distance L∞ sous laquelle un vecteur dégradé est un quasi no-op : la paire
 # a une marge ≈ 0 par construction et compterait à tort comme mal classée.
@@ -167,7 +209,8 @@ AUC_MIN_CONFIDENCE = 0.5
 def _applicable(name: str, md: MidiData) -> bool:
     """Pré-test bon marché : False si la dégradation ne peut rien changer
     sur ce fichier (inutile de payer l'analyse d'un négatif no-op)."""
-    if name == "flatten_dynamics":
+    if name in ("flatten_dynamics", "scramble_dynamics"):
+        # Sans dispersion de vélocité, aplatir comme permuter est un no-op.
         vels = [n.velocity for n in md.notes]
         if not vels:
             return False

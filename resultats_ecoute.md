@@ -74,17 +74,60 @@ croisée monte même légèrement.
 - **Rendu synthétique** (ondes simples, bruit filtré pour les percussions) :
   suffisant pour juger une structure, pas un arrangement.
 
-## Suite proposée
+## Suite
 
-1. Remplacer `flatten_dynamics` par une **randomisation** des vélocités
-   plutôt qu'un aplatissement. Hypothèse musicale : l'incohérence dynamique
-   s'entend comme un défaut, là où l'uniformité passe pour de la production.
-   À valider par une seconde session — ne pas l'adopter sur la seule
-   intuition.
-2. Refaire une session avec un second annotateur pour estimer l'accord
-   inter-annotateur.
-3. Étendre à 20-25 jugements par dégradation pour resserrer les intervalles.
+### 1. `scramble_dynamics` — ajoutée, pas encore validée
+
+Une sixième dégradation permute les vélocités **à l'intérieur de chaque
+canal**, au lieu de les aplatir. Hypothèse musicale : l'incohérence
+dynamique s'entend comme un défaut, là où l'uniformité passe pour de la
+production.
+
+Le choix de permuter — plutôt que de tirer au hasard — et de le faire par
+canal n'est pas cosmétique. Un tirage changerait la distribution des
+vélocités, et l'on ne saurait plus si l'oreille réagit au désordre ou à un
+écrasement de la plage. Une permutation globale enverrait les nuances des
+percussions sur le piano, ce qui déséquilibre le mixage : un artefact
+d'orchestration sans rapport avec la structure.
+
+Propriétés vérifiées par test : histogramme de vélocité identique par canal,
+hauteurs et rythme intacts, deux tiers des vélocités déplacées, contraste
+d'intensité entre sections effondré.
+
+Effet mesuré sur les axes que `flatten_dynamics` laissait orphelins :
+
+| axe | avec `flatten` seule | avec les deux |
+|---|---|---|
+| `26_dynamic_range` | 0.667 | **0.722** |
+| `28_emotional_arc` | 0.681 | **0.730** |
+
+Validation croisée globale : 0.924 → **0.937**.
+
+**Rien de tout cela ne prouve qu'elle s'entende.** Ce sont des mesures
+internes, exactement le genre de chiffres que la session précédente a
+démentis pour `flatten_dynamics`. La session ciblée :
+
+```bash
+python3 -m libretto.cli annotate corpus_ecoute \
+    --only flatten_dynamics,scramble_dynamics --out jugements2.json
+python3 -m libretto.cli agreement jugements2.json --corpus corpus_ecoute
+```
+
+Les deux dégradations dans le même lot, sur les mêmes morceaux : si
+`scramble_dynamics` ressort audible là où `flatten_dynamics` reste inversée,
+la substitution est fondée. Sinon, c'est toute la dimension dynamique du
+moteur qu'il faut revoir — et les axes 26 et 28 avec elle.
+
+### 2. Autres priorités
+
+- Un second annotateur, pour estimer l'accord inter-annotateur — inconnu à
+  ce jour.
+- 20-25 jugements par dégradation, pour resserrer les intervalles.
+- Répondre plus souvent « je n'entends pas de différence » : une seule
+  réponse de ce type sur 58 a rendu les contrôles peu concluants.
 
 En attendant, `flatten_dynamics` est conservée mais signalée dans
-`calibrate.py`, et les poids calibrés qui en dépendent sont à considérer
-comme provisoires.
+`calibrate.py`, et les poids calibrés qui en dépendent restent provisoires.
+`AUDIBLE_DEGRADATIONS` recense les quatre dégradations effectivement
+validées — ni `flatten_dynamics`, réfutée, ni `scramble_dynamics`, non
+testée.
