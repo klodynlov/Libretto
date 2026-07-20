@@ -227,6 +227,29 @@ dégradée. Cette question résiste à la synthèse, puisque la dégradation
 s'applique au fichier généré lui-même. Le générateur varie délibérément
 au-delà de la zone de confort des axes, y compris là où ils sont faibles.
 
+## Sélection structurelle (Forge)
+
+Le score SMS peut servir de **fonction de fitness** : générer plusieurs
+ébauches, garder celle que Libretto juge la mieux construite.
+`examples/forge.py` en fait la démonstration — il tire N candidats (via le
+générateur de `make_corpus`), les note, et sélectionne le meilleur **parmi
+ceux dont le score est fiable** (le gate `--min-confidence` s'applique avant
+le classement : un score non interprétable ne concourt pas).
+
+```bash
+python3 examples/forge.py sortie/ 24 1          # 24 candidats, graine 1
+python3 examples/forge.py sortie/ 24 1 --reaper # + pousse le gagnant dans REAPER
+```
+
+Dans une vraie chaîne, la brique génératrice se remplace par une
+transcription (basic-pitch) d'un rendu audio ou la sortie MIDI d'un modèle —
+Forge ne parle que MIDI, le reste ne bouge pas. Le rapport signale aussi la
+**collapse de diversité** qu'induit toute sélection sur un score unique :
+optimiser le SMS resserre le peloton de tête sur l'esthétique inscrite dans
+les bandes de tolérance (cf. circularité, plus haut). C'est montré, pas caché
+— un pipeline sérieux sélectionnerait sous contrainte de diversité, pas sur
+le score seul.
+
 ## Interface web locale
 
 ```bash
