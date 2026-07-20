@@ -6,10 +6,10 @@ L'idée
 ------
 Un système génératif produit du matériau ; Libretto ne compose rien, il
 *juge*. Forge branche le second sur le premier : le score SMS devient une
-**fonction de fitness**. On tire N candidats, on les note, et on ne garde que
-celui qui maximise le SMS *parmi ceux dont le score est fiable*. C'est
-exactement le trou que les modèles génératifs laissent ouvert — ils sont
-forts sur le grain et le timbre, faibles sur la forme longue (couplets,
+**fonction de fitness**. On tire N candidats, on les note, et on garde le
+meilleur — mais « meilleur » est défini fiabilité d'abord (voir plus bas).
+C'est exactement le trou que les modèles génératifs laissent ouvert — ils
+sont forts sur le grain et le timbre, faibles sur la forme longue (couplets,
 refrains, arc émotionnel), et c'est précisément ce que les 6 groupes d'axes
 mesurent.
 
@@ -23,13 +23,25 @@ Dans une vraie chaîne « Forge » on remplacerait cette brique par une
 transcription (basic-pitch) d'un rendu audio, ou par la sortie MIDI d'un
 modèle — le reste ne bouge pas, puisque Forge ne parle que MIDI.
 
-La fiabilité N'EST PAS un détail
---------------------------------
+La règle de sélection : fiabilité d'abord
+-----------------------------------------
 Sélectionner sur `get_score()` seul reviendrait à comparer des chiffres qui
-ne veulent pas tous dire la même chose (cf. README, « Fiabilité »). Un
-candidat dont la fiabilité est sous 0.55 est écarté AVANT le classement : son
-score ne se lit pas, le prendre comme gagnant serait choisir un chiffre en
-l'air. C'est le même contrat que le gate `analyze --min-confidence`.
+ne veulent pas tous dire la même chose (cf. README, « Fiabilité »). Deux
+garde-fous :
+
+1. **Gate.** Un candidat dont la fiabilité est sous `--min-confidence` (0.55
+   par défaut) est écarté AVANT le classement : son score ne se lit pas, le
+   prendre comme gagnant serait choisir un chiffre en l'air. Même contrat que
+   `analyze --min-confidence`.
+2. **Tri par tranche, puis score.** Parmi les éligibles, on classe D'ABORD
+   par tranche de fiabilité (« élevée » ≥ 0.75 avant « moyenne » ≥ 0.55),
+   puis par score À L'INTÉRIEUR de la tranche. Un morceau très bien noté mais
+   moyennement fiable ne bat donc pas un morceau à peine moins noté mais
+   pleinement fiable — parce que son score, lui, est plus digne de foi. Les
+   seuils de tranche ne sont pas arbitraires : ce sont ceux que le README
+   calibre sur 200 fichiers (élevée/moyenne ≈ 0.94 d'accuracy). On ne trie
+   PAS sur la confiance brute, qui laisserait un 0.68 à confiance 1.00
+   l'emporter sur un 0.88 à confiance 0.99 — absurde.
 
 Le piège assumé : la circularité
 --------------------------------
@@ -46,7 +58,7 @@ Usage
 -----
     python3 examples/forge.py sortie/ [n=24] [seed=1]
         [--min-confidence 0.55] [--min-score 0.0]
-        [--top 5] [--keep-all] [--reaper]
+        [--keep-all] [--reaper]
 
 Sortie : `sortie/forge_winner.mid` (le gagnant), `sortie/forge_report.json`
 (le classement complet), et un tableau lisible sur stdout.
@@ -71,6 +83,12 @@ from libretto.midi import parse_midi, write_midi  # noqa: E402
 # `sys.path` ci-dessus rend les deux imports (racine + examples/) possibles.
 import random as _random  # noqa: E402
 from make_corpus import Style, random_style, render  # noqa: E402
+
+# Ordre des tranches de fiabilité (haut = plus fiable). Sert de clé de tri
+# primaire : on préfère toujours une tranche plus sûre, et le score ne
+# départage qu'à l'intérieur d'une même tranche. Les libellés viennent de
+# SenseOfMusicalStructure.confidence_level().
+_TIER_RANK = {"élevée": 3, "moyenne": 2, "faible": 1, "insuffisante": 0}
 
 
 @dataclass
@@ -144,7 +162,8 @@ def generate_and_score(index: int, seed: int, out_dir: Path) -> Candidate | None
 def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
           min_confidence: float = SenseOfMusicalStructure.INTERPRETABLE_CONFIDENCE,
           min_score: float = 0.0, keep_all: bool = False) -> dict:
-    """Génère n candidats, les note, sélectionne le meilleur *fiable*.
+    """Génère n candidats, les note, sélectionne le meilleur — fiabilité
+    d'abord (tranche puis score), après le gate `min_confidence`.
 
     Renvoie un rapport sérialisable. Le gagnant est copié en
     `forge_winner.mid`. Sans `keep_all`, les candidats non retenus sont
@@ -169,7 +188,12 @@ def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
     rejected_score = [c for c in candidates
                       if c.confidence >= min_confidence and c.score < min_score]
 
-    ranked = sorted(eligible, key=lambda c: c.score, reverse=True)
+    # Fiabilité prioritaire : tranche d'abord (« élevée » avant « moyenne »),
+    # score seulement à égalité de tranche. Un score plus haut mais moins
+    # fiable ne l'emporte pas — son chiffre est moins digne de foi.
+    ranked = sorted(eligible,
+                    key=lambda c: (_TIER_RANK.get(c.level, 0), c.score),
+                    reverse=True)
     winner = ranked[0] if ranked else None
 
     winner_path = None
@@ -247,11 +271,12 @@ def _print_report(report: dict) -> None:
     print(f"   score {win['score']:.3f}  ·  fiabilité {win['confidence']:.3f} "
           f"({win['level']})")
 
-    print("\nClassement (éligibles) :")
-    print(f"  {'#':>2}  {'score':>6}  {'fiab.':>6}  {'forme':<18} {'mode':<11} {'métr.':>5}")
+    print("\nClassement (éligibles — tranche de fiabilité d'abord, puis score) :")
+    print(f"  {'#':>2}  {'tranche':<11} {'score':>6}  {'fiab.':>6}  "
+          f"{'forme':<18} {'mode':<11} {'métr.':>5}")
     for rank, c in enumerate(report["leaderboard"][:10], 1):
         flag = "  ←" if c["file"] == report["winner_file"] else ""
-        print(f"  {rank:>2}  {c['score']:>6.3f}  {c['confidence']:>6.3f}  "
+        print(f"  {rank:>2}  {c['level']:<11} {c['score']:>6.3f}  {c['confidence']:>6.3f}  "
               f"{c['form']:<18} {c['mode']:<11} {c['meter']:>5}{flag}")
 
     d = report["diversity"]

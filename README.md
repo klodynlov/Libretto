@@ -232,9 +232,14 @@ au-delà de la zone de confort des axes, y compris là où ils sont faibles.
 Le score SMS peut servir de **fonction de fitness** : générer plusieurs
 ébauches, garder celle que Libretto juge la mieux construite.
 `examples/forge.py` en fait la démonstration — il tire N candidats (via le
-générateur de `make_corpus`), les note, et sélectionne le meilleur **parmi
-ceux dont le score est fiable** (le gate `--min-confidence` s'applique avant
-le classement : un score non interprétable ne concourt pas).
+générateur de `make_corpus`), les note, et sélectionne le meilleur
+**fiabilité d'abord** : le gate `--min-confidence` écarte les scores non
+interprétables avant le classement, puis les éligibles sont triés par
+**tranche de fiabilité** (« élevée » ≥ 0.75 avant « moyenne » ≥ 0.55) et
+seulement ensuite par score. Un morceau très bien noté mais moyennement
+fiable ne bat donc pas un morceau à peine moins noté mais pleinement fiable —
+son chiffre est plus digne de foi. (On ne trie pas sur la confiance brute,
+qui laisserait un 0.68 à confiance 1.00 l'emporter sur un 0.88 à 0.99.)
 
 ```bash
 python3 examples/forge.py sortie/ 24 1          # 24 candidats, graine 1
