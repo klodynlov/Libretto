@@ -59,6 +59,21 @@ class TestTaskPreparation(unittest.TestCase):
             self.assertGreater(share_a, 0.3)
             self.assertLess(share_a, 0.7)
 
+    def test_degradations_are_evenly_spread(self):
+        """Un tirage indépendant par fichier produit des lots où une
+        dégradation sort onze fois et une autre trois : on ne peut alors rien
+        conclure sur les moins représentées."""
+        with tempfile.TemporaryDirectory() as d:
+            tasks = build_tasks(_corpus(Path(d), n=25), seed=1, per_file=1)
+            counts: dict[str, int] = {}
+            for t in tasks:
+                if t["degradation"] != CONTROL:
+                    counts[t["degradation"]] = counts.get(t["degradation"], 0) + 1
+            self.assertGreaterEqual(len(counts), 4)
+            # écart maximal d'une unité entre la plus et la moins servie
+            self.assertLessEqual(max(counts.values()) - min(counts.values()), 1,
+                                 counts)
+
     def test_control_pairs_are_included(self):
         with tempfile.TemporaryDirectory() as d:
             tasks = build_tasks(_corpus(Path(d), n=40), seed=5, per_file=1)

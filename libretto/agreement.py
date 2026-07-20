@@ -87,6 +87,12 @@ def analyse(judgements_path: str | Path, corpus_dir: str | Path | None = None,
             # Au-dessus de 0.5 avec un intervalle qui ne le contient pas :
             # la dégradation s'entend.
             "audible": bool(decided) and lo > 0.5,
+            # Symétrique, et bien plus grave : l'intervalle entier est SOUS
+            # 0.5, donc l'oreille préfère la version dégradée. Ce n'est pas
+            # un résultat nul, c'est une réfutation — la « dégradation » n'en
+            # est pas une, et tout axe calibré contre elle a été optimisé
+            # vers l'inverse de ce qu'on croyait mesurer.
+            "inversee": bool(decided) and hi < 0.5,
         }
 
     decided_all = [r for r in real if r["picked_original"] is not None]
@@ -104,6 +110,14 @@ def analyse(judgements_path: str | Path, corpus_dir: str | Path | None = None,
         "detection_par_degradation": detection,
         "warnings": [],
     }
+
+    inverted = [n for n, d in detection.items() if d["inversee"]]
+    if inverted:
+        report["warnings"].append(
+            "dégradation(s) que l'oreille juge MEILLEURES que l'original : "
+            + ", ".join(inverted)
+            + ". Elles ne sont pas des négatifs valides — les axes calibrés "
+            "contre elles ont été optimisés à contresens.")
 
     if controls and control_quality is not None and control_quality < 0.5:
         report["warnings"].append(
@@ -207,17 +221,26 @@ def format_report(report: dict) -> str:
         if d["taux_original"] is None:
             lines.append(f"  {name:20} aucun jugement tranché")
             continue
-        mark = "audible" if d["audible"] else "non concluant"
+        mark = ("audible" if d["audible"] else
+                "INVERSÉE — l'oreille préfère le dégradé" if d["inversee"] else
+                "non concluant")
         lines.append(f"  {name:20} {d['taux_original']:.0%} "
                      f"(IC95 {d['ic95'][0]:.2f}–{d['ic95'][1]:.2f}, "
                      f"n={d['n_decided']}, ø={d['n_same']}) — {mark}")
     acc = report.get("accord_moteur")
     if acc and acc.get("n"):
+        valid = {k: v for k, v in acc["par_degradation"].items()
+                 if k not in {n for n, d in report["detection_par_degradation"].items()
+                              if d["inversee"]}}
         lines.append(f"\n── accord avec le moteur ──")
         lines.append(f"  même côté choisi dans {acc['accord']:.0%} des cas "
                      f"(IC95 {acc['ic95'][0]:.2f}–{acc['ic95'][1]:.2f}, n={acc['n']})")
         for name, v in acc["par_degradation"].items():
-            lines.append(f"    {name:20} {v:.0%}")
+            flag = "  (dégradation invalidée par l'oreille)" if name not in valid else ""
+            lines.append(f"    {name:20} {v:.0%}{flag}")
+        if valid and len(valid) < len(acc["par_degradation"]):
+            moy = sum(valid.values()) / len(valid)
+            lines.append(f"  hors dégradations invalidées : {moy:.0%} d'accord")
     for w in report["warnings"]:
         lines.append(f"\n⚠ {w}")
     return "\n".join(lines)

@@ -7,3 +7,6 @@ dist/
 rapport*.html
 rapport*.json
 examples/demo.mid
+
+# corpus d écoute généré (reproductible via examples/make_corpus.py)
+corpus_ecoute/

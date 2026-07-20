@@ -84,10 +84,21 @@ def build_tasks(corpus_dir: str | Path, seed: int = 1,
                 per_file: int = 2) -> list[dict]:
     """Prépare le lot de comparaisons. Chaque tâche porte le nom de la
     dégradation et la position de l'original — que le client ne reçoit
-    jamais."""
+    jamais.
+
+    Les dégradations sont réparties **équitablement** entre les fichiers, et
+    non tirées au sort indépendamment pour chacun : le tirage indépendant
+    produit des lots où une dégradation sort onze fois et une autre trois,
+    et l'on ne peut alors rien conclure sur les moins représentées. À chaque
+    fichier on prend celles qui ont le moins servi jusque-là.
+
+    La position de l'original est alternée puis mélangée, ce qui garantit un
+    équilibre exact plutôt qu'approximatif — un déséquilibre se repère à la
+    longue sans rien entendre."""
     rng = random.Random(seed)
     paths = sorted(p for p in Path(corpus_dir).rglob("*.mid*") if p.is_file())
     tasks: list[dict] = []
+    used: dict[str, int] = {name: 0 for name in DEGRADATIONS}
     for path in paths:
         try:
             md = parse_midi(path)
@@ -96,19 +107,24 @@ def build_tasks(corpus_dir: str | Path, seed: int = 1,
         if not md.notes:
             continue
         usable = [name for name in sorted(DEGRADATIONS) if _applicable(name, md)]
+        if not usable:
+            continue
+        # les moins servies d'abord ; le tirage ne départage que les ex aequo
         rng.shuffle(usable)
+        usable.sort(key=lambda name: used[name])
         for name in usable[:per_file]:
+            used[name] += 1
             tasks.append({"file": path.name, "path": str(path),
                           "degradation": name})
         if rng.random() < CONTROL_RATIO:
             tasks.append({"file": path.name, "path": str(path),
                           "degradation": "__control__"})
     rng.shuffle(tasks)
+    slots = ["A", "B"] * ((len(tasks) + 1) // 2)
+    rng.shuffle(slots)
     for i, task in enumerate(tasks):
         task["id"] = i
-        # Position de l'original, tirée au sort : c'est ce qui rend la
-        # comparaison aveugle.
-        task["original_slot"] = rng.choice(["A", "B"])
+        task["original_slot"] = slots[i]
     return tasks
 
 

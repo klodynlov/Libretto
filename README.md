@@ -199,12 +199,33 @@ Ce qui rend les jugements exploitables :
 et avec intervalle de confiance de Wilson ? le moteur choisit-il le même côté
 que l'oreille ?
 
-**Aucune annotation n'est fournie** — c'est un travail d'écoute, et il reste
-à faire. Tant qu'il n'est pas fait, la question « le score SMS correspond-il
-à un jugement musical ? » reste ouverte, et c'est la seule qui compte
-vraiment. Un accord fort ne prouverait d'ailleurs pas que le score capte la
-qualité musicale, seulement que moteur et oreille s'accordent sur *ces*
-dégradations-là. Un désaccord, lui, serait une réfutation nette.
+### Premiers résultats — 58 comparaisons
+
+Une session a été menée (détail et réserves dans
+[`resultats_ecoute.md`](resultats_ecoute.md)). Elle a produit une
+confirmation et une réfutation.
+
+| dégradation | l'oreille désigne l'original | verdict |
+|---|---|---|
+| `jitter_onsets` | 100 % | audible |
+| `scramble_melody` | 91 % | audible |
+| `transpose_segments` | 91 % | audible |
+| `shuffle_bars` | 90 % | audible |
+| **`flatten_dynamics`** | **18 %** | **inversée** |
+
+Accord moteur / oreille : **74 %**, et **88 %** en écartant
+`flatten_dynamics`, sur laquelle le désaccord est concentré.
+
+Aplatir les vélocités n'est donc pas perçu comme une dégradation : c'est
+préféré, avec un intervalle de confiance entièrement sous 0.5. Or
+`26_dynamic_range` et `28_emotional_arc` tiraient l'essentiel de leur
+pouvoir discriminant de ce négatif-là. Leur poids dans le score repose sur
+une prémisse que l'écoute ne confirme pas — et les retirer du protocole ne
+coûterait rien (validation croisée 0.924 → 0.929).
+
+Un seul annotateur, onze jugements par dégradation, des contrôles
+imparfaits : de quoi remettre en cause une hypothèse, pas de quoi refonder
+le protocole. `flatten_dynamics` est conservée mais signalée dans le code.
 
 ## Corpus de validation
 

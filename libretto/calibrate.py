@@ -94,7 +94,31 @@ def degrade_transpose_segments(md: MidiData, rng: random.Random) -> MidiData:
 
 def degrade_flatten_dynamics(md: MidiData, rng: random.Random) -> MidiData:
     """Toutes les vélocités à la moyenne : arc énergétique, gamme dynamique
-    et progression aplatis."""
+    et progression aplatis.
+
+    ⚠ NÉGATIF CONTESTÉ PAR L'ÉCOUTE. Sur 11 comparaisons A/B en aveugle
+    (`libretto agreement`), l'oreille a préféré la version **aplatie** dans
+    82 % des cas — taux de 0.18, IC95 [0.05, 0.48], donc significativement
+    inversé et non pas simplement nul. Les quatre autres dégradations sont
+    validées entre 90 et 100 % sur le même lot.
+
+    L'explication tient probablement au rendu : en synthèse, la vélocité MIDI
+    ne module que le volume, là où un instrument réel change aussi de timbre.
+    Faire varier la vélocité s'entend donc comme un fader qui bouge, et
+    l'uniformité passe pour de la stabilité. Un écart mesuré de 7 à 8 dB
+    entre sections écarte l'hypothèse d'une section trop faible pour être
+    entendue.
+
+    Conséquence pratique : `26_dynamic_range` et `28_emotional_arc` tiraient
+    l'essentiel de leur pouvoir discriminant de cette dégradation (AUC 0.67 →
+    0.58 et 0.68 → 0.61 quand on la retire). Leur poids dans le score global
+    repose donc sur une prémisse que l'écoute ne confirme pas. Retirer la
+    dégradation ne coûte rien par ailleurs — la validation croisée passe de
+    0.924 à 0.929, les autres axes gagnant ce qu'elle leur ajoutait de bruit.
+
+    Elle est conservée en attendant une seconde session d'écoute : un seul
+    annotateur, onze paires, et des contrôles imparfaits ne suffisent pas à
+    trancher définitivement. Voir `resultats_ecoute.md`."""
     if not md.notes:
         return _clone(md, [])
     mean_vel = max(1, round(sum(n.velocity for n in md.notes) / len(md.notes)))
