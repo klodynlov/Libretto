@@ -43,6 +43,7 @@ Usage : python3 examples/make_corpus.py <dossier_sortie> [nb=60] [graine=7]
 
 from __future__ import annotations
 
+import json
 import random
 import sys
 from dataclasses import dataclass
@@ -228,8 +229,15 @@ def _degree_to_midi(deg: int, scale: tuple[int, ...], tonic: int, octave: int) -
     return 12 * (octave + 1) + tonic + scale[idx] + 12 * octaves
 
 
-def render(style: Style, rng: random.Random) -> tuple[list[list], list, list, int]:
-    """(pistes, marqueurs, changements de tempo, nb de mesures)."""
+def render(style: Style, rng: random.Random) -> tuple[list[list], list, list, int, list[int], list[str]]:
+    """(pistes, marqueurs, changements de tempo, nb de mesures, frontières de
+    référence en index de mesure, étiquette de rôle par section).
+
+    Les frontières sont la vérité terrain : le générateur sait exactement où
+    il a coupé. C'est ce qui permet d'évaluer la segmentation par F-mesure
+    au lieu de l'estimer à l'œil — sans annotations, on ne peut que constater
+    qu'un fichier ressort en une seule section, pas mesurer si les frontières
+    trouvées sont les bonnes."""
     num, den, bar_beats, pulse = style.meter
     scale = SCALES[style.mode]
     prog_bank = PROGRESSIONS[style.mode]
@@ -247,6 +255,8 @@ def render(style: Style, rng: random.Random) -> tuple[list[list], list, list, in
     pad_tr = []
     markers: list[tuple[float, str]] = []
     tempo_changes: list[tuple[float, float]] = []
+    truth_bars: list[int] = []      # frontières de référence, en mesures
+    bar_cursor = 0
 
     beat = 0.0
     n_sections = len(roles)
@@ -256,6 +266,8 @@ def render(style: Style, rng: random.Random) -> tuple[list[list], list, list, in
         bars = style.bars_per_section
         if role in ("intro", "outro"):
             bars = max(2, bars // 2)
+        truth_bars.append(bar_cursor)
+        bar_cursor += bars
         if style.with_markers:
             markers.append((beat, MARKER_NAMES.get(role, role)))
         if style.tempo_drift and role in ("bridge", "B", "C"):
@@ -353,17 +365,19 @@ def render(style: Style, rng: random.Random) -> tuple[list[list], list, list, in
         tracks.append(pad_tr)
     if style.with_drums:
         tracks.append(drums_tr)
-    return tracks, markers, tempo_changes, int(round(beat / bar_beats))
+    return (tracks, markers, tempo_changes, int(round(beat / bar_beats)),
+            truth_bars, list(roles))
 
 
 def build_corpus(out_dir: str | Path, n: int = 60, seed: int = 7) -> list[Path]:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     written = []
+    truth: dict[str, dict] = {}
     for i in range(n):
         rng = random.Random(f"{seed}:{i}")
         style = random_style(rng)
-        tracks, markers, tempo_changes, bars = render(style, rng)
+        tracks, markers, tempo_changes, bars, truth_bars, roles = render(style, rng)
         num, den, _bb, _p = style.meter
         name = (f"{i:03d}_{style.form}_{style.mode}_{num}-{den}_"
                 f"{int(style.bpm)}bpm_{style.arc}.mid")
@@ -372,6 +386,13 @@ def build_corpus(out_dir: str | Path, n: int = 60, seed: int = 7) -> list[Path]:
                    time_sig=(num, den), markers=markers or None,
                    tempo_changes=tempo_changes or None)
         written.append(path)
+        truth[name] = {"boundaries": truth_bars, "roles": roles,
+                       "n_bars": bars, "form": style.form,
+                       "with_markers": style.with_markers}
+    # Vérité terrain à côté du corpus : c'est elle qui rend la segmentation
+    # évaluable (F-mesure des frontières) au lieu de seulement observable.
+    (out / "annotations.json").write_text(
+        json.dumps(truth, ensure_ascii=False, indent=1), encoding="utf-8")
     return written
 
 

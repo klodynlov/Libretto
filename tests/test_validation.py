@@ -15,7 +15,14 @@ import unittest
 from pathlib import Path
 
 from libretto.axes import SenseOfMusicalStructure
-from libretto.builder import build_score, meter_context
+from libretto.builder import (
+    _assign_letters,
+    _cosine_dist,
+    _repetition_edges,
+    _self_similarity,
+    build_score,
+    meter_context,
+)
 from libretto.calibrate import (
     AXIS_IDS,
     axis_auc,
@@ -84,7 +91,7 @@ class TestAxisAUC(unittest.TestCase):
         n = len(AXIS_IDS)
         pos = [0.0, 1.0] + [0.5] * (n - 2)
         neg = [1.0, 0.0] + [0.5] * (n - 2)
-        corpus = {"f": (pos, [("deg", neg)], 0)}
+        corpus = {"f": (pos, [("deg", neg)], 0, [1.0] * n)}
         auc = axis_auc(corpus)
         self.assertEqual(auc[AXIS_IDS[0]], 0.0)
         self.assertEqual(auc[AXIS_IDS[1]], 1.0)
@@ -95,7 +102,7 @@ class TestAxisAUC(unittest.TestCase):
         pos = [0.5] * n
         good = [0.0] * n     # détecté
         blind = [0.5] * n    # égalité
-        corpus = {"f": (pos, [("a", good), ("b", blind)], 0)}
+        corpus = {"f": (pos, [("a", good), ("b", blind)], 0, [1.0] * n)}
         by = axis_auc_by_degradation(corpus)
         self.assertEqual(sorted(by), ["a", "b"])
         self.assertEqual(by["a"][AXIS_IDS[0]], 1.0)
@@ -125,7 +132,8 @@ class TestSplitIntegrity(unittest.TestCase):
         vecteur positif. Un split par PAIRE mettrait donc le même positif des
         deux côtés — l'accuracy de test mesurerait de la mémorisation."""
         n = len(AXIS_IDS)
-        corpus = {f"f{i}": ([0.6] * n, [("d", [0.4] * n)] * 3, 0) for i in range(10)}
+        corpus = {f"f{i}": ([0.6] * n, [("d", [0.4] * n)] * 3, 0, [1.0] * n)
+                  for i in range(10)}
         report = cross_validate(corpus, k=5, seed=42, iters=50)
         self.assertEqual(report["n_folds"], 5)
         for fold in report["folds"]:
@@ -133,7 +141,7 @@ class TestSplitIntegrity(unittest.TestCase):
 
     def test_cross_validate_refuses_tiny_corpus(self):
         n = len(AXIS_IDS)
-        report = cross_validate({"only": ([0.6] * n, [("d", [0.4] * n)], 0)},
+        report = cross_validate({"only": ([0.6] * n, [("d", [0.4] * n)], 0, [1.0] * n)},
                                 k=5, seed=1, iters=10)
         self.assertEqual(report["n_folds"], 0)
 
@@ -255,6 +263,67 @@ class TestSegmentationRobustness(unittest.TestCase):
             score = build_score(parse_midi(path))
         self.assertGreaterEqual(len(score.sections), 2,
                                 "la segmentation par nouveauté doit survivre à la mesure de queue")
+
+
+class TestRepetitionSegmentation(unittest.TestCase):
+    """La matrice d'auto-similarité apporte ce que la nouveauté locale ne
+    peut pas voir : les retours. F-mesure des frontières 0.55 → 0.73 sur
+    trois corpus annotés."""
+
+    def _piece(self, plan, bars=8):
+        """plan : suite de fondamentales, une par section."""
+        notes = []
+        bar = 0
+        for root in plan:
+            for _ in range(bars):
+                b = bar * 4.0
+                for iv in (0, 4, 7):
+                    notes.append((b, 3.8, root + iv, 80, 0))
+                notes.append((b + 2.0, 1.5, root - 12, 80, 0))
+                bar += 1
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "p.mid"
+            write_midi(path, [notes], ppq=480, bpm=100)   # aucun marqueur
+            return build_score(parse_midi(path))
+
+    def test_returning_section_creates_a_boundary(self):
+        """A B A : le retour de A ne produit AUCUNE nouveauté — son matériau
+        est déjà connu — mais forme une diagonale nette dans la matrice.
+        C'est le cas que la segmentation par fenêtres seule manquait."""
+        score = self._piece([60, 67, 60])
+        self.assertGreaterEqual(len(score.sections), 3)
+
+    def test_repetition_edges_finds_parallel_diagonal(self):
+        # Deux blocs identiques séparés par un bloc différent.
+        feats = ([[1.0, 0.0]] * 6) + ([[0.0, 1.0]] * 6) + ([[1.0, 0.0]] * 6)
+        edges = _repetition_edges(_self_similarity(feats), min_len=4)
+        self.assertTrue(edges, "aucune répétition détectée sur un motif A B A")
+        # une frontière doit tomber près de 6 ou 12
+        self.assertTrue(any(abs(e - 6) <= 1 or abs(e - 12) <= 1 for e in edges), edges)
+
+    def test_labelling_threshold_adapts_to_material(self):
+        """Seuil fixe à 0.82 : une pièce à couleur harmonique unique voyait
+        toutes ses sections rangées dans le même groupe — 29 morceaux sur 34
+        d'un corpus annoté ressortaient avec un seul type de section, et les
+        axes 3 et 6 n'avaient plus rien à lire."""
+        # Deux matériaux réellement distincts, mais dont la similarité
+        # croisée (0.89) reste au-dessus de l'ancien seuil absolu de 0.82 :
+        # celui-ci les fondait en un seul groupe.
+        feats = [[1.0, 0.35, 0.0], [1.0, 0.35, 0.0],
+                 [1.0, 0.0, 0.35], [1.0, 0.0, 0.35]]
+        cross = 1.0 - _cosine_dist(feats[0], feats[2])
+        self.assertGreater(cross, 0.82, "prémisse du test : au-dessus du seuil v0.2")
+        letters = _assign_letters(feats)
+        self.assertGreater(len(set(letters)), 1,
+                           "le seuil doit s'adapter au matériau de la pièce")
+        self.assertEqual(letters[0], letters[1])
+        self.assertEqual(letters[2], letters[3])
+
+    def test_uniform_material_stays_one_group(self):
+        # Sections réellement identiques : un seul groupe, pas un découpage
+        # inventé sur du bruit numérique.
+        feats = [[1.0, 0.5, 0.2]] * 5
+        self.assertEqual(len(set(_assign_letters(feats))), 1)
 
 
 class TestConfidence(unittest.TestCase):

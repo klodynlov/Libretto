@@ -136,6 +136,9 @@ DEGRADATIONS = {
 # a une marge ≈ 0 par construction et compterait à tort comme mal classée.
 NOOP_EPS = 0.01
 
+# Fiabilité minimale pour qu'un axe soit jugé sur un fichier donné.
+AUC_MIN_CONFIDENCE = 0.5
+
 
 def _applicable(name: str, md: MidiData) -> bool:
     """Pré-test bon marché : False si la dégradation ne peut rien changer
@@ -158,15 +161,22 @@ def _applicable(name: str, md: MidiData) -> bool:
 
 def axis_vector(md: MidiData) -> list[float] | None:
     """Vecteur des 29 scores d'axes (indépendant des poids), None si vide."""
+    pair = axis_vector_with_confidence(md)
+    return pair[0] if pair else None
+
+
+def axis_vector_with_confidence(md: MidiData) -> tuple[list[float], list[float]] | None:
+    """(scores, fiabilités) des 29 axes. La seconde liste sert à n'évaluer
+    un axe que là où il dispose de matière — voir `axis_auc`."""
     score = build_score(md)
     if not score.sections:
         return None
     sms = SenseOfMusicalStructure(score)
     sms.calculate()
-    return [a.score for a in sms.axes]
+    return [a.score for a in sms.axes], [a.confidence for a in sms.axes]
 
 
-def file_vectors(path: str | Path, seed: int, variants: int) -> tuple[list[float], list[tuple[str, list[float]]], int] | None:
+def file_vectors(path: str | Path, seed: int, variants: int) -> tuple[list[float], list[tuple[str, list[float]]], int, list[float]] | None:
     """(vecteur positif, vecteurs négatifs, nb de no-ops exclus) pour un
     fichier, ou None si inexploitable. Un négatif est exclu quand la
     dégradation est inapplicable (pré-test) ou laisse le vecteur d'axes
@@ -177,9 +187,10 @@ def file_vectors(path: str | Path, seed: int, variants: int) -> tuple[list[float
         md = parse_midi(path)
     except (ValueError, OSError, IndexError):
         return None
-    pos = axis_vector(md)
-    if pos is None:
+    got = axis_vector_with_confidence(md)
+    if got is None:
         return None
+    pos, pos_conf = got
     negs = []
     skipped = 0
     for name, fn in sorted(DEGRADATIONS.items()):
@@ -197,7 +208,9 @@ def file_vectors(path: str | Path, seed: int, variants: int) -> tuple[list[float
             # Le nom de la dégradation est conservé : c'est lui qui permet de
             # savoir non seulement qu'un axe échoue, mais *contre quoi*.
             negs.append((name, vec))
-    return pos, negs, skipped
+    # `pos_conf` accompagne le positif : c'est lui qui dit si l'axe avait de
+    # quoi mesurer dans le morceau d'origine.
+    return pos, negs, skipped, pos_conf
 
 
 def _worker(job: tuple[str, int, int]):
@@ -206,7 +219,7 @@ def _worker(job: tuple[str, int, int]):
 
 
 def corpus_vectors(paths: list[Path], seed: int, variants: int,
-                   jobs: int = 1) -> dict[str, tuple[list[float], list[list[float]], int]]:
+                   jobs: int = 1) -> dict[str, tuple]:
     """Précalcule les vecteurs de tout le corpus. `jobs` > 1 parallélise via
     multiprocessing (l'analyse est CPU-bound ; la recherche de poids, elle,
     n'en a pas besoin : elle travaille sur ces vecteurs en cache)."""
@@ -228,7 +241,7 @@ def _pairs(corpus: dict, keys: list[str] | None = None) -> list[tuple[list[float
     """Paires (positif, négatif). `keys` restreint à un sous-ensemble de
     fichiers — c'est la granularité de split correcte (voir cross_validate)."""
     selected = corpus if keys is None else {k: corpus[k] for k in keys}
-    return [(pos, neg) for pos, negs, _ in selected.values() for _name, neg in negs]
+    return [(pos, neg) for pos, negs, _sk, _cf in selected.values() for _name, neg in negs]
 
 
 def evaluate(weights: list[float],
@@ -294,7 +307,7 @@ def discrimination(corpus: dict) -> dict[str, float]:
     return {AXIS_IDS[k]: round(diffs[k] / len(pairs), 4) for k in range(len(AXIS_IDS))}
 
 
-def axis_auc(corpus: dict) -> dict[str, float]:
+def axis_auc(corpus: dict, min_confidence: float = 0.0) -> dict[str, float]:
     """AUC appariée par axe : P(positif > négatif) + ½·P(égalité).
 
     Plus honnête que `discrimination` (une moyenne de différences est écrasée
@@ -303,21 +316,30 @@ def axis_auc(corpus: dict) -> dict[str, float]:
       >0.5 → l'axe détecte la structure ;
       <0.5 → **l'axe récompense le chaos** — il vote pour le négatif.
     Un axe sous 0.5 est un bug de conception, pas un problème de poids : lui
-    donner un poids nul le neutralise, ça ne le répare pas."""
-    pairs = _pairs(corpus)
-    if not pairs:
-        return {}
+    donner un poids nul le neutralise, ça ne le répare pas.
+
+    `min_confidence` restreint le calcul, axe par axe, aux fichiers où l'axe
+    disposait de matière. Sans ce filtre on lui reproche des erreurs sur des
+    morceaux où il annonce lui-même n'avoir rien à mesurer : un axe de forme
+    évalué sur un fichier ressorti en une seule section score 0 et perd
+    quoi qu'il arrive, ce qui ne dit rien de sa formulation."""
     wins = [0.0] * len(AXIS_IDS)
-    for pos, neg in pairs:
-        for k in range(len(wins)):
-            if pos[k] > neg[k]:
-                wins[k] += 1.0
-            elif pos[k] == neg[k]:
-                wins[k] += 0.5
-    return {AXIS_IDS[k]: round(wins[k] / len(pairs), 4) for k in range(len(AXIS_IDS))}
+    counts = [0] * len(AXIS_IDS)
+    for pos, negs, _sk, conf in corpus.values():
+        for _name, neg in negs:
+            for k in range(len(wins)):
+                if conf[k] < min_confidence:
+                    continue
+                counts[k] += 1
+                if pos[k] > neg[k]:
+                    wins[k] += 1.0
+                elif pos[k] == neg[k]:
+                    wins[k] += 0.5
+    return {AXIS_IDS[k]: (round(wins[k] / counts[k], 4) if counts[k] else 0.5)
+            for k in range(len(AXIS_IDS))}
 
 
-def axis_auc_by_degradation(corpus: dict) -> dict[str, dict[str, float]]:
+def axis_auc_by_degradation(corpus: dict, min_confidence: float = 0.0) -> dict[str, dict[str, float]]:
     """AUC appariée par axe ET par type de dégradation.
 
     L'AUC agrégée mélange des questions sans rapport : `21_tempo_variation`
@@ -326,20 +348,24 @@ def axis_auc_by_degradation(corpus: dict) -> dict[str, dict[str, float]]:
     devient franche — 0.5 face à une dégradation qui ne touche pas la
     grandeur mesurée est correct ; **sous 0.5 face à une dégradation qui la
     touche de plein fouet, l'axe est à l'envers**."""
-    buckets: dict[str, list[tuple[list[float], list[float]]]] = {}
-    for pos, negs, _sk in corpus.values():
+    buckets: dict[str, list[tuple[list[float], list[float], list[float]]]] = {}
+    for pos, negs, _sk, conf in corpus.values():
         for name, neg in negs:
-            buckets.setdefault(name, []).append((pos, neg))
+            buckets.setdefault(name, []).append((pos, neg, conf))
     out: dict[str, dict[str, float]] = {}
-    for name, pairs in sorted(buckets.items()):
+    for name, triples in sorted(buckets.items()):
         wins = [0.0] * len(AXIS_IDS)
-        for pos, neg in pairs:
+        counts = [0] * len(AXIS_IDS)
+        for pos, neg, conf in triples:
             for k in range(len(wins)):
+                if conf[k] < min_confidence:
+                    continue
+                counts[k] += 1
                 if pos[k] > neg[k]:
                     wins[k] += 1.0
                 elif pos[k] == neg[k]:
                     wins[k] += 0.5
-        out[name] = {AXIS_IDS[k]: round(wins[k] / len(pairs), 4)
+        out[name] = {AXIS_IDS[k]: (round(wins[k] / counts[k], 4) if counts[k] else 0.5)
                      for k in range(len(AXIS_IDS))}
     return out
 
@@ -446,7 +472,9 @@ def run_calibration(corpus_dir: str | Path, seed: int = 42, variants: int = 2,
     acc0, mar0 = evaluate(EXPERT_WEIGHTS, pairs)
     w_star = optimize_weights(pairs, seed=seed, iters=iters, lam=lam)
     acc1, mar1 = evaluate(w_star, pairs)
-    auc = axis_auc(corpus)
+    # 0.5 : l'axe doit avoir au moins la moitié de sa matière pour être
+    # jugé. En deçà il annonce lui-même qu'il ne mesure rien.
+    auc = axis_auc(corpus, min_confidence=AUC_MIN_CONFIDENCE)
     warnings = []
     if len(corpus) < MIN_FILES_TRUSTWORTHY:
         warnings.append(
@@ -462,7 +490,7 @@ def run_calibration(corpus_dir: str | Path, seed: int = 42, variants: int = 2,
         "corpus": str(corpus_dir),
         "n_files": len(corpus),
         "n_pairs": len(pairs),
-        "skipped_noop": sum(sk for _, _, sk in corpus.values()),
+        "skipped_noop": sum(sk for _p, _n, sk, _c in corpus.values()),
         "seed": seed,
         "variants": variants,
         # Mesuré sur l'entraînement : à ne PAS citer comme performance.
@@ -472,7 +500,8 @@ def run_calibration(corpus_dir: str | Path, seed: int = 42, variants: int = 2,
         "weights": {aid: round(w, 4) for aid, w in zip(AXIS_IDS, w_star)},
         "discrimination": discrimination(corpus),
         "axis_auc": auc,
-        "axis_auc_by_degradation": axis_auc_by_degradation(corpus),
+        "axis_auc_by_degradation": axis_auc_by_degradation(
+            corpus, min_confidence=AUC_MIN_CONFIDENCE),
         "warnings": warnings,
     }
 

@@ -407,23 +407,58 @@ class SenseOfMusicalStructure:
         return self._make(2, 1.0 - cv, {"cv_durees": round(cv, 3), "durees": durations})
 
     def _axe_03_section_label_diversity(self) -> StructuralAxis:
+        """Diversité = nombre de **matériaux distincts**, pas leur proportion.
+
+        v2 notait le ratio `distincts / total`, qui dépend autant du
+        dénominateur que de la diversité réelle : une pièce hachée en douze
+        sections dont huit types voit son ratio BAISSER vers le plateau
+        optimal, alors qu'elle est moins bien formée qu'un AABA. La
+        sur-segmentation était donc récompensée (AUC 0.43).
+
+        Une pièce tient sur 2 à 5 matériaux — couplet, refrain, pont, et
+        parfois intro et coda. En deçà elle est monotone ; au-delà elle n'a
+        plus de forme reconnaissable, seulement une suite d'épisodes."""
         labels = [s.label for s in self.score.sections]
         if not labels:
             return self._make(3, 0.0)
-        diversity = len(set(labels)) / len(labels)
-        return self._make(3, band(diversity, 0.1, 0.3, 0.6, 1.0),
-                          {"labels": labels, "diversite": round(diversity, 3)})
+        n_types = len(set(labels))
+        return self._make(3, band(n_types, 1, 2, 5, 9),
+                          {"labels": labels, "nb_types": n_types})
 
     def _axe_04_symmetry(self) -> StructuralAxis:
-        labels = [s.label for s in self.score.sections]
+        """Symétrie de l'architecture : palindrome des matériaux, retour du
+        matériau initial, et équilibre des durées entre les deux moitiés.
+
+        v2 ne mesurait que le palindrome exact des étiquettes. Un
+        couplet-refrain — intro, couplet, refrain, couplet, refrain, pont,
+        refrain, coda — n'a aucune paire symétrique et obtenait donc 0, alors
+        que c'est la forme la plus répandue de la musique populaire. Un axe
+        nul sur la majorité des morceaux ne discrimine rien et flotte au
+        niveau du bruit. L'équilibre des durées ajoute une composante
+        d'architecture qui ne dépend pas d'une égalité exacte d'étiquettes,
+        donc robuste à la finesse du regroupement par matériau."""
+        secs = self.score.sections
+        labels = [s.label for s in secs]
         if len(labels) < 3:
             return self._make(4, 0.0, {"labels": labels})
         half = len(labels) // 2
         pairs = sum(1 for i in range(half) if labels[i] == labels[-(i + 1)])
-        base = pairs / half
-        arch_bonus = 0.15 if labels[0] == labels[-1] else 0.0
-        return self._make(4, base + arch_bonus,
-                          {"labels": labels, "paires_symetriques": pairs})
+        palindrome = pairs / half if half else 0.0
+        arch = 1.0 if labels[0] == labels[-1] else 0.0
+
+        durations = [s.n_bars for s in secs]
+        total = sum(durations)
+        if total > 0:
+            cut = len(durations) // 2
+            first = sum(durations[:cut])
+            second = sum(durations[len(durations) - cut:])
+            balance = 1.0 - abs(first - second) / max(first + second, 1)
+        else:
+            balance = 0.0
+        score = 0.5 * palindrome + 0.2 * arch + 0.3 * balance
+        return self._make(4, score,
+                          {"labels": labels, "paires_symetriques": pairs,
+                           "equilibre_moities": round(balance, 3)})
 
     def _axe_05_section_progression(self) -> StructuralAxis:
         """Progression énergétique. v1 : énergie = dictionnaire figé sur les
@@ -449,7 +484,12 @@ class SenseOfMusicalStructure:
         counts = Counter(labels)
         repeated = sum(c - 1 for c in counts.values() if c > 1)
         ratio = repeated / len(labels)
-        return self._make(6, band(ratio, 0.05, 0.2, 0.45, 0.8),
+        # Plateau élargi à [0.15, 0.55]. Les formes canoniques donnent : AABA
+        # et AABB 0.50, couplet-refrain court 0.50, rondo 0.40, ABA 0.33,
+        # couplet-refrain long 0.375. La bande v0.2 s'arrêtait à 0.45 et
+        # pénalisait donc trois des formes les plus répandues — un AABA
+        # tombait dans la pente descendante.
+        return self._make(6, band(ratio, 0.02, 0.15, 0.55, 0.85),
                           {"ratio": round(ratio, 3), "comptes": dict(counts)})
 
     def _axe_07_section_transition_quality(self) -> StructuralAxis:

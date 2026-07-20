@@ -28,17 +28,19 @@ rm -rf "$(dirname "$TMP_MID")"
 # dans cet état avant d'être mesurés ; ce gate les empêche d'y revenir.
 # Le corpus est généré à la volée (déterministe) : rien à versionner.
 #
-# Seuil 0.45 et non 0.50 : les axes qu'aucune dégradation ne cible — tempo,
-# labels de forme — flottent autour de 0.5 par simple bruit d'échantillon.
-# Mesuré sur 4 graines × 40 fichiers, ce plancher de bruit ne descend jamais
-# sous 0.480, quand les axes réellement inversés se tenaient entre 0.25 et
-# 0.42. 0.45 sépare les deux sans déclencher de faux positif.
-echo "── validation sur corpus généré (aucun axe sous AUC 0.45) ──"
+# Seuil 0.42 et non 0.50 : les axes qu'aucune dégradation ne cible — tempo,
+# étiquettes de forme — flottent autour de 0.5 par simple bruit
+# d'échantillon. Mesuré sur 4 graines × 40 fichiers, ce plancher de bruit
+# descend à 0.448, quand les axes réellement inversés se tenaient entre 0.25
+# et 0.42. La marge est mince : ce gate attrape les inversions franches, pas
+# une inversion marginale. Le remonter demanderait de stabiliser d'abord
+# l'étiquetage des sections (voir les limites connues du README).
+echo "── validation sur corpus généré (aucun axe sous AUC 0.42) ──"
 TMP_CORPUS="$(mktemp -d)"
 python3 examples/make_corpus.py "$TMP_CORPUS" 40 7 >/dev/null
 python3 -m libretto.cli calibrate "$TMP_CORPUS" \
     --out "$TMP_CORPUS/weights.json" --variants 2 --iters 800 --jobs 4 \
-    --min-auc 0.45 --min-test-accuracy 0.80
+    --min-auc 0.42 --min-test-accuracy 0.80
 rm -rf "$TMP_CORPUS"
 
 echo "CHECK OK"

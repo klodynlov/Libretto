@@ -207,9 +207,18 @@ tempo/signatures/marqueurs ; SMPTE rejeté) + writer minimal.
   (maj/min/dim/7) ;
 - mélodie = voix supérieure échantillonnée par temps ;
 - sections depuis les **marqueurs MIDI** (`Intro`, `Couplet`, `Refrain`,
-  `Pont`… — anglais et français normalisés), sinon **segmentation par
-  nouveauté** sur le chroma + étiquetage heuristique (cluster répété le plus
-  énergique = chorus, etc.) ;
+  `Pont`… — anglais et français normalisés), sinon segmentation par
+  **nouveauté + répétitions** : la nouveauté repère les ruptures, la matrice
+  d'auto-similarité repère les *retours*. Un couplet qui revient après un
+  refrain ne crée aucune nouveauté — son matériau est déjà connu — mais
+  forme une diagonale nette dans la matrice. Mesuré sur trois corpus
+  annotés, ce second terme porte tout le gain : F-mesure des frontières
+  0.55 → **0.73**. Le noyau en damier de Foote (2000) a été implémenté puis
+  retiré : il ne faisait jamais mieux que la nouveauté par fenêtres et ne
+  paraissait gagnant que sur le corpus ayant servi à régler son seuil ;
+- étiquetage par regroupement des sections à **seuil adaptatif** — le
+  niveau de similarité dépend du matériau, si bien qu'un seuil absolu
+  rangeait 29 morceaux sur 34 dans un unique type de section ;
 - vélocité moyenne, polyphonie **par mesure**, densité et onsets par section
   (alimentent les axes 20, 23, 25-28) ;
 - **contexte métrique** dérivé du chiffrage : un chiffrage composé (6/8,
@@ -250,12 +259,14 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
   d'arpèges d'accompagnement, et le balayage est quadratique (lent sur les
   MIDI orchestraux denses).
-- Segmentation sans marqueurs = nouveauté locale, sans matrice
-  d'auto-similarité ni détection de répétitions, et jamais évaluée contre
-  des annotations (type SALAMI). Les axes **03** (diversité des labels) et
-  **06** (ratio de répétition) restent à AUC ≈ 0.47 pour cette raison : une
-  transposition aléatoire fait sur-segmenter, ce qui gonfle artificiellement
-  la diversité des sections.
+- Segmentation évaluée, mais encore approximative : F-mesure des frontières
+  **0.73** (tolérance ±1 mesure) sur trois corpus annotés, et le
+  regroupement des sections par matériau ne retrouve le bon nombre de types
+  que dans un quart des cas. C'est ce qui plafonne les axes de forme (01,
+  03, 04, 06), tous voisins de 0.5 — donc neutres plutôt qu'inversés, mais
+  peu informatifs. Le gate AUC est calé à 0.42 en conséquence : la marge
+  avec le plancher de bruit mesuré (0.448) est mince, et le remonter suppose
+  de stabiliser d'abord l'étiquetage.
 - Esthétique pop inscrite dans les bandes de tolérance : un nocturne ou une
   pièce ambient scorent bas par construction. Les profils de poids
   (`weights_*.json`) atténuent, ils ne suppriment pas.

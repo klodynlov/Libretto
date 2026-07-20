@@ -7,19 +7,19 @@
   "variants": 4,
   "before": {
     "accuracy": 0.85,
-    "margin": 0.0422
+    "margin": 0.0423
   },
   "after": {
     "accuracy": 0.9167,
-    "margin": 0.0402
+    "margin": 0.0409
   },
   "validation": {
     "n_folds": 3,
     "train_accuracy_mean": 0.9167,
     "test_accuracy_mean": 0.85,
     "test_accuracy_std": 0.178,
-    "test_margin_mean": 0.0363,
-    "test_margin_std": 0.0201,
+    "test_margin_mean": 0.0366,
+    "test_margin_std": 0.0202,
     "expert_test_accuracy_mean": 0.85,
     "overfit_gap": 0.0667,
     "gain_vs_expert": 0.0,
@@ -30,9 +30,9 @@
         "n_test_files": 1,
         "n_test_pairs": 20,
         "train_accuracy": 0.875,
-        "train_margin": 0.0376,
+        "train_margin": 0.0377,
         "test_accuracy": 0.95,
-        "test_margin": 0.0491,
+        "test_margin": 0.0492,
         "expert_test_accuracy": 0.95,
         "expert_test_margin": 0.0582
       },
@@ -42,11 +42,11 @@
         "n_test_files": 1,
         "n_test_pairs": 20,
         "train_accuracy": 0.875,
-        "train_margin": 0.0346,
+        "train_margin": 0.0348,
         "test_accuracy": 1.0,
-        "test_margin": 0.0519,
+        "test_margin": 0.0526,
         "expert_test_accuracy": 1.0,
-        "expert_test_margin": 0.0581
+        "expert_test_margin": 0.0583
       },
       {
         "fold": 2,
@@ -56,9 +56,9 @@
         "train_accuracy": 1.0,
         "train_margin": 0.0618,
         "test_accuracy": 0.6,
-        "test_margin": 0.008,
+        "test_margin": 0.0081,
         "expert_test_accuracy": 0.6,
-        "expert_test_margin": 0.0102
+        "expert_test_margin": 0.0103
       }
     ]
   },
@@ -69,28 +69,28 @@
     "04_symmetry": 0.04,
     "05_section_progression": 0.03,
     "06_repeat_ratio": 0.03,
-    "07_section_transition": 0.039,
+    "07_section_transition": 0.04,
     "08_key_stability": 0.05,
-    "09_progression_complexity": 0.037,
+    "09_progression_complexity": 0.031,
     "10_cadence_presence": 0.04,
     "11_modulation_count": 0.03,
-    "12_harmonic_rhythm": 0.03,
-    "13_tonal_contrast": 0.027,
+    "12_harmonic_rhythm": 0.034,
+    "13_tonal_contrast": 0.029,
     "14_bass_melodic": 0.02,
-    "15_melodic_contour": 0.041,
-    "16_motivic_development": 0.032,
+    "15_melodic_contour": 0.04,
+    "16_motivic_development": 0.03,
     "17_theme_recognition": 0.04,
     "18_melodic_range": 0.025,
     "19_intervallic_character": 0.03,
     "20_melodic_rhythm_syncopation": 0.025,
     "21_tempo_variation": 0.03,
-    "22_tempo_consistency": 0.027,
-    "23_rhythmic_complexity": 0.033,
+    "22_tempo_consistency": 0.026,
+    "23_rhythmic_complexity": 0.043,
     "24_hypermetric_regularity": 0.025,
-    "25_texture_variety": 0.056,
+    "25_texture_variety": 0.051,
     "26_dynamic_range": 0.031,
     "27_voice_count": 0.03,
-    "28_emotional_arc": 0.052,
+    "28_emotional_arc": 0.05,
     "29_global_cohesion": 0.05
   },
   "discrimination": {
@@ -122,7 +122,7 @@
     "26_dynamic_range": 0.0689,
     "27_voice_count": 0.0173,
     "28_emotional_arc": 0.0248,
-    "29_global_cohesion": 0.0301
+    "29_global_cohesion": 0.0317
   },
   "axis_auc": {
     "01_section_count": 0.5,
@@ -153,7 +153,7 @@
     "26_dynamic_range": 0.4667,
     "27_voice_count": 0.7417,
     "28_emotional_arc": 0.7,
-    "29_global_cohesion": 0.7167
+    "29_global_cohesion": 0.7333
   },
   "axis_auc_by_degradation": {
     "flatten_dynamics": {
@@ -247,7 +247,7 @@
       "26_dynamic_range": 0.5,
       "27_voice_count": 0.9167,
       "28_emotional_arc": 0.5,
-      "29_global_cohesion": 0.9167
+      "29_global_cohesion": 1.0
     },
     "shuffle_bars": {
       "01_section_count": 0.5,
