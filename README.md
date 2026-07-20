@@ -255,6 +255,22 @@ les bandes de tolérance (cf. circularité, plus haut). C'est montré, pas cach�
 — un pipeline sérieux sélectionnerait sous contrainte de diversité, pas sur
 le score seul.
 
+`examples/forge_sweep.py` mesure ce que la règle « fiabilité d'abord »
+apporte, agrégé sur plusieurs graines : pour chaque tirage il compare le
+gagnant à celui qu'aurait désigné le tri sur le score seul.
+
+```bash
+python3 examples/forge_sweep.py 10 24 1     # 10 graines × 24 candidats
+```
+
+Sur 10 graines (déterministe), la règle **change le gagnant une fois sur
+deux**, pour un score brut cédé de seulement **0.031 en moyenne** — on paie
+trois centièmes de score pour gagner une tranche de fiabilité entière. Le
+gate `--min-confidence` recale au moins un candidat sur 4 graines sur 10,
+même sur ce corpus 100 % « morceaux ». Et le top 5 ne retient que ~3.7 des
+~6.9 formes générées : la collapse de diversité est constante, pas un accident
+de tirage.
+
 ## Interface web locale
 
 ```bash
