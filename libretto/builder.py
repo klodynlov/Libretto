@@ -58,6 +58,20 @@ def _texture_label(avg_poly: float) -> str:
     return "4v polyphonic"
 
 
+def meter_context(num: int, den: int) -> tuple[float, int]:
+    """(durée d'une pulsation en noires, subdivision) d'après le chiffrage.
+
+    Un chiffrage à dénominateur 8 dont le numérateur est un multiple de 3
+    (6/8, 9/8, 12/8) est **composé** : on bat la noire pointée (1.5 noire) et
+    la subdivision est ternaire. 3/8 fait exception — trop court pour être
+    battu à la noire pointée, il se bat à la croche.
+    Partout ailleurs la pulsation est l'unité du dénominateur (4/4 → noire,
+    2/2 → blanche, 3/4 → noire)."""
+    if den == 8 and num % 3 == 0 and num >= 6:
+        return 1.5, 3
+    return 4.0 / den, 2
+
+
 def _bar_starts(md: MidiData) -> list[int]:
     """Ticks de début de chaque mesure, en suivant les changements de
     signature."""
@@ -103,11 +117,34 @@ def _best_chord(weights: list[float]) -> Chord | None:
     return Chord(pitch_from_midi(48 + root), list(CHORD_TEMPLATES[quality]), quality)
 
 
-def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: int = 4) -> list[int]:
+def _median(vals: list[float]) -> float:
+    if not vals:
+        return 0.0
+    ordered = sorted(vals)
+    mid = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[mid]
+    return 0.5 * (ordered[mid - 1] + ordered[mid])
+
+
+def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: int = 4,
+                       k: float = 1.5) -> list[int]:
     """Frontières de sections par nouveauté : distance cosinus entre les
-    moyennes des fenêtres avant/après chaque mesure."""
+    moyennes des fenêtres avant/après chaque mesure.
+
+    Le seuil est **robuste** (médiane + k·MAD), pas moyenne + k·σ. La raison
+    est empirique : une seule mesure aberrante — typiquement la mesure de
+    queue quasi vide que crée une note tenue qui déborde — produit une
+    nouveauté de 1.0 là où les vraies frontières sont autour de 0.10. Elle
+    tirait la moyenne ET l'écart-type assez haut pour faire passer le seuil
+    au-dessus de toutes les frontières réelles : le morceau entier ressortait
+    en une seule section. La médiane et le MAD ignorent l'aberration.
+
+    Les `min_len` premières et dernières mesures sont exclues du calcul du
+    seuil : leur fenêtre est tronquée, donc leur nouveauté est un artefact de
+    bord, et elles ne peuvent de toute façon pas porter de frontière."""
     n = len(features)
-    if n <= min_len:
+    if n <= 2 * min_len:
         return [0]
     novelty = [0.0] * n
     for b in range(1, n):
@@ -116,11 +153,20 @@ def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: in
         mean_l = [sum(col) / len(left) for col in zip(*left)]
         mean_r = [sum(col) / len(right) for col in zip(*right)]
         novelty[b] = _cosine_dist(mean_l, mean_r)
-    mean_nov = sum(novelty) / n
-    std_nov = math.sqrt(sum((x - mean_nov) ** 2 for x in novelty) / n)
-    threshold = mean_nov + 0.5 * std_nov
+
+    candidates = list(range(min_len, n - min_len + 1))
+    inner = [novelty[b] for b in candidates]
+    med = _median(inner)
+    mad = _median([abs(x - med) for x in inner])
+    if mad <= 1e-9:
+        # Nouveauté plate : soit la pièce est vraiment homogène, soit elle
+        # est trop courte pour trancher. Dans les deux cas, pas de frontière
+        # inventée.
+        return [0]
+    threshold = med + k * mad
+
     boundaries = [0]
-    for b in range(1, n):
+    for b in candidates:
         if novelty[b] >= threshold and novelty[b] == max(novelty[max(0, b - 2):b + 3]):
             if b - boundaries[-1] >= min_len:
                 boundaries.append(b)
@@ -200,11 +246,13 @@ def build_score(md: MidiData) -> Score:
     vel_sum = [0.0] * n_bars
     vel_count = [0] * n_bars
     pitch_sum = [0.0] * n_bars
+    melodic_count = [0] * n_bars
     for n in notes:
         b = bar_of(n.start)
         dur = max(1, n.end - n.start)
         chroma[b][n.pitch % 12] += dur * n.velocity / 127.0
         pitch_sum[b] += n.pitch
+        melodic_count[b] += 1
     for n in all_notes:
         b = bar_of(n.start)
         density[b] += 1
@@ -235,13 +283,29 @@ def build_score(md: MidiData) -> Score:
         poly_by_beat.append(len({n.pitch for n in notes if n.start <= tick < n.end}))
 
     # ── frontières de sections ──
+    # Features de segmentation. Le chroma seul ne suffit pas : normalisé L2,
+    # il efface l'intensité, si bien qu'un refrain fort et un couplet doux
+    # bâtis sur la même grille d'accords deviennent indiscernables — c'est
+    # exactement la frontière qu'un auditeur entend en premier. On lui adjoint
+    # donc l'énergie (densité, vélocité) et le registre, à un poids qui les
+    # rend comparables aux 12 dimensions harmoniques (de norme 1 après
+    # normalisation).
     max_den = max(density) or 1
+    max_vel_bar = max((vel_sum[b] / vel_count[b] for b in range(n_bars) if vel_count[b]),
+                      default=0.0)
+    ENERGY_W = 0.6
     features = []
     for b in range(n_bars):
         norm = math.sqrt(sum(x * x for x in chroma[b])) or 1.0
         feat = [x / norm for x in chroma[b]]
-        feat.append(density[b] / max_den)
-        feat.append((pitch_sum[b] / density[b] / 127.0) if density[b] else 0.0)
+        feat.append(ENERGY_W * density[b] / max_den)
+        mean_v = (vel_sum[b] / vel_count[b]) if vel_count[b] else 0.0
+        feat.append(ENERGY_W * (mean_v / max_vel_bar if max_vel_bar else 0.0))
+        # Registre moyen des notes RÉELLEMENT mélodiques : diviser par
+        # `density` (percussions comprises) diluait la hauteur en proportion
+        # du nombre de coups de batterie, un artefact d'orchestration.
+        feat.append(ENERGY_W * (pitch_sum[b] / melodic_count[b] / 127.0
+                                if melodic_count[b] else 0.0))
         features.append(feat)
 
     marker_bars = sorted({bar_of(t) for t, _ in md.markers})
@@ -254,7 +318,11 @@ def build_score(md: MidiData) -> Score:
             key = next((v for k, v in MARKER_LABELS.items() if k in text), None)
             raw_labels.append(key or text or "section")
     else:
-        boundaries = _detect_boundaries(features)
+        # La segmentation ne regarde que les mesures qui sonnent : les mesures
+        # de queue vides ne sont pas de la musique, seulement le sillage d'une
+        # note tenue, et leur nouveauté maximale fausserait le seuil.
+        last_sounding = max((b for b in range(n_bars) if density[b] > 0), default=0)
+        boundaries = _detect_boundaries(features[:last_sounding + 1])
         raw_labels = None
 
     boundaries = sorted(set(boundaries))
@@ -271,6 +339,20 @@ def build_score(md: MidiData) -> Score:
             else:
                 break
         return current
+
+    # Contexte métrique : nécessaire dès la construction des sections pour
+    # exprimer les attaques en phase de pulsation (voir Score.pulse_beats).
+    first_sig = (sorted(md.time_sigs) or [(0, 4, 4)])[0]
+    pulse_beats, subdivision = meter_context(first_sig[1], first_sig[2])
+
+    # Polyphonie par mesure : moyenne des temps couverts par la mesure.
+    poly_by_bar: list[float] = []
+    for b in range(n_bars):
+        beat_a = math.floor(bar_starts[b] / ppq)
+        beat_b = (math.floor(bar_starts[b + 1] / ppq) if b + 1 < n_bars
+                  else len(poly_by_beat))
+        window = [p for p in poly_by_beat[beat_a:max(beat_b, beat_a + 1)] if p > 0]
+        poly_by_bar.append(sum(window) / len(window) if window else 0.0)
 
     sections: list[Section] = []
     section_feats: list[list[float]] = []
@@ -291,6 +373,8 @@ def build_score(md: MidiData) -> Score:
         polys = [p for p in poly_by_beat[beat0:min(beat1, len(poly_by_beat))] if p > 0]
         mean_vel = (sum(n.velocity for n in sec_notes) / len(sec_notes)) if sec_notes else 0.0
         n_sec_bars = b1 - b0
+        onset_beats = ([round(n.start / ppq, 4) for n in sec_notes if n.channel != DRUM_CHANNEL]
+                       or [round(n.start / ppq, 4) for n in sec_notes])
         section = Section(
             id=f"s{idx:02d}",
             start_bar=b0 + 1,
@@ -302,8 +386,9 @@ def build_score(md: MidiData) -> Score:
             mean_velocity=round(mean_vel, 2),
             avg_polyphony=round(sum(polys) / len(polys), 2) if polys else 0.0,
             note_density=round(len(sec_notes) / n_sec_bars, 2) if n_sec_bars else 0.0,
-            onset_beats=[round(n.start / ppq, 4) for n in sec_notes if n.channel != DRUM_CHANNEL]
-                        or [round(n.start / ppq, 4) for n in sec_notes],
+            onset_beats=onset_beats,
+            onset_phases=[round((b / pulse_beats) % 1.0, 4) for b in onset_beats],
+            poly_by_bar=poly_by_bar[b0:b1],
         )
         sections.append(section)
         feats = [features[b] for b in range(b0, b1)]
@@ -337,8 +422,6 @@ def build_score(md: MidiData) -> Score:
             tempo_map.append((b, round(bpm)))
             seen_bars.add(b)
 
-    first_sig = (sorted(md.time_sigs) or [(0, 4, 4)])[0]
-
     # tonalité globale estimée (informatif)
     from .axes import estimate_key  # import tardif : évite un cycle
     global_hist = [0.0] * 12
@@ -355,4 +438,6 @@ def build_score(md: MidiData) -> Score:
         tempo_map=tempo_map,
         dynamics=dynamics,
         texture_map=texture_map,
+        pulse_beats=pulse_beats,
+        subdivision=subdivision,
     )

@@ -129,6 +129,14 @@ class Section:
     avg_polyphony: float = 0.0     # voix simultanées moyennes, 0 = inconnu
     note_density: float = 0.0      # notes déclenchées / mesure, 0 = inconnu
     onset_beats: list[float] = field(default_factory=list)  # positions d'attaque en temps (float)
+    # Position de chaque attaque DANS sa pulsation, dans [0, 1). 0 = sur la
+    # pulsation. Calculé par le builder d'après le chiffrage réel : en 6/8 la
+    # pulsation vaut une noire pointée, pas une noire (voir Score.pulse_beats).
+    onset_phases: list[float] = field(default_factory=list)
+    # Polyphonie mesure par mesure : permet de distinguer une texture qui
+    # change AUX frontières de sections (variété voulue) d'une qui fluctue
+    # au hasard à l'intérieur (bruit). Voir l'axe 25.
+    poly_by_bar: list[float] = field(default_factory=list)
 
     @property
     def n_bars(self) -> int:
@@ -145,6 +153,18 @@ class Score:
     tempo_map: list[tuple[int, int]] = field(default_factory=list)   # (mesure, tempo)
     dynamics: list[tuple[int, str]] = field(default_factory=list)    # (mesure, "p"|"mf"|...)
     texture_map: list[tuple[int, str]] = field(default_factory=list)  # (mesure, "monophonic"|...)
+    # Contexte métrique. La v0.1 supposait « une pulsation = une noire »
+    # partout, ce qui fausse syncopes (axe 20) et complexité rythmique
+    # (axe 23) dès qu'on quitte le 4/4 : en 6/8 la pulsation est la noire
+    # pointée et la subdivision est ternaire, donc une croche à 1/3 de
+    # pulsation est SUR la grille, pas à contretemps.
+    pulse_beats: float = 1.0    # durée d'une pulsation, en noires
+    subdivision: int = 2        # 2 = binaire, 3 = ternaire (6/8, 9/8, 12/8)
+
+    @property
+    def pulses_per_bar(self) -> float:
+        beats = self.time_signature_num * 4.0 / self.time_signature_den
+        return beats / self.pulse_beats if self.pulse_beats > 0 else beats
 
     @property
     def all_chords(self) -> list[Chord]:
