@@ -33,6 +33,8 @@ class MidiData:
 
 
 def _read_varlen(data: bytes, i: int) -> tuple[int, int]:
+    # Sur une entrée tronquée, data[i] lève IndexError : c'est parse_midi_bytes
+    # qui le convertit en ValueError (voir le contrat public plus bas).
     value = 0
     while True:
         byte = data[i]
@@ -47,6 +49,31 @@ def parse_midi(path: str | Path) -> MidiData:
 
 
 def parse_midi_bytes(data: bytes, origin: str = "<bytes>") -> MidiData:
+    """Analyse un SMF en mémoire.
+
+    Contrat public : renvoie un MidiData, ou lève ValueError si l'entrée n'est
+    pas exploitable — jamais IndexError ni aucune autre exception brute. Des
+    octets tronqués ou corrompus provoquent des accès hors bornes un peu
+    partout dans le parseur ; plutôt que de contrôler chaque lecture (coûteux
+    sur le chemin nominal), on englobe le parsing d'un unique try/except.
+    """
+    try:
+        return _parse_midi_bytes(data, origin)
+    except ValueError:
+        raise  # erreurs de format déjà formulées, on les laisse intactes
+    except IndexError as exc:
+        # Seul IndexError est reconverti : c'est l'unique famille que produit
+        # une entrée tronquée (confirmé par le fuzz — 209 cas sur 800, tous
+        # des accès hors bornes). Attraper `Exception` masquerait un bug de
+        # programmation du parseur en « fichier corrompu », et ferait passer
+        # une régression pour une donnée invalide.
+        raise ValueError(
+            f"{origin}: fichier MIDI corrompu ou tronqué "
+            f"(accès hors bornes : {exc})"
+        ) from exc
+
+
+def _parse_midi_bytes(data: bytes, origin: str) -> MidiData:
     path = origin
     if data[:4] != b"MThd":
         raise ValueError(f"{path}: pas un fichier MIDI (en-tête MThd absent)")
@@ -91,7 +118,14 @@ def parse_midi_bytes(data: bytes, origin: str = "<bytes>") -> MidiData:
                     if us_per_qn > 0:
                         md.tempos.append((tick, 60_000_000 / us_per_qn))
                 elif meta_type == 0x58 and length >= 2:
-                    md.time_sigs.append((tick, payload[0], 2 ** payload[1]))
+                    # L'exposant du dénominateur est borné : un octet corrompu
+                    # donnerait 2**255, d'où une mesure de durée nulle, donc
+                    # une grille de millions de mesures vides en aval (le
+                    # builder divise la pièce par la durée de mesure). On
+                    # ignore la signature aberrante plutôt que de propager
+                    # une bombe de calcul. 2**10 = 1024 couvre tout SMF réel.
+                    if payload[0] > 0 and payload[1] <= 10:
+                        md.time_sigs.append((tick, payload[0], 2 ** payload[1]))
                 elif meta_type == 0x06:
                     md.markers.append((tick, payload.decode("latin-1", errors="replace")))
                 elif meta_type == 0x2F:
