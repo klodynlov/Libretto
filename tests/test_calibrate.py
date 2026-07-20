@@ -65,7 +65,7 @@ class TestCalibrate(unittest.TestCase):
 
     def test_degraded_scores_lower_on_average(self):
         pos, negs, _skipped = file_vectors(self.mid_path, seed=42, variants=2)
-        _acc, margin = evaluate(EXPERT_WEIGHTS, [(pos, n) for n in negs])
+        _acc, margin = evaluate(EXPERT_WEIGHTS, [(pos, n) for _name, n in negs])
         self.assertGreater(margin, 0.0,
                            "les dégradations doivent baisser le score moyen")
 
@@ -85,13 +85,13 @@ class TestCalibrate(unittest.TestCase):
         self.assertGreaterEqual(skipped, 4)
         self.assertGreater(len(negs), 0)
         # aucun négatif conservé n'est un quasi no-op
-        for neg in negs:
+        for _name, neg in negs:
             self.assertGreaterEqual(
                 max(abs(p - n) for p, n in zip(pos, neg)), NOOP_EPS)
 
     def test_optimize_respects_simplex(self):
         pos, negs, _skipped = file_vectors(self.mid_path, seed=42, variants=2)
-        pairs = [(pos, n) for n in negs]
+        pairs = [(pos, n) for _name, n in negs]
         w = optimize_weights(pairs, seed=42, iters=500)
         self.assertAlmostEqual(sum(w), 1.0, places=9)
         self.assertGreaterEqual(min(w), 0.005)

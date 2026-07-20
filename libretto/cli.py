@@ -7,6 +7,7 @@ Libretto — CLI.
   libretto analyze chanson.mid --weights w.json  poids calibrés
   libretto demo                                  analyse de la partition de démo
   libretto calibrate corpus/ --out w.json        calibration contrastive des poids
+  libretto calibrate corpus/ --min-auc 0.45      gate : échoue si un axe s'inverse
 """
 
 from __future__ import annotations
@@ -88,6 +89,14 @@ def main(argv: list[str] | None = None) -> int:
                        help="processus parallèles pour le précalcul du corpus")
     p_cal.add_argument("--lam", type=float, default=0.3,
                        help="régularisation vers les poids experts (défaut 0.3)")
+    p_cal.add_argument("--folds", type=int, default=5,
+                       help="plis de validation croisée par fichier (défaut 5)")
+    p_cal.add_argument("--min-auc", type=float, default=None,
+                       help="gate : exit 2 si un axe passe sous cette AUC "
+                            "(0.5 = l'axe récompense la dégradation)")
+    p_cal.add_argument("--min-test-accuracy", type=float, default=None,
+                       help="gate : exit 2 si l'accuracy de validation croisée "
+                            "est inférieure")
 
     args = parser.parse_args(argv)
 
@@ -116,7 +125,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             report = run_calibration(args.corpus, seed=args.seed,
                                      variants=args.variants, iters=args.iters,
-                                     jobs=args.jobs, lam=args.lam)
+                                     jobs=args.jobs, lam=args.lam,
+                                     folds=args.folds)
         except ValueError as exc:
             print(f"libretto: {exc}", file=sys.stderr)
             return 1
@@ -125,13 +135,44 @@ def main(argv: list[str] | None = None) -> int:
         b, a = report["before"], report["after"]
         print(f"corpus : {report['n_files']} fichiers, {report['n_pairs']} paires "
               f"original/dégradé ({report['skipped_noop']} négatifs no-op exclus)")
-        print(f"accuracy {b['accuracy']:.3f} → {a['accuracy']:.3f}   "
+        print(f"entraînement : accuracy {b['accuracy']:.3f} → {a['accuracy']:.3f}   "
               f"marge {b['margin']:.3f} → {a['margin']:.3f}")
-        disc = sorted(report["discrimination"].items(), key=lambda kv: -kv[1])
+        val = report["validation"]
+        if val.get("n_folds"):
+            print(f"validation {val['n_folds']}-fold (par fichier) : accuracy test "
+                  f"{val['test_accuracy_mean']:.3f} ± {val['test_accuracy_std']:.3f}   "
+                  f"experts {val['expert_test_accuracy_mean']:.3f}   "
+                  f"gain {val['gain_vs_expert']:+.3f}   "
+                  f"surapprentissage {val['overfit_gap']:+.3f}")
+        auc = sorted(report["axis_auc"].items(), key=lambda kv: kv[1])
+        worst = [f"{aid} ({v:.2f})" for aid, v in auc if v < 0.5]
+        if worst:
+            print("axes sous AUC 0.5 (récompensent la dégradation) : " + ", ".join(worst))
         print("axes les plus discriminants : "
-              + ", ".join(f"{aid} ({d:+.2f})" for aid, d in disc[:5]))
+              + ", ".join(f"{aid} ({v:.2f})" for aid, v in auc[::-1][:5]))
+        for w in report["warnings"]:
+            print(f"⚠ {w}", file=sys.stderr)
         print(f"poids  → {args.out}", file=sys.stderr)
-        return 0
+        rc = 0
+        if args.min_auc is not None:
+            below = [(aid, v) for aid, v in auc if v < args.min_auc]
+            if below:
+                print("GATE: axes sous AUC "
+                      f"{args.min_auc} : "
+                      + ", ".join(f"{aid} ({v:.3f})" for aid, v in below),
+                      file=sys.stderr)
+                rc = 2
+        if args.min_test_accuracy is not None:
+            got = val.get("test_accuracy_mean")
+            if got is None:
+                print("GATE: pas de validation croisée disponible (corpus trop petit)",
+                      file=sys.stderr)
+                rc = 2
+            elif got < args.min_test_accuracy:
+                print(f"GATE: accuracy de validation {got:.3f} < "
+                      f"seuil {args.min_test_accuracy}", file=sys.stderr)
+                rc = 2
+        return rc
 
     if args.command == "demo":
         return _run(SenseOfMusicalStructure(demo_score()), args, "partition de démonstration")
