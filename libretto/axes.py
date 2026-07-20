@@ -229,6 +229,54 @@ class SenseOfMusicalStructure:
                 h[p.pc] += 1.0
         return h
 
+    def _grid_alignment(self) -> float:
+        """Fraction d'attaques tombant sur la grille de subdivision. Mesure
+        la lisibilité métrique : un rythme complexe reste sur la grille,
+        c'est ce qui le rend jouable ; du bruit n'y est jamais."""
+        sub = max(2, self.score.subdivision)
+        phases = [p for s in self.score.sections for p in s.onset_phases]
+        if not phases:
+            return 1.0
+        tol = 0.5 / sub * 0.35
+        hits = sum(1 for p in phases
+                   if min(abs(p - k / sub) for k in range(sub + 1)) <= tol)
+        return band(hits / len(phases), 0.2, 0.7, 1.01, 1.01)
+
+    def _syncopation(self) -> tuple[float, int]:
+        """(ratio de syncopes, nb d'attaques). Une attaque est syncopée quand
+        elle tombe hors de la pulsation **et** que la pulsation qu'elle occupe
+        n'a reçu aucune attaque sur son temps fort — c'est-à-dire quand elle
+        remplace le temps au lieu de le compléter.
+
+        Compter simplement les attaques « hors pulsation » ne mesure pas la
+        syncope mais la subdivision : une mélodie en croches régulières a
+        mécaniquement la moitié (binaire) ou les deux tiers (ternaire) de ses
+        attaques hors pulsation sans rien avoir de syncopé.
+
+        Une attaque ne compte que si elle tombe **sur la grille** de
+        subdivision. Sans cette condition, décaler les attaques au hasard
+        fabriquerait des syncopes à volonté — c'est ce qui arrive quand on
+        joue faux, pas quand on syncope."""
+        pulse = self.score.pulse_beats if self.score.pulse_beats > 0 else 1.0
+        sub = max(2, self.score.subdivision)
+        beats = [b for s in self.score.sections for b in s.onset_beats]
+        if not beats:
+            return 0.0, 0
+        tol = 0.5 / sub * 0.25        # quart d'un intervalle de subdivision
+        on_pulse: set[int] = set()
+        weak: list[int] = []
+        for b in beats:
+            pos = b / pulse
+            phase = pos % 1.0
+            if min(abs(phase - k / sub) for k in range(sub + 1)) > tol:
+                continue              # hors grille : jeu imprécis, pas syncope
+            if min(phase, 1.0 - phase) <= tol:
+                on_pulse.add(int(round(pos)))
+            else:
+                weak.append(math.floor(pos))
+        syncopated = sum(1 for idx in weak if idx not in on_pulse)
+        return syncopated / len(beats), len(beats)
+
     def _section_dyn_levels(self) -> list[float | None]:
         """Niveau dynamique par section, avec report de la dernière nuance
         (la v1 retombait sur mf par défaut entre deux indications)."""
@@ -338,6 +386,16 @@ class SenseOfMusicalStructure:
                           {"ratio": round(ratio, 3), "comptes": dict(counts)})
 
     def _axe_07_section_transition_quality(self) -> StructuralAxis:
+        """Qualité des enchaînements : continuité harmonique et de tempo,
+        avec un **relief** énergétique entre sections.
+
+        v2 notait le pas d'énergie `1 − |Δ|`, donc récompensait l'absence de
+        contraste : aplatir toutes les vélocités d'un morceau lui faisait
+        gagner des points (AUC 0.23 face à flatten_dynamics — l'axe le plus
+        inversé de la matrice). Or une transition réussie n'est pas une
+        transition qu'on n'entend pas : un refrain doit se lever après un
+        couplet. Ce qu'il faut écarter, c'est le saut *brutal* — d'où une
+        bande, avec un optimum sur un écart franc mais tenu."""
         secs = self.score.sections
         if len(secs) < 2:
             return self._make(7, 0.0)
@@ -352,7 +410,7 @@ class SenseOfMusicalStructure:
                 jaccard = len(pcs1 & pcs2) / len(pcs1 | pcs2)
             else:
                 jaccard = 0.5
-            energy_step = 1.0 - abs(energies[i + 1] - energies[i])
+            energy_step = band(abs(energies[i + 1] - energies[i]), -0.02, 0.08, 0.45, 0.9)
             scores.append(0.35 * tempo_cont + 0.40 * jaccard + 0.25 * energy_step)
         avg = sum(scores) / len(scores)
         return self._make(7, avg, {"nb_transitions": len(scores), "moyenne": round(avg, 3)})
@@ -381,20 +439,40 @@ class SenseOfMusicalStructure:
                                      "accord_sections": round(agreement, 3)})
 
     def _axe_09_chord_progression_complexity(self) -> StructuralAxis:
+        """Complexité **fonctionnelle** : richesse des degrés employés à
+        l'intérieur d'une tonalité tenue.
+
+        v2 : « variété des qualités + chromatisme », deux quantités que
+        n'importe quel brouillage maximise. Une suite d'accords tirés au sort
+        présente toutes les qualités et un chromatisme saturé — elle scorait
+        donc au-dessus d'un vrai I-vi-ii-V (AUC 0.42, l'axe votait pour le
+        chaos). v3 : la complexité se mesure en **degrés distincts de la
+        tonalité**, et le chromatisme n'est un enrichissement que tant que la
+        pièce reste diatonique dans l'ensemble — sinon c'est du bruit."""
         chords = self._chord_chain()
         if not chords:
             return self._make(9, 0.0)
-        qualities = Counter(c.quality for c in chords)
-        variety = band(len(qualities), 1, 2.5, 6, 9)
         hist = self._pc_hist(self.score.sections)
         root, mode, _corr, _m = estimate_key(hist)
         scale = MAJOR_SCALE if mode == "maj" else MINOR_SCALE
         scale_pcs = {(root + d) % 12 for d in scale}
-        total = sum(hist)
-        chrom_ratio = sum(w for pc, w in enumerate(hist) if pc not in scale_pcs) / total if total else 0.0
-        chromatic = band(chrom_ratio, -0.05, 0.02, 0.18, 0.5)
-        return self._make(9, 0.6 * variety + 0.4 * chromatic,
-                          {"types": dict(qualities), "chromatisme": round(chrom_ratio, 3)})
+
+        degrees = Counter((c.root_pc - root) % 12 for c in chords
+                          if c.root_pc in scale_pcs)
+        # 3 à 7 degrés distincts : la zone de toutes les musiques tonales,
+        # du blues à trois accords au standard de jazz.
+        degree_variety = band(len(degrees), 0, 3, 7, 9)
+        diatonic_ratio = sum(degrees.values()) / len(chords)
+        # Ancrage : au-dessous de ~60 % d'accords dans la tonalité, il n'y a
+        # plus de tonalité à enrichir.
+        anchor = band(diatonic_ratio, 0.25, 0.65, 1.01, 1.01)
+        qualities = Counter(c.quality for c in chords)
+        quality_variety = band(len(qualities), 1, 2, 5, 9)
+        score = 0.40 * degree_variety + 0.40 * anchor + 0.20 * quality_variety
+        return self._make(9, score,
+                          {"degres_distincts": len(degrees),
+                           "ratio_diatonique": round(diatonic_ratio, 3),
+                           "types": dict(qualities)})
 
     def _axe_10_cadence_presence(self) -> StructuralAxis:
         """Cadences par mouvement de fondamentales en classes de hauteur.
@@ -431,41 +509,121 @@ class SenseOfMusicalStructure:
 
     def _axe_11_modulation_count(self) -> StructuralAxis:
         """v1 : score linéaire croissant jusqu'à 6 modulations (plus = mieux).
-        v2 : 1-3 modulations = optimal, 0 = correct, > 6 = instable."""
+        v2 : 1-3 modulations = optimal, 0 = correct, > 6 = instable.
+
+        v3 : compter ne suffit pas — transposer des segments au hasard
+        fabrique exactement le nombre de « modulations » que l'axe
+        récompensait (AUC 0.41). Une modulation est un geste de forme : elle
+        va vers une tonalité **voisine** sur le cycle des quintes, et la
+        pièce **revient** chez elle. Un errement qui ne revient jamais et
+        saute à un triton n'est pas une modulation, c'est une rupture."""
         keys = []
         for s in self.score.sections:
             if s.harmony or s.melody_pitches:
                 root, mode, _c, _m = estimate_key(self._pc_hist([s]))
                 keys.append((root, mode))
-        modulations = sum(1 for i in range(len(keys) - 1) if keys[i][0] != keys[i + 1][0])
-        return self._make(11, band(modulations, -1, 0.5, 3, 7),
+        if len(keys) < 2:
+            return self._make(11, 0.0, {"nb_modulations": 0})
+        steps = [(keys[i][0], keys[i + 1][0]) for i in range(len(keys) - 1)
+                 if keys[i][0] != keys[i + 1][0]]
+        modulations = len(steps)
+        count_score = band(modulations, -1, 0.5, 3, 7)
+        if steps:
+            # 1 pour une tonalité voisine (±1 quinte), 0 pour le triton.
+            closeness = sum(1.0 - fifths_distance(a, b) / 6.0 for a, b in steps) / len(steps)
+        else:
+            closeness = 1.0
+        home = estimate_key(self._pc_hist(self.score.sections))[0]
+        returns_home = 1.0 if keys[-1][0] == home else 0.0
+        anchor = sum(1 for r, _m in keys if r == home) / len(keys)
+        quality = 0.45 * closeness + 0.35 * anchor + 0.20 * returns_home
+        return self._make(11, 0.45 * count_score + 0.55 * quality,
                           {"nb_modulations": modulations,
+                           "proximite_quintes": round(closeness, 3),
+                           "ancrage_tonique": round(anchor, 3),
+                           "retour_tonique": bool(returns_home),
                            "centres": [f"{PC_NAMES[r]}{'' if m == 'maj' else 'm'}" for r, m in keys]})
 
     def _axe_12_harmonic_rhythm(self) -> StructuralAxis:
+        """Rythme harmonique = **régularité** de la pulsation des accords,
+        pas taux de changement.
+
+        v2 mesurait le seul ratio de changements, avec une bande qui retombait
+        à 0 au-delà de 95 %. Or « un accord par mesure, différent à chaque
+        mesure » — la grille la plus banale de la pop — donne un ratio de 1.0
+        et se voyait donc noter 0, tandis qu'un brouillage laissant par hasard
+        deux accords consécutifs identiques retombait dans la bande et scorait
+        1.0. D'où l'inversion complète (AUC 0.25, le pire des 29 axes).
+
+        v3 : ce qui distingue un vrai rythme harmonique, c'est que les
+        changements tombent à intervalles **réguliers** (toutes les mesures,
+        toutes les 2, toutes les 4). Le hasard, lui, produit des intervalles
+        dispersés. On mesure donc la concentration de la distribution des
+        écarts entre changements, et le taux ne sert plus qu'à écarter les
+        deux extrêmes (accord unique tenu, ou changement permanent)."""
         chords = self._chord_chain()
-        if len(chords) < 2:
-            return self._make(12, 0.0)
-        changes = sum(1 for i in range(len(chords) - 1)
-                      if chords[i].root_pc != chords[i + 1].root_pc)
-        ratio = changes / (len(chords) - 1)
-        return self._make(12, band(ratio, 0.05, 0.25, 0.6, 0.95),
-                          {"ratio_changement": round(ratio, 3)})
+        if len(chords) < 4:
+            return self._make(12, 0.0, {"nb_accords": len(chords)})
+        changes = [i for i in range(1, len(chords))
+                   if chords[i].root_pc != chords[i - 1].root_pc]
+        ratio = len(changes) / (len(chords) - 1)
+        if not changes:
+            return self._make(12, 0.0, {"ratio_changement": 0.0,
+                                        "note": "accord unique tenu"})
+        gaps = [changes[0]] + [changes[i] - changes[i - 1] for i in range(1, len(changes))]
+        # Concentration = 1 − entropie normalisée : 1.0 si tous les écarts
+        # sont identiques (parfaitement périodique), 0 s'ils sont uniformes.
+        regularity = 1.0 - _entropy_norm(Counter(gaps), 8)
+        rate = band(ratio, 0.02, 0.12, 1.0, 1.01)
+        return self._make(12, 0.45 * rate + 0.55 * regularity,
+                          {"ratio_changement": round(ratio, 3),
+                           "regularite": round(regularity, 3),
+                           "ecart_dominant": Counter(gaps).most_common(1)[0][0]})
 
     def _axe_13_tonal_contrast(self) -> StructuralAxis:
-        """Contraste tonal mesuré sur le cycle des quintes (v1 : distance MIDI
-        brute entre fondamentales, dépendante de l'octave)."""
+        """Contraste tonal = **excursion depuis un centre**, pas errance.
+
+        v2 prenait la distance moyenne entre sections consécutives sur le
+        cycle des quintes, avec un optimum autour de 0.45. Des sections
+        transposées au hasard ont une distance moyenne d'environ 0.5 : le
+        brouillage tombait en plein dans la zone idéale et scorait 1.0, quand
+        une pièce cohérente restée dans sa tonalité scorait 0 (AUC 0.36).
+
+        v3 sépare les deux choses qu'il faut pour parler de contraste : un
+        **ancrage** (la majorité des sections partagent la tonalité de la
+        pièce) et une **excursion** (au moins une section s'en écarte
+        franchement). Une pièce dont chaque section est ailleurs n'a pas du
+        contraste : elle n'a plus de centre par rapport auquel contraster."""
         secs = [s for s in self.score.sections if s.harmony or s.melody_pitches]
         if len(secs) < 2:
             return self._make(13, 0.0)
         roots = [estimate_key(self._pc_hist([s]))[0] for s in secs]
-        dists = [fifths_distance(roots[i], roots[i + 1]) / 6.0 for i in range(len(roots) - 1)]
-        avg = sum(dists) / len(dists)
-        return self._make(13, band(avg, -0.05, 0.1, 0.45, 0.85),
-                          {"moyenne_contraste": round(avg, 3)})
+        home = estimate_key(self._pc_hist(self.score.sections))[0]
+        dists = [fifths_distance(r, home) / 6.0 for r in roots]
+        anchor_ratio = sum(1 for d in dists if d <= 1e-9) / len(dists)
+        excursion = max(dists)
+        anchor = band(anchor_ratio, 0.15, 0.5, 1.01, 1.01)
+        reach = band(excursion, -0.05, 0.15, 0.55, 0.9)
+        # Multiplicatif, pas additif : une somme laissait une pièce sans
+        # centre tonal encaisser tout le terme d'excursion, si bien que des
+        # sections transposées au hasard — qui s'éloignent beaucoup, faute de
+        # tonalité — battaient une pièce cohérente. Sans ancrage, il n'y a
+        # rien par rapport à quoi contraster : le produit doit s'effondrer.
+        return self._make(13, anchor * (0.55 + 0.45 * reach),
+                          {"ancrage": round(anchor_ratio, 3),
+                           "excursion_max": round(excursion, 3),
+                           "tonique_globale": PC_NAMES[home]})
 
     def _axe_14_bass_line_melodic(self) -> StructuralAxis:
-        roots = [c.root_pc for c in self._chord_chain()]
+        """v3 : le mouvement seul ne suffisait pas. Des fondamentales tirées
+        au sort bougent tout le temps (ratio de mouvement = 1.0) et tombent
+        par chance sur une seconde ou une quarte dans ~27 % des cas — assez
+        pour battre une vraie basse qui répète parfois sa fondamentale
+        (AUC 0.35). On exige en plus que les fondamentales **appartiennent à
+        la tonalité** : c'est ce qui sépare une ligne de basse d'une suite de
+        notes."""
+        chords = self._chord_chain()
+        roots = [c.root_pc for c in chords]
         if len(roots) < 3:
             return self._make(14, 0.0)
         moves = [min((roots[i + 1] - roots[i]) % 12, (roots[i] - roots[i + 1]) % 12)
@@ -473,9 +631,22 @@ class SenseOfMusicalStructure:
         nonzero = [m for m in moves if m > 0]
         move_ratio = len(nonzero) / len(moves)
         good = sum(1 for m in nonzero if m in (1, 2, 5)) / len(nonzero) if nonzero else 0.0
-        score = 0.5 * band(move_ratio, 0.2, 0.5, 0.85, 1.01) + 0.5 * good
+        key_root, mode, _c, _m = estimate_key(self._pc_hist(self.score.sections))
+        scale = MAJOR_SCALE if mode == "maj" else MINOR_SCALE
+        scale_pcs = {(key_root + d) % 12 for d in scale}
+        in_key = sum(1 for r in roots if r in scale_pcs) / len(roots)
+        # Le plateau monte jusqu'à 1.01 : une basse qui change de note à
+        # chaque accord est la norme, pas un excès. La bande v2 s'arrêtait à
+        # 0.9, si bien qu'un mouvement constant (ratio 1.0) tombait dans la
+        # pente descendante et scorait 0.09 — un brouillage qui laissait par
+        # hasard deux fondamentales consécutives égales repassait, lui, sur
+        # le plateau. D'où l'inversion (AUC 0.23 face à shuffle_bars).
+        score = (0.35 * band(move_ratio, 0.15, 0.45, 1.01, 1.01)
+                 + 0.30 * good
+                 + 0.35 * band(in_key, 0.3, 0.75, 1.01, 1.01))
         return self._make(14, score, {"ratio_mouvement": round(move_ratio, 3),
-                                      "ratio_degres_quintes": round(good, 3)})
+                                      "ratio_degres_quintes": round(good, 3),
+                                      "ratio_dans_tonalite": round(in_key, 3)})
 
     # ── GROUPE C : MÉLODIE & THÈME (axes 15-20) ──
 
@@ -540,7 +711,30 @@ class SenseOfMusicalStructure:
 
     def _axe_20_melodic_rhythm_syncopation(self) -> StructuralAxis:
         """v2 : vraies syncopes depuis les positions d'attaque (fraction de
-        temps). v1 : proxy sur les changements de nuances, sans rapport."""
+        temps). v1 : proxy sur les changements de nuances, sans rapport.
+
+        v3 : deux corrections. La position est prise **dans la pulsation
+        réelle** — en 6/8 la pulsation vaut une noire pointée, alors que la
+        v2 découpait en noires partout. Et surtout la syncope est enfin
+        définie comme telle (voir `_syncopation`) : la v2 comptait toute
+        attaque hors du temps, donc classait « syncopée » une mélodie en
+        croches parfaitement carrée."""
+        ratio, n_onsets = self._syncopation()
+        if n_onsets:
+            # La syncope est un BONUS, jamais un prérequis. La v2 la notait
+            # par une bande partant de 0.01, si bien qu'un morceau sans
+            # syncope — un choral, une valse, une ballade — scorait 0 et se
+            # faisait battre par n'importe quel décalage aléatoire. Ce que
+            # l'axe doit d'abord constater, c'est que le rythme mélodique est
+            # **lisible** : articulé sur la grille métrique. La syncope
+            # s'ajoute par-dessus.
+            grid = self._grid_alignment()
+            bonus = band(ratio, -0.02, 0.06, 0.35, 0.7)
+            return self._make(20, 0.65 * grid + 0.35 * bonus,
+                              {"ratio_syncopes": round(ratio, 3),
+                               "alignement_grille": round(grid, 3),
+                               "nb_onsets": n_onsets,
+                               "subdivision": self.score.subdivision})
         onsets = [b for s in self.score.sections for b in s.onset_beats]
         if onsets:
             off = sum(1 for b in onsets if 0.2 < (b % 1.0) < 0.8)
@@ -579,15 +773,47 @@ class SenseOfMusicalStructure:
         return self._make(22, 1.0 - 2.0 * cv, {"cv_tempo": round(cv, 3)})
 
     def _axe_23_rhythmic_complexity(self) -> StructuralAxis:
-        onsets = sorted(b for s in self.score.sections for b in s.onset_beats)
+        """Complexité rythmique = richesse des durées **sur une grille tenue**.
+
+        v2 additionnait entropie des IOI et taux de contretemps. Décaler
+        chaque attaque au hasard augmente les deux : le brouillage rythmique
+        scorait au-dessus de l'original (AUC 0.39). Or décaler n'est pas
+        complexifier — un rythme complexe reste mesurable, c'est même ce qui
+        le rend jouable. On multiplie donc la richesse par l'**alignement
+        métrique** : la fraction d'attaques qui tombent sur une subdivision
+        de la pulsation. Le jitter fait s'effondrer ce facteur.
+
+        Les IOI sont comptés en **pulsations**, pas en noires, et la grille
+        suit la subdivision réelle du chiffrage : en 6/8 la pulsation est la
+        noire pointée et la grille est ternaire, donc une croche au tiers de
+        pulsation est sur la grille — la v2, qui raisonnait en noires
+        partout, la comptait comme une syncope."""
+        sc = self.score
+        onsets = sorted(b for s in sc.sections for b in s.onset_beats)
+        phases = [p for s in sc.sections for p in s.onset_phases]
         if len(onsets) >= 8:
-            iois = [round((b2 - b1) * 4) / 4 for b1, b2 in zip(onsets, onsets[1:]) if b2 - b1 > 1e-6]
+            pulse = sc.pulse_beats if sc.pulse_beats > 0 else 1.0
+            sub = max(2, sc.subdivision)
+            # IOI en pulsations, quantifiés à la double-subdivision.
+            step = 1.0 / (2 * sub)
+            iois = [round(((b2 - b1) / pulse) / step) * step
+                    for b1, b2 in zip(onsets, onsets[1:]) if b2 - b1 > 1e-6]
             classes = Counter(min(i, 4.0) for i in iois)
-            ent = _entropy_norm(classes, 8)
-            off = sum(1 for b in onsets if 0.2 < (b % 1.0) < 0.8) / len(onsets)
-            return self._make(23, 0.6 * ent + 0.4 * clamp01(off * 2),
-                              {"classes_ioi": len(classes), "ratio_contretemps": round(off, 3)})
-        textures = [t for _, t in self.score.texture_map]
+            # Bande et non croissance monotone : une entropie de durées
+            # maximale n'est pas le comble de la complexité rythmique, c'est
+            # l'absence de rythme. Permuter les mesures d'un morceau élève
+            # cette entropie sans rien complexifier — la v2 y voyait un
+            # progrès (AUC 0.33 face à shuffle_bars).
+            ent = band(_entropy_norm(classes, 8), 0.02, 0.2, 0.72, 0.96)
+            grid = self._grid_alignment()
+            off, _n = self._syncopation()
+            richness = 0.6 * ent + 0.4 * clamp01(off * 3)
+            return self._make(23, richness * grid,
+                              {"classes_ioi": len(classes),
+                               "alignement_grille": round(grid, 3),
+                               "ratio_syncopes": round(off, 3),
+                               "subdivision": sub})
+        textures = [t for _, t in sc.texture_map]
         if not textures:
             return self._make(23, 0.5, {"note": "aucune donnée rythmique"})
         poly = sum(1 for t in textures if "poly" in t.lower() or "contrapunt" in t.lower())
@@ -609,7 +835,31 @@ class SenseOfMusicalStructure:
     # ── GROUPE E : TEXTURE & ORCHESTRATION (axes 25-27) ──
 
     def _axe_25_texture_variety(self) -> StructuralAxis:
+        """Variété texturale = la texture change **entre** les sections, pas
+        au hasard à l'intérieur.
+
+        v2 prenait l'écart max−min de polyphonie entre sections. C'est une
+        statistique globale, aveugle à l'organisation : brouiller les hauteurs
+        ou décaler les attaques fait fluctuer la polyphonie et élargit l'écart
+        sans rien orchestrer (AUC 0.41). v3 mesure un rapport de variances à
+        la Fisher sur la polyphonie mesure par mesure — quelle part de la
+        variation tombe aux frontières de sections plutôt qu'à l'intérieur.
+        Un arrangement voulu concentre ses changements aux frontières ; le
+        bruit les répand partout."""
+        per_bar = [[p for p in s.poly_by_bar if p > 0] for s in self.score.sections]
+        per_bar = [b for b in per_bar if b]
         polys = [s.avg_polyphony for s in self.score.sections if s.avg_polyphony > 0]
+        if len(per_bar) >= 2 and sum(len(b) for b in per_bar) >= 4:
+            flat = [x for b in per_bar for x in b]
+            grand = sum(flat) / len(flat)
+            between = sum(len(b) * (sum(b) / len(b) - grand) ** 2 for b in per_bar)
+            within = sum((x - sum(b) / len(b)) ** 2 for b in per_bar for x in b)
+            structured = between / (between + within) if (between + within) > 1e-9 else 0.0
+            spread = max(polys) - min(polys) if len(polys) >= 2 else 0.0
+            return self._make(25, 0.6 * structured + 0.4 * band(spread, 0.1, 0.8, 4.0, 8.0),
+                              {"part_structuree": round(structured, 3),
+                               "polyphonie_min": round(min(polys), 2) if polys else 0,
+                               "polyphonie_max": round(max(polys), 2) if polys else 0})
         if len(polys) >= 2:
             spread = max(polys) - min(polys)
             return self._make(25, band(spread, 0.1, 0.8, 3.0, 6.0),
@@ -634,11 +884,36 @@ class SenseOfMusicalStructure:
                           {"min": min(values), "max": max(values)})
 
     def _axe_27_voice_count(self) -> StructuralAxis:
+        """Polyphonie : densité de voix **tenue**.
+
+        v2 : band(0.8, 1.8, 4.0, 8.0) — au-delà de 4 voix le score
+        redescendait, ce qui punit toute orchestration nourrie sans raison
+        musicale (un quintette n'est pas moins bien écrit qu'un trio). Pire,
+        la décroissance rendait l'axe inversible : décaler les attaques
+        désynchronise les voix, fait chuter la polyphonie simultanée vers 4,
+        et le brouillage y gagnait le score maximal (AUC 0.29).
+
+        v3 : plateau large et sans pénalité haute, multiplié par la stabilité
+        de l'effectif à l'intérieur des sections — c'est la désynchronisation
+        que l'axe doit voir, pas le nombre de pupitres."""
         polys = [s.avg_polyphony for s in self.score.sections if s.avg_polyphony > 0]
         if polys:
             avg = sum(polys) / len(polys)
-            return self._make(27, band(avg, 0.8, 1.8, 4.0, 8.0),
-                              {"moyenne_voix": round(avg, 2)})
+            richness = band(avg, 0.7, 2.2, 12.0, 24.0)
+            per_bar = [[p for p in s.poly_by_bar if p > 0] for s in self.score.sections]
+            per_bar = [b for b in per_bar if len(b) >= 2]
+            if per_bar:
+                cvs = []
+                for b in per_bar:
+                    m = sum(b) / len(b)
+                    if m > 0:
+                        cvs.append(_std(b) / m)
+                stability = clamp01(1.0 - 1.5 * (sum(cvs) / len(cvs))) if cvs else 1.0
+            else:
+                stability = 1.0
+            return self._make(27, 0.6 * richness + 0.4 * stability,
+                              {"moyenne_voix": round(avg, 2),
+                               "stabilite_effectif": round(stability, 3)})
         textures = [t for _, t in self.score.texture_map]
         if not textures:
             return self._make(27, 0.5, {"note": "aucune donnée"})
