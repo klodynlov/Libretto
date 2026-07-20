@@ -108,7 +108,48 @@ def main(argv: list[str] | None = None) -> int:
                        help="gate : exit 2 si l'accuracy de validation croisée "
                             "est inférieure")
 
+    p_ann = sub.add_parser(
+        "annotate",
+        help="écoute comparée A/B en aveugle : recueille des jugements humains")
+    p_ann.add_argument("corpus", help="dossier de fichiers .mid")
+    p_ann.add_argument("--out", metavar="JSON", default="jugements.json",
+                       help="fichier de jugements (repris s'il existe)")
+    p_ann.add_argument("--host", default="127.0.0.1")
+    p_ann.add_argument("--port", type=int, default=None, help="défaut 8788")
+    p_ann.add_argument("--seed", type=int, default=1)
+    p_ann.add_argument("--per-file", type=int, default=2,
+                       help="dégradations comparées par fichier (défaut 2)")
+
+    p_agr = sub.add_parser(
+        "agreement",
+        help="dépouille les jugements : les dégradations s'entendent-elles, "
+             "et le moteur est-il d'accord ?")
+    p_agr.add_argument("judgements", help="fichier produit par `annotate`")
+    p_agr.add_argument("--corpus", help="dossier des .mid, pour comparer au moteur")
+    p_agr.add_argument("--seed", type=int, default=1,
+                       help="doit être celle utilisée pour l'annotation")
+    p_agr.add_argument("--json", metavar="OUT", help="écrire le rapport JSON")
+
     args = parser.parse_args(argv)
+
+    if args.command == "annotate":
+        from .annotate import main as annotate_main
+        return annotate_main(args.corpus, args.out, args.host, args.port,
+                             args.seed, args.per_file)
+
+    if args.command == "agreement":
+        from .agreement import analyse, format_report
+        try:
+            report = analyse(args.judgements, args.corpus, args.seed)
+        except (ValueError, OSError, json.JSONDecodeError) as exc:
+            print(f"libretto: {exc}", file=sys.stderr)
+            return 1
+        print(format_report(report))
+        if args.json:
+            Path(args.json).write_text(
+                json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"JSON  → {args.json}", file=sys.stderr)
+        return 0
 
     if args.command == "serve":
         from .server import main as serve_main

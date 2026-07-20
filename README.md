@@ -161,6 +161,51 @@ au lieu de 6 » désigne une segmentation ratée, que des marqueurs MIDI
 corrigent. Gate CI : `analyze --min-confidence 0.55` (sortie 3, distincte
 du 2 de `--min-score`, pour que la CI sache lequel a lâché).
 
+## Validation externe : l'oreille
+
+Tout ce qui précède — AUC, validation croisée, F-mesure — teste la
+**cohérence interne** du moteur avec ses propres hypothèses. Une hypothèse
+n'a jamais été vérifiée : qu'un morceau dégradé (mesures permutées, segments
+transposés, attaques décalées) soit *réellement* moins bien structuré à
+l'écoute. Si l'oreille ne perçoit pas ces dégradations, la calibration
+contrastive optimise contre un fantôme.
+
+```bash
+python3 -m libretto.cli annotate corpus/ --out jugements.json  # http://127.0.0.1:8788
+python3 -m libretto.cli agreement jugements.json --corpus corpus/
+```
+
+`annotate` présente deux versions du même morceau — l'une originale, l'autre
+dégradée — **dans un ordre tiré au sort et sans dire laquelle est laquelle**.
+Lecture par synthèse Web Audio dans le navigateur : rendu rudimentaire, ce
+qui convient puisqu'on juge la structure et non le timbre, et surtout aucune
+dépendance ajoutée.
+
+Ce qui rend les jugements exploitables :
+
+- **paires de contrôle** — une sur sept oppose un morceau à lui-même. Un
+  annotateur qui les tranche répond au hasard ou croit entendre ce qu'on lui
+  suggère ; sans ces paires, un taux de détection élevé peut n'être qu'un
+  biais de réponse ;
+- **« je n'entends pas de différence » est une réponse** — forcer un choix
+  binaire fabrique de l'accord artificiel ;
+- **position de l'original équilibrée**, sinon on finit par la repérer sans
+  rien entendre ;
+- le serveur n'envoie jamais au navigateur le nom de la dégradation ni la
+  position de l'original (vérifié par test).
+
+`agreement` répond dans l'ordre : les jugements sont-ils exploitables
+(contrôles) ? les dégradations s'entendent-elles, dégradation par dégradation
+et avec intervalle de confiance de Wilson ? le moteur choisit-il le même côté
+que l'oreille ?
+
+**Aucune annotation n'est fournie** — c'est un travail d'écoute, et il reste
+à faire. Tant qu'il n'est pas fait, la question « le score SMS correspond-il
+à un jugement musical ? » reste ouverte, et c'est la seule qui compte
+vraiment. Un accord fort ne prouverait d'ailleurs pas que le score capte la
+qualité musicale, seulement que moteur et oreille s'accordent sur *ces*
+dégradations-là. Un désaccord, lui, serait une réfutation nette.
+
 ## Corpus de validation
 
 Valider demande des morceaux, et les packs du commerce n'en contiennent pas.
@@ -271,4 +316,9 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
   pièce ambient scorent bas par construction. Les profils de poids
   (`weights_*.json`) atténuent, ils ne suppriment pas.
 - Corpus de validation synthétique : il valide la cohérence interne
-  (original > dégradé), pas l'accord avec un jugement humain.
+  (original > dégradé), pas l'accord avec un jugement humain. L'outil de
+  recueil existe (`annotate` / `agreement`), les annotations non — **le
+  moteur n'a jamais été confronté à une oreille**.
+- Synthèse d'écoute rudimentaire (ondes simples, bruit filtré pour les
+  percussions) : suffisante pour juger une structure, pas un arrangement.
+  Au-delà de 4000 notes le fichier est tronqué à la lecture.
