@@ -60,15 +60,29 @@ def analyze_bytes(data: bytes, filename: str) -> tuple[dict, "SenseOfMusicalStru
     sms = SenseOfMusicalStructure(score)
     sms.calculate()
     payload = sms.to_dict()
-    rows = "".join(
-        f'<tr><td class="mono">{a["id"]}</td><td>{a["name"]}</td>'
+    def _row(a: dict) -> str:
+        # La classe est calculée hors f-string : un backslash dans une
+        # expression f-string est une erreur de syntaxe avant Python 3.12,
+        # et le projet cible 3.10+.
+        cls = ' class="dim"' if a["confidence"] < 0.5 else ""
+        return (
+        f'<tr{cls}>'
+        f'<td class="mono">{a["id"]}</td><td>{a["name"]}</td>'
         f'<td class="mono">{a["group"]}</td>'
         f'<td><div class="bar"><div class="fill" style="width:{round(a["score"] * 100)}%">'
-        f'</div></div></td><td class="mono score">{a["score"]:.2f}</td></tr>'
-        for a in payload["axes"])
+        f'</div></div></td><td class="mono score">{a["score"]:.2f}</td>'
+        f'<td class="mono conf">{a["confidence"]:.2f}</td></tr>')
+
+    rows = "".join(_row(a) for a in payload["axes"])
     entry = {
         "name": filename,
         "global_score": payload["global_score"],
+        # Le comparateur trie par score : sans la fiabilité à côté, une
+        # boucle de 4 mesures peut se retrouver classée devant un morceau.
+        "confidence": payload["confidence"],
+        "confidence_level": payload["confidence_level"],
+        "interpretable": sms.is_interpretable(),
+        "diagnosis": "" if sms.is_interpretable() else sms.diagnosis(),
         "groups": payload["groups"],
         "key": f"{PC_NAMES[score.key_signature.pc]}",
         "sections": [s.label for s in score.sections],
@@ -139,6 +153,14 @@ tr:last-child td { border-bottom:none; }
 .score { font-weight:700; }
 .bar { width:100px; height:7px; border-radius:4px; background:var(--grid); overflow:hidden; }
 .fill { height:100%; background:var(--accent); }
+tr.dim td { opacity:.45; }
+tr.dim .fill { background:var(--muted); }
+.conf { color:var(--muted); }
+.gscore.untrusted { color:var(--muted); }
+.gscore .conflabel { margin-top:4px; text-transform:none; letter-spacing:0; font-size:11px; }
+.banner { background:rgba(180,97,13,.10); border:1px solid #b4610d; border-radius:10px;
+  padding:9px 12px; margin-top:10px; font-size:13px; line-height:1.45; }
+.banner b { color:#b4610d; }
 .radar svg { display:block; }
 footer { color:var(--muted); font-size:12.5px; margin-top:26px; }
 </style>
@@ -170,11 +192,17 @@ function groupChips(groups, names) {
 }
 
 function render(entries, names) {
-  const sorted = [...entries].sort((a, b) => b.global_score - a.global_score);
+  // Les fichiers non interprétables passent derrière, quel que soit leur
+  // score : les comparer aux autres n'a pas de sens.
+  const sorted = [...entries].sort((a, b) =>
+    (b.interpretable - a.interpretable) || (b.global_score - a.global_score));
   cards.innerHTML = sorted.map(e => `
     <div class="card">
       <div class="head">
-        <div class="gscore">${e.global_score.toFixed(2)}<small>score SMS</small></div>
+        <div class="gscore${e.interpretable ? '' : ' untrusted'}">${e.global_score.toFixed(2)}
+          <small>score SMS</small>
+          <small class="conflabel">fiab. ${e.confidence.toFixed(2)} · ${e.confidence_level}</small>
+        </div>
         <div class="radar">${e.radar}</div>
         <div class="meta">
           <div class="fname">${e.name}</div>
@@ -186,6 +214,7 @@ function render(entries, names) {
           <button class="primary" onclick="toReaper(${e.id}, this)">▶ Reaper</button>
         </div>
       </div>
+      ${e.interpretable ? '' : `<div class="banner"><b>Score non interprétable</b> — ${e.diagnosis}</div>`}
       <details><summary>les 29 axes</summary>
         <div class="axes-wrap"><table><tbody>${e.rows}</tbody></table></div>
       </details>

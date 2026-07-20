@@ -117,6 +117,50 @@ percussion de 4 mesures, il n'y a ni forme, ni harmonie, ni mélodie à
 mesurer, et le score global n'a pas de sens. Libretto analyse des
 **morceaux**.
 
+## Fiabilité : savoir quand le score ne veut rien dire
+
+Un score de 0.62 sur un morceau de cinq minutes et un 0.62 sur une boucle de
+kick de quatre mesures n'affirment pas la même chose — la v0.2 les affichait
+pourtant à l'identique. Chaque axe rapporte désormais une **fiabilité**
+[0, 1] : la matière dont il disposait réellement. Un axe qui retourne 0.0
+faute de données n'est plus indiscernable d'un axe qui a mesuré un vrai
+zéro.
+
+```
+SCORE GLOBAL SMS: 0.23
+FIABILITÉ: 0.10 (insuffisante)
+  matière manquante : accords 0/16, notes mélodiques 16/48, sections 1/6
+  ⚠ Le score global n'est PAS interprétable : au-dessous de 0.55 de
+    fiabilité, il ne fait pas mieux que le hasard.
+    Trop peu de matière harmonique ou mélodique : boucle courte ou pièce
+    mono-instrument, plutôt qu'un morceau construit.
+```
+
+Le seuil de 0.55 n'est pas un réglage d'humeur : c'est l'accuracy
+contrastive réellement observée par tranche, sur 200 fichiers.
+
+| Fiabilité annoncée | n | Accuracy réelle |
+|---|---|---|
+| élevée ≥ 0.75 | 42 | 0.94 |
+| moyenne ≥ 0.55 | 13 | 0.94 |
+| faible ≥ 0.35 | 18 | **0.33** |
+| insuffisante < 0.35 | 127 | 0.51 |
+
+Corrélation entre fiabilité annoncée et accuracy réelle : **r = 0.59**.
+L'indicateur prédit donc ce qu'il prétend prédire — c'était la condition
+pour qu'il vaille mieux qu'une décoration.
+
+Fait contre-intuitif que la mesure a imposé : la tranche « faible » est la
+**pire**, sous le hasard, et non un juste milieu. Le fichier y offre assez
+de matière pour que les axes s'engagent, pas assez pour qu'ils aient
+raison. D'où le seuil d'alerte à 0.55 et non à 0.35.
+
+Le diagnostic distingue les causes, parce qu'elles appellent des réponses
+opposées : « 0 accord, 16 notes » désigne une boucle rythmique ; « 1 section
+au lieu de 6 » désigne une segmentation ratée, que des marqueurs MIDI
+corrigent. Gate CI : `analyze --min-confidence 0.55` (sortie 3, distincte
+du 2 de `--min-score`, pour que la CI sache lequel a lâché).
+
 ## Corpus de validation
 
 Valider demande des morceaux, et les packs du commerce n'en contiennent pas.
@@ -195,8 +239,9 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
 
 - **Loops ≠ morceaux.** Sur du matériel court et mono-instrument, le score
   global n'a pas de sens (validation à 0.60, contre 0.93 sur des morceaux) :
-  il n'y a pas de structure à mesurer. Rien ne le signale encore dans le
-  rapport — un indicateur de confiance reste à faire.
+  il n'y a pas de structure à mesurer. C'est désormais signalé (voir
+  *Fiabilité*), mais le moteur ne sait toujours pas analyser ce matériel —
+  il sait seulement dire qu'il ne sait pas.
 - Symbolique uniquement : pas d'audio (coupler avec une transcription type
   basic-pitch pour analyser des rendus Local Suno).
 - Détection d'accords par gabarits diatoniques : un accord par mesure au

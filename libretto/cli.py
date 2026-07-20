@@ -35,6 +35,13 @@ def _run(sms: SenseOfMusicalStructure, args: argparse.Namespace, source: str) ->
     if args.html:
         Path(args.html).write_text(render_html(sms, source), encoding="utf-8")
         print(f"HTML  → {args.html}", file=sys.stderr)
+    # La fiabilité est vérifiée AVANT le score : un score qui passe le seuil
+    # sans matière derrière n'est pas une réussite, c'est un chiffre en l'air.
+    # Code 3 distinct, pour que la CI sache lequel des deux a lâché.
+    if args.min_confidence is not None and sms.confidence() < args.min_confidence:
+        print(f"GATE: fiabilité {sms.confidence():.3f} < seuil {args.min_confidence} "
+              f"({sms.confidence_level()}) — {sms.diagnosis()}", file=sys.stderr)
+        return 3
     if args.min_score is not None and sms.get_score() < args.min_score:
         print(f"GATE: score {sms.get_score():.3f} < seuil {args.min_score}", file=sys.stderr)
         return 2
@@ -46,6 +53,9 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--html", metavar="OUT", help="écrire le rapport HTML")
     p.add_argument("--min-score", type=float, default=None,
                    help="gate : exit 2 si le score global est inférieur")
+    p.add_argument("--min-confidence", type=float, default=None,
+                   help="gate : exit 3 si la fiabilité est inférieure (le score "
+                        "ne repose pas sur assez de matière)")
     p.add_argument("--quiet", action="store_true", help="pas de rapport texte sur stdout")
 
 

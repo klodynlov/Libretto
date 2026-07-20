@@ -65,6 +65,10 @@ def render_html(sms: SenseOfMusicalStructure, title: str = "Analyse SMS") -> str
     groups = data["groups"]
     global_score = data["global_score"]
 
+    confidence = data["confidence"]
+    level = data["confidence_level"]
+    interpretable = confidence >= 0.55
+
     rows = []
     for ax in data["axes"]:
         details = ", ".join(
@@ -72,13 +76,29 @@ def render_html(sms: SenseOfMusicalStructure, title: str = "Analyse SMS") -> str
             if not isinstance(v, (list, dict))
         ) or "—"
         pct = round(ax["score"] * 100)
+        conf = ax["confidence"]
+        # Un axe sans matière est grisé : son score est un défaut, et
+        # l'afficher comme les autres reviendrait à l'affirmer.
+        cls = ' class="dim"' if conf < 0.5 else ""
+        badge = (f'<span class="warn" title="fiabilité {conf:.2f}">⚠</span>'
+                 if conf < 0.5 else "")
         rows.append(
-            f'<tr><td class="mono">{ax["id"]}</td><td>{ax["name"]}</td>'
+            f'<tr{cls}><td class="mono">{ax["id"]}</td><td>{ax["name"]} {badge}</td>'
             f'<td class="mono">{ax["group"]}</td>'
             f'<td><div class="bar"><div class="fill" style="width:{pct}%"></div></div></td>'
             f'<td class="mono score">{ax["score"]:.2f}</td>'
+            f'<td class="mono conf">{conf:.2f}</td>'
             f'<td class="details">{details}</td></tr>'
         )
+
+    banner = "" if interpretable else (
+        '<div class="banner"><b>Score non interprétable</b> — fiabilité '
+        f'{confidence:.2f} ({level}). Ce fichier n\'offre pas de quoi renseigner '
+        'les 29 axes : Libretto analyse des morceaux, et une boucle de quelques '
+        'mesures n\'a ni forme, ni harmonie, ni mélodie à mesurer. '
+        'Sur ce type de matériel, la validation contrastive tombe au niveau du '
+        'hasard.</div>'
+    )
 
     legend = "".join(
         f'<span class="chip"><b>{g}</b> {GROUP_NAMES[g]}</span>' for g in sorted(groups)
@@ -94,13 +114,13 @@ def render_html(sms: SenseOfMusicalStructure, title: str = "Analyse SMS") -> str
 :root {{
   --bg: #faf9f6; --fg: #1a1a1e; --muted: #6b6b74; --card: #ffffff;
   --grid: #d8d6cf; --accent: #7c5cff; --accent-soft: rgba(124, 92, 255, .18);
-  --border: #e4e2db;
+  --border: #e4e2db; --warn: #b4610d; --warn-bg: rgba(180, 97, 13, .09);
 }}
 @media (prefers-color-scheme: dark) {{
   :root {{
     --bg: #14141a; --fg: #ecebf2; --muted: #9a99a6; --card: #1d1d26;
     --grid: #34343f; --accent: #9d85ff; --accent-soft: rgba(157, 133, 255, .22);
-    --border: #2b2b36;
+    --border: #2b2b36; --warn: #f0a35e; --warn-bg: rgba(240, 163, 94, .12);
   }}
 }}
 * {{ box-sizing: border-box; margin: 0; }}
@@ -131,6 +151,16 @@ tr:last-child td {{ border-bottom: none; }}
 .bar {{ width: 110px; height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; }}
 .fill {{ height: 100%; background: var(--accent); border-radius: 4px; }}
 .details {{ color: var(--muted); font-size: 12.5px; max-width: 320px; }}
+.conf {{ color: var(--muted); }}
+tr.dim td {{ opacity: .45; }}
+tr.dim .fill {{ background: var(--muted); }}
+.warn {{ color: var(--warn); font-size: 12px; }}
+.gauge .sub {{ font-size: 13px; color: var(--muted); margin-top: 6px; }}
+.gauge.untrusted .value {{ color: var(--muted); }}
+.banner {{ background: var(--warn-bg); border: 1px solid var(--warn);
+  border-radius: 12px; padding: 14px 16px; margin: 16px 0; font-size: 14px;
+  line-height: 1.5; }}
+.banner b {{ color: var(--warn); }}
 footer {{ color: var(--muted); font-size: 12.5px; margin-top: 24px; }}
 </style>
 </head>
@@ -138,16 +168,18 @@ footer {{ color: var(--muted); font-size: 12.5px; margin-top: 24px; }}
 <main>
   <h1>Libretto — Sense of Musical Structure<small>{title}</small></h1>
   <div class="hero">
-    <div class="gauge">
+    <div class="gauge{'' if interpretable else ' untrusted'}">
       <div class="value">{global_score:.2f}</div>
       <div class="label">Score global SMS</div>
+      <div class="sub">fiabilité {confidence:.2f} · {level}</div>
     </div>
     <div>{_radar_svg(groups)}</div>
   </div>
+  {banner}
   <div class="chips">{legend}</div>
   <div class="table-wrap">
   <table>
-    <thead><tr><th>Axe</th><th>Nom</th><th>Grp</th><th>Score</th><th></th><th>Détails</th></tr></thead>
+    <thead><tr><th>Axe</th><th>Nom</th><th>Grp</th><th>Score</th><th></th><th>Fiab.</th><th>Détails</th></tr></thead>
     <tbody>{"".join(rows)}</tbody>
   </table>
   </div>

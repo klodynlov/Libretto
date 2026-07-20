@@ -67,6 +67,25 @@ def _std(vals: list[float]) -> float:
     return math.sqrt(sum((v - m) ** 2 for v in vals) / len(vals))
 
 
+def data_confidence(n: float, minimum: float, comfortable: float) -> float:
+    """Confiance tirée d'une quantité de matière : 0 sous `minimum`, 1 à
+    partir de `comfortable`, montée linéaire entre les deux.
+
+    Les seuils sont ceux en dessous desquels la grandeur mesurée n'existe
+    pas — on ne parle pas de « symétrie formelle » avec deux sections, ni de
+    « développement motivique » sur six notes. La v0.2 renvoyait 0.0 dans ces
+    cas, indiscernable d'un vrai zéro bien mesuré."""
+    if comfortable <= minimum:
+        return 1.0 if n >= comfortable else 0.0
+    return clamp01((n - minimum) / (comfortable - minimum))
+
+
+# Confiance d'un axe qui n'a plus que son repli à offrir (textures au lieu
+# d'onsets, nuances au lieu de vélocités) : le score reste informatif, la
+# source est indirecte.
+PROXY_CONFIDENCE = 0.3
+
+
 def _entropy_norm(counts: Counter, max_classes: int) -> float:
     total = sum(counts.values())
     if total <= 0 or len(counts) < 2:
@@ -124,10 +143,16 @@ class StructuralAxis:
     weight: float
     score: float = 0.0
     details: dict = field(default_factory=dict)
+    # Fiabilité du score, dans [0, 1] : quelle matière l'axe a réellement eue
+    # à mesurer. 1.0 = mesuré sur des données abondantes ; 0.0 = rien à
+    # mesurer, le score est un défaut et ne veut rien dire. Un score sans
+    # confiance est un chiffre qui ment poliment.
+    confidence: float = 1.0
 
     def __post_init__(self):
         # Clamp central : plus aucun axe ne peut sortir de [0, 1].
         self.score = clamp01(self.score)
+        self.confidence = clamp01(self.confidence)
 
 
 # id, nom, poids, groupe. Somme des poids = 1.0 (vérifiée par les tests).
@@ -161,6 +186,47 @@ AXES_META: dict[int, tuple[str, str, float, str]] = {
     27: ("27_voice_count",                "Polyphonie",                   0.030, "E"),
     28: ("28_emotional_arc",              "Arc émotionnel",               0.050, "F"),
     29: ("29_global_cohesion",            "Cohésion globale",             0.050, "F"),
+}
+
+# De quelle matière chaque axe a besoin, et en quelle quantité :
+# {axe: (ressource, minimum, confortable)}. Sous `minimum` la grandeur
+# mesurée n'existe pas — on ne parle pas de symétrie formelle avec deux
+# sections, ni de développement motivique sur six notes ; le score retombe
+# alors sur un défaut qui ressemblait à s'y méprendre à une mesure.
+#
+# Les seuils viennent des gardes déjà présentes dans le code de chaque axe
+# (« if len(iv) < 6: return 0.0 »), rendues explicites et graduées : la
+# confiance monte progressivement au lieu de basculer d'un coup.
+AXIS_DATA_NEEDS: dict[int, tuple[str, float, float]] = {
+    1:  ("sections", 1, 3),
+    2:  ("sections", 2, 4),
+    3:  ("sections", 2, 4),
+    4:  ("sections", 3, 6),
+    5:  ("sections", 2, 4),
+    6:  ("sections", 3, 6),
+    7:  ("sections", 2, 4),
+    8:  ("harmony", 4, 16),
+    9:  ("harmony", 4, 16),
+    10: ("harmony", 4, 16),
+    11: ("sections", 2, 4),
+    12: ("harmony", 4, 16),
+    13: ("sections", 2, 4),
+    14: ("harmony", 3, 12),
+    15: ("melody", 4, 24),
+    16: ("melody", 8, 40),
+    17: ("melody", 10, 48),
+    18: ("melody", 3, 16),
+    19: ("melody", 4, 24),
+    20: ("onsets", 8, 48),
+    21: ("tempo", 2, 4),
+    22: ("tempo", 2, 4),
+    23: ("onsets", 8, 48),
+    24: ("sections", 2, 4),
+    25: ("polyphony", 2, 4),
+    26: ("velocity", 2, 4),
+    27: ("polyphony", 1, 3),
+    28: ("sections", 3, 5),
+    # 29 est une synthèse : sa confiance est celle des axes qu'il résume.
 }
 
 GROUP_NAMES = {
@@ -201,10 +267,11 @@ class SenseOfMusicalStructure:
 
     # ── fabrique d'axe (id/nom/poids centralisés) ──
 
-    def _make(self, num: int, score: float, details: dict | None = None) -> StructuralAxis:
+    def _make(self, num: int, score: float, details: dict | None = None,
+              conf: float = 1.0) -> StructuralAxis:
         axis_id, name, weight, _group = AXES_META[num]
         weight = self._weights.get(axis_id, weight)
-        return StructuralAxis(axis_id, name, weight, score, details or {})
+        return StructuralAxis(axis_id, name, weight, score, details or {}, conf)
 
     # ── features partagées ──
 
@@ -978,6 +1045,36 @@ class SenseOfMusicalStructure:
 
     # ── API publique ──
 
+    def _resources(self) -> dict[str, float]:
+        """Matière réellement disponible dans la partition, par ressource."""
+        secs = self.score.sections
+        return {
+            "sections": len(secs),
+            "harmony": len(self.score.all_chords),
+            "melody": len(self.score.all_melody),
+            "onsets": sum(len(s.onset_beats) for s in secs),
+            "tempo": len(self._tempos()),
+            "polyphony": sum(1 for s in secs if s.avg_polyphony > 0),
+            "velocity": sum(1 for s in secs if s.mean_velocity > 0),
+        }
+
+    def _apply_confidence(self, axes: list[StructuralAxis]) -> None:
+        """Renseigne la fiabilité de chaque axe d'après la matière dont il
+        disposait — et la dégrade encore quand l'axe a dû se rabattre sur un
+        repli indirect (textures au lieu d'onsets, nuances au lieu de
+        vélocités mesurées)."""
+        res = self._resources()
+        for ax in axes:
+            num = int(ax.id[:2])
+            need = AXIS_DATA_NEEDS.get(num)
+            if need is None:
+                continue
+            resource, minimum, comfortable = need
+            conf = data_confidence(res.get(resource, 0.0), minimum, comfortable)
+            if "proxy" in ax.details:
+                conf *= PROXY_CONFIDENCE
+            ax.confidence = clamp01(conf)
+
     def calculate(self) -> list[StructuralAxis]:
         """Exécute les 29 axes et retourne la liste des résultats."""
         builders = [
@@ -1011,7 +1108,14 @@ class SenseOfMusicalStructure:
             self._axe_28_emotional_arc,
         ]
         axes = [build() for build in builders]
-        axes.append(self._axe_29_global_cohesion(axes))
+        self._apply_confidence(axes)
+        cohesion = self._axe_29_global_cohesion(axes)
+        # L'axe 29 synthétise les 28 autres : il ne peut pas être plus sûr
+        # que ce qu'il résume.
+        total_w = sum(a.weight for a in axes)
+        cohesion.confidence = (sum(a.confidence * a.weight for a in axes) / total_w
+                               if total_w > 0 else 0.0)
+        axes.append(cohesion)
         self.axes = axes
         return self.axes
 
@@ -1022,6 +1126,81 @@ class SenseOfMusicalStructure:
         total_weight = sum(a.weight for a in self.axes)
         weighted = sum(a.score * a.weight for a in self.axes)
         return (weighted / total_weight) if total_weight > 0 else 0.0
+
+    def confidence(self) -> float:
+        """Fiabilité globale du score : moyenne des confiances par axe,
+        pondérée comme le score lui-même.
+
+        À lire avec `get_score()`, jamais à sa place. Un 0.62 à confiance
+        0.15 et un 0.62 à confiance 0.95 sont deux affirmations très
+        différentes, que la v0.2 présentait à l'identique."""
+        if not self.axes:
+            self.calculate()
+        total_weight = sum(a.weight for a in self.axes)
+        if total_weight <= 0:
+            return 0.0
+        return sum(a.confidence * a.weight for a in self.axes) / total_weight
+
+    def confidence_level(self) -> str:
+        """Verdict lisible, calé sur des mesures et non sur l'intuition.
+
+        Accuracy contrastive réellement observée par tranche, sur 200
+        fichiers (60 morceaux + 140 boucles) :
+
+            élevée       ≥ 0.75  →  0.94
+            moyenne      ≥ 0.55  →  0.94
+            faible       ≥ 0.35  →  0.33   ← pire que le hasard
+            insuffisante < 0.35  →  0.51   ← le hasard
+
+        La zone « faible » est donc la plus traître, et non un juste milieu :
+        le fichier offre assez de matière pour que les axes s'engagent, pas
+        assez pour qu'ils aient raison. D'où le seuil d'alerte à 0.55 —
+        au-dessous, le score ne se lit pas, quel que soit le libellé."""
+        c = self.confidence()
+        if c >= 0.75:
+            return "élevée"
+        if c >= 0.55:
+            return "moyenne"
+        if c >= 0.35:
+            return "faible"
+        return "insuffisante"
+
+    # En dessous, l'accuracy contrastive mesurée ne dépasse pas le hasard :
+    # le score global ne doit pas être présenté comme une évaluation.
+    INTERPRETABLE_CONFIDENCE = 0.55
+
+    def is_interpretable(self) -> bool:
+        return self.confidence() >= self.INTERPRETABLE_CONFIDENCE
+
+    RESOURCE_LABELS = {
+        "sections": "sections", "harmony": "accords", "melody": "notes mélodiques",
+        "onsets": "attaques", "tempo": "repères de tempo",
+        "polyphony": "sections avec polyphonie mesurée",
+        "velocity": "sections avec vélocité mesurée",
+    }
+
+    def missing_resources(self) -> list[tuple[str, float, float]]:
+        """(ressource, disponible, requis) pour ce qui manque — la raison
+        concrète d'une fiabilité basse. « 1 section au lieu de 4 » désigne un
+        problème de segmentation ; « 0 note mélodique » désigne une boucle de
+        percussion. Ce ne sont pas les mêmes conseils."""
+        res = self._resources()
+        needed: dict[str, float] = {}
+        for _num, (resource, _mini, comfortable) in AXIS_DATA_NEEDS.items():
+            needed[resource] = max(needed.get(resource, 0.0), comfortable)
+        out = []
+        for resource, comfortable in sorted(needed.items()):
+            have = res.get(resource, 0.0)
+            if have < comfortable:
+                out.append((self.RESOURCE_LABELS.get(resource, resource),
+                            have, comfortable))
+        return out
+
+    def unreliable_axes(self, threshold: float = 0.5) -> list[StructuralAxis]:
+        """Axes dont le score n'est pas soutenu par assez de matière."""
+        if not self.axes:
+            self.calculate()
+        return [a for a in self.axes if a.confidence < threshold]
 
     def group_scores(self) -> dict[str, float]:
         if not self.axes:
@@ -1046,24 +1225,70 @@ class SenseOfMusicalStructure:
                 lines.append(f"\n── {GROUP_NAMES[group]} ──")
             filled = int(round(ax.score * 10))
             bar = "█" * filled + "░" * (10 - filled)
-            lines.append(f"[{ax.id}] {ax.name}: {ax.score:.2f} |{bar}|")
+            # Un axe sans matière est marqué : son score est un défaut, pas
+            # une mesure, et l'afficher nu revient à l'affirmer.
+            flag = "" if ax.confidence >= 0.5 else f"  ⚠ fiabilité {ax.confidence:.2f}"
+            lines.append(f"[{ax.id}] {ax.name}: {ax.score:.2f} |{bar}|{flag}")
         lines.append("\n── Scores par groupe ──")
         for g, s in self.group_scores().items():
             lines.append(f"  {g} · {GROUP_NAMES[g]}: {s:.2f}")
+        conf = self.confidence()
         lines.append(f"\nSCORE GLOBAL SMS: {self.get_score():.2f}")
+        lines.append(f"FIABILITÉ: {conf:.2f} ({self.confidence_level()})")
+        weak = self.unreliable_axes()
+        if weak:
+            lines.append(f"  {len(weak)} axe(s) sans matière suffisante : "
+                         + ", ".join(a.id for a in weak))
+        if not self.is_interpretable():
+            missing = self.missing_resources()
+            if missing:
+                lines.append("  matière manquante : " + ", ".join(
+                    f"{label} {have:g}/{want:g}" for label, have, want in missing))
+            lines.append("  ⚠ Le score global n'est PAS interprétable : au-dessous de "
+                         f"{self.INTERPRETABLE_CONFIDENCE:g} de fiabilité, il ne fait "
+                         "pas mieux que le hasard.")
+            lines.append("    " + self.diagnosis())
         return "\n".join(lines)
+
+    def diagnosis(self) -> str:
+        """Pourquoi la fiabilité est basse, en une phrase actionnable.
+
+        L'ordre compte : une boucle de percussion et un morceau que la
+        segmentation a raté produisent tous deux « une seule section », mais
+        appellent des réponses opposées. On teste donc d'abord ce qui
+        distingue un fichier trop pauvre d'un fichier mal découpé."""
+        res = self._resources()
+        if res["harmony"] == 0 and res["melody"] < 8:
+            return ("Aucune harmonie ni mélodie exploitable : ce fichier est une "
+                    "boucle rythmique. Libretto analyse des morceaux — 23 des 29 "
+                    "axes n'ont rien à mesurer ici.")
+        if res["harmony"] < 4 or res["melody"] < 10:
+            return ("Trop peu de matière harmonique ou mélodique : boucle courte ou "
+                    "pièce mono-instrument, plutôt qu'un morceau construit.")
+        if res["sections"] <= 1:
+            return ("Une seule section détectée : soit la pièce est continue, soit "
+                    "la segmentation a échoué. Des marqueurs MIDI nommant les "
+                    "sections lèvent l'ambiguïté.")
+        return ("Pièce trop courte pour renseigner les axes de forme : les "
+                "grandeurs à l'échelle du morceau (symétrie, arc, répétition) "
+                "n'ont pas de support.")
 
     def to_dict(self) -> dict:
         if not self.axes:
             self.calculate()
         return {
             "global_score": round(self.get_score(), 4),
+            "confidence": round(self.confidence(), 4),
+            "confidence_level": self.confidence_level(),
+            "unreliable_axes": [a.id for a in self.unreliable_axes()],
             "groups": {g: round(s, 4) for g, s in self.group_scores().items()},
             "group_names": GROUP_NAMES,
             "axes": [
                 {"id": a.id, "name": a.name, "weight": a.weight,
                  "group": AXES_META[int(a.id[:2])][3],
-                 "score": round(a.score, 4), "details": a.details}
+                 "score": round(a.score, 4),
+                 "confidence": round(a.confidence, 4),
+                 "details": a.details}
                 for a in self.axes
             ],
         }
