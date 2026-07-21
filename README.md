@@ -245,12 +245,19 @@ version dégradée dans 82 % des cas. Les deux dégradations sont **inversées**
 (IC95 entièrement sous 0.5) : sur de vrais échantillons, permuter les
 vélocités s'entend comme une humanisation, les aplatir comme un nettoyage.
 La question est close sur les trois rendus — le générateur ne produit pas
-de dynamique musicale, les axes 26/28 sont intestables sur corpus généré,
-leurs poids réduits restent. La suite passe par un corpus
-d'**interprétations réelles** : `examples/fetch_maestro.py` découpe des
-extraits de MAESTRO (Disklavier, vraies vélocités de pianistes, pédale
-préservée) pour rejouer le même protocole sur de la dynamique *jouée*.
-Détail dans [`resultats_ecoute.md`](resultats_ecoute.md).
+de dynamique musicale, les axes 26/28 y sont intestables. La session 5 a
+rejoué le même protocole sur des **interprétations réelles**
+(`examples/fetch_maestro.py` : extraits de MAESTRO, vraies vélocités de
+pianistes, pédale préservée) — et tout bascule : pour la première fois,
+l'oreille désigne l'original (75 % global ; `scramble` **audible** à 83 %,
+IC95 [0.55–0.95]), et l'axe 26 discrimine à **AUC 0.93** sur la matière
+qui contient enfin sa grandeur. La même permutation de vélocités qui
+s'entendait comme une *humanisation* sur des rampes de générateur s'entend
+comme une *destruction* sur du jeu de pianiste : l'aléa n'améliore que ce
+qui était déjà arbitraire. La révision de poids de la session 3 est
+annulée (26/28 restaurés). Détail — y compris la réserve sur les
+contrôles, session en cours — dans
+[`resultats_ecoute.md`](resultats_ecoute.md).
 
 ## Corpus de validation
 

@@ -1,0 +1,277 @@
+{
+ "seed": 5,
+ "n_tasks": 55,
+ "renderer": "v3-instrument:MuseScore_General.sf3",
+ "judgements": [
+  {
+   "task_id": 0,
+   "file": "2017_georges-bizet-moritz_05.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 57.8
+  },
+  {
+   "task_id": 1,
+   "file": "2014_cesar-franck_15.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 56.6
+  },
+  {
+   "task_id": 2,
+   "file": "2006_giuseppe-verdi-franz_13.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 65.1
+  },
+  {
+   "task_id": 3,
+   "file": "2004_pyotr-ilyich-tchaiko_00.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 38.2
+  },
+  {
+   "task_id": 4,
+   "file": "2008_johann-pachelbel_06.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 28.6
+  },
+  {
+   "task_id": 5,
+   "file": "2015_johann-strauss-alfre_23.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 56.5
+  },
+  {
+   "task_id": 6,
+   "file": "2011_felix-mendelssohn-se_10.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 23.4
+  },
+  {
+   "task_id": 7,
+   "file": "2006_george-enescu_11.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 53.2
+  },
+  {
+   "task_id": 8,
+   "file": "2017_george-frideric-hand_21.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 21.9
+  },
+  {
+   "task_id": 9,
+   "file": "2014_johann-sebastian-bac_20.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 20.5
+  },
+  {
+   "task_id": 10,
+   "file": "2006_sergei-rachmaninoff_04.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 51.6
+  },
+  {
+   "task_id": 11,
+   "file": "2006_giuseppe-verdi-franz_13.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 198.3
+  },
+  {
+   "task_id": 12,
+   "file": "2009_antonio-soler_18.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 43.5
+  },
+  {
+   "task_id": 13,
+   "file": "2006_george-enescu_11.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 21.8
+  },
+  {
+   "task_id": 14,
+   "file": "2008_johann-pachelbel_06.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 65.7
+  },
+  {
+   "task_id": 15,
+   "file": "2006_sergei-rachmaninoff_04.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 28.5
+  },
+  {
+   "task_id": 16,
+   "file": "2014_franz-schubert_08.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 73.9
+  },
+  {
+   "task_id": 17,
+   "file": "2014_johann-sebastian-bac_20.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 45.3
+  },
+  {
+   "task_id": 18,
+   "file": "2009_nikolai-medtner_17.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 55.1
+  },
+  {
+   "task_id": 19,
+   "file": "2009_sergei-rachmaninoff_16.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 20.3
+  },
+  {
+   "task_id": 20,
+   "file": "2009_sergei-rachmaninoff_16.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 24.9
+  },
+  {
+   "task_id": 21,
+   "file": "2008_niccolo-paganini-fra_03.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 39.5
+  },
+  {
+   "task_id": 22,
+   "file": "2009_muzio-clementi_14.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 37.7
+  },
+  {
+   "task_id": 23,
+   "file": "2004_johann-christian-fis_02.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 57.0
+  },
+  {
+   "task_id": 24,
+   "file": "2017_georges-bizet-moritz_05.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 65.2
+  },
+  {
+   "task_id": 25,
+   "file": "2014_franz-schubert_08.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 167.8
+  },
+  {
+   "task_id": 26,
+   "file": "2011_franz-liszt-camille_22.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 24.8
+  },
+  {
+   "task_id": 27,
+   "file": "2011_felix-mendelssohn-se_10.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 40.2
+  },
+  {
+   "task_id": 28,
+   "file": "2011_franz-liszt-camille_22.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 50.0
+  },
+  {
+   "task_id": 29,
+   "file": "2004_pyotr-ilyich-tchaiko_00.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 43.4
+  }
+ ]
+}

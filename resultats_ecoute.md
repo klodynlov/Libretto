@@ -298,7 +298,7 @@ Conséquences :
    dynamique est une intention et non un motif. Hors de portée du
    générateur — noté comme piste externe.
 
-### Session 5 — interprétations humaines réelles (préparée)
+### Session 5 — interprétations humaines réelles : la dynamique jouée s'entend
 
 La piste externe est outillée : `examples/fetch_maestro.py` constitue un
 corpus d'extraits de **MAESTRO v3** (Hawthorne et al. 2019, CC BY-NC-SA) —
@@ -340,6 +340,67 @@ Réserve notée d'avance : MAESTRO est du piano solo sans carrure fiable
 (pas de vraie grille de mesures) — les axes qui exigent mesures ou
 pupitres tomberont en basse confiance, c'est le rôle de l'indicateur.
 La question posée à l'oreille, elle, ne porte que sur la dynamique.
+
+**Résultat intermédiaire (30 jugements sur 55 : 28 tranchés, 1 « aucune
+différence », 1 contrôle).** Pour la première fois en cinq sessions,
+l'oreille désigne l'original sur des dégradations dynamiques — 75 %
+globalement (IC95 0.57–0.87), médiane d'écoute 44 s par paire (26 min au
+total, contre 13 s par paire en session 4 : la vraie musique se juge
+lentement).
+
+| dégradation | l'oreille désigne l'original | verdict |
+|---|---|---|
+| `scramble_dynamics` | 10/12 = 83 % [0.55–0.95] | **AUDIBLE** |
+| `flatten_dynamics` | 11/16 = 69 % [0.44–0.86] | non concluant (penche) |
+
+Le contraste avec la session 4 est total, et c'est le même annotateur, le
+même rendu, le même protocole — seule la matière a changé : sur des
+vélocités de générateur, permuter s'entendait comme une *humanisation*
+(17 %) ; sur des vélocités de pianiste, la même permutation s'entend
+comme une *destruction* (83 %). L'aléa n'améliore que ce qui était déjà
+arbitraire. `flatten` suit la même bascule (20 % → 69 %) sans atteindre
+la significativité — 8 paires restantes en décideront.
+
+**Réserve : le contrôle.** Le tirage a placé 6 des 7 paires de contrôle
+au-delà de la 30ᵉ tâche — une seule rencontrée, tranchée à tort (« A »
+après 57 s d'écoute soignée). Un faux positif sur n=1 ne valide ni
+n'invalide rien ; les 6 contrôles restants trancheront. Défaut d'outillage
+noté : la répartition des contrôles doit couvrir tout préfixe du lot, pas
+seulement le lot entier (à corriger après la session — changer
+`build_tasks` en cours de session désalignerait les ids).
+
+**Le second volet de la grille : l'AUC moteur.** Mesurée sur les 24
+extraits, 3 variantes par dégradation, confiance ≥ 0.5 :
+
+| axe | flatten | scramble | global |
+|---|---|---|---|
+| `26_dynamic_range` | **0.93** | **0.93** | 0.93 |
+| `29_global_cohesion` | 0.78 | 0.75 | 0.77 |
+| `28_emotional_arc` | 0.75 | 0.58 | 0.67 |
+| `02_section_balance` | 0.43 | 0.35 | 0.39 |
+
+L'axe 26 discrimine fortement — sur la matière qui contient enfin sa
+grandeur, il la mesure. L'axe 28 suit sur `flatten` (l'aplatissement tue
+les arcs), plus faiblement sur `scramble`. L'axe 02 pointe à contresens :
+les traits de frontière de la segmentation pondèrent la vélocité, donc
+brouiller les vélocités déplace les frontières détectées — un effet de
+bord connu désormais chiffré.
+
+**Application de la grille** (engagée avant l'écoute) : `scramble`
+détectée par l'oreille ET l'AUC suit → la révision de poids de la
+session 3 est **annulée à l'identique** (26 : 0.010 → 0.030, 28 :
+0.030 → 0.050, et 12/16/17/20 reviennent au prior). Sa prémisse —
+« aucun corrélat perceptif mesurable » — est morte sur matière réelle.
+Le verdict des sessions 1-4 est requalifié : ce n'était pas « la
+dynamique ne compte pas », c'était « le corpus généré n'en contient
+pas ». Effet mesurable immédiat : l'accord moteur/oreille sur cette
+session passe de 36 % à 46 % par le seul retour des poids (le reste de
+l'écart vient des axes non dynamiques qui, sur des paires ne différant
+que par les vélocités, n'apportent que du bruit — l'axe 02 en tête).
+
+Reste ouvert, à la charge des 25 paires restantes (serveur toujours en
+ligne) : la significativité de `flatten` (8 paires), la qualité des
+contrôles (6 paires), et 11 paires `scramble` pour resserrer [0.55–0.95].
 
 ### 2. Autres priorités
 

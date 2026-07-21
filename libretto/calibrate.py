@@ -99,13 +99,15 @@ def degrade_flatten_dynamics(md: MidiData, rng: random.Random) -> MidiData:
     """Toutes les vélocités à la moyenne : arc énergétique, gamme dynamique
     et progression aplatis.
 
-    ⚠ NÉGATIF RÉFUTÉ PAR L'ÉCOUTE, sous les TROIS rendus. L'oreille préfère
-    la version aplatie : 16 % de détection en rendu volume (4/25, deux
-    sessions), 0 % en rendu timbre+attaque (0/11, session 3), 20 % en rendu
-    par échantillons réels (3/15, session 4, FluidSynth + SoundFont — zéro
-    « aucune différence » : la différence s'entend, le dégradé gagne). Sur
-    de vrais échantillons, l'aplatissement sonne comme un nettoyage, un
-    timbre homogène et « produit ». La question est close.
+    ⚠ NÉGATIF RÉFUTÉ PAR L'ÉCOUTE SUR CORPUS GÉNÉRÉ, sous les trois rendus.
+    L'oreille y préfère la version aplatie : 16 % de détection en rendu
+    volume (4/25, deux sessions), 0 % en rendu timbre+attaque (0/11,
+    session 3), 20 % en rendu par échantillons réels (3/15, session 4 —
+    zéro « aucune différence » : la différence s'entend, le dégradé gagne).
+    Sur des vélocités de générateur, l'aplatissement sonne comme un
+    nettoyage. Sur des INTERPRÉTATIONS RÉELLES (session 5, MAESTRO), la
+    direction s'inverse : 69 % de détection (11/16, IC95 0.44-0.86) — non
+    concluant mais penchant, session en cours. Le verdict est PAR MATIÈRE.
 
     Depuis la session 3, la calibration ne l'utilise plus par défaut
     (`audible_only=True`) : optimiser des poids contre un négatif que
@@ -146,13 +148,22 @@ def degrade_scramble_dynamics(md: MidiData, rng: random.Random) -> MidiData:
     appellent « humanize » — une micro-variation qui sonne humaine.
 
     Joint à l'inversion de `flatten_dynamics` sous les trois rendus, le
-    constat final déplace la conclusion du rendu vers le corpus : le
-    générateur ne produit pas de dynamique MUSICALE — ses vélocités sont
-    des motifs mécaniques dont la destruction est au pire neutre, au mieux
-    une amélioration perçue. Voir `resultats_ecoute.md`, session 4.
+    constat déplace la conclusion du rendu vers le corpus : le générateur
+    ne produit pas de dynamique MUSICALE — ses vélocités sont des motifs
+    mécaniques dont la destruction est au pire neutre, au mieux une
+    amélioration perçue.
 
-    Conservée dans le dictionnaire mais hors calibration par défaut et hors
-    `AUDIBLE_DEGRADATIONS` : diagnostic seulement, via --all-degradations."""
+    La session 5 (interprétations réelles, MAESTRO) confirme par
+    l'inverse : sur des vélocités de PIANISTE, la même permutation
+    s'entend comme une destruction — 83 % de détection (10/12, IC95
+    0.55-0.95, AUDIBLE), et l'axe 26 discrimine à AUC 0.93. Le verdict
+    est PAR MATIÈRE : l'aléa n'améliore que ce qui était déjà arbitraire.
+    Voir `resultats_ecoute.md`, sessions 4 et 5.
+
+    Hors `AUDIBLE_DEGRADATIONS` (le chemin de calibration par défaut
+    tourne sur corpus généré, où elle est inversée) ; sur un corpus
+    d'interprétations réelles, l'utiliser via --all-degradations est
+    légitime et validé par l'oreille."""
     by_channel: dict[int, list[int]] = {}
     for i, n in enumerate(md.notes):
         by_channel.setdefault(n.channel, []).append(i)
@@ -197,14 +208,15 @@ DEGRADATIONS = {
     "scramble_melody": degrade_scramble_melody,
 }
 
-# Dégradations validées par l'écoute (voir `resultats_ecoute.md`).
-# `flatten_dynamics` en est absente : PRÉFÉRÉE à l'original sous les trois
-# rendus (16 %, 0 %, puis 20 % de détection). `scramble_dynamics` aussi :
-# 40 %, 40 %, puis INVERSÉE à 17 % sous le rendu par échantillons réels —
-# l'aléa de vélocité s'y entend comme une humanisation. Verdict clos sur
-# les trois étages du banc d'essai (sessions 1-4). La calibration n'utilise
-# par défaut QUE ces quatre : optimiser contre un négatif que l'oreille
-# contredit, c'est optimiser à contresens (--all-degradations sinon).
+# Dégradations validées par l'écoute SUR CORPUS GÉNÉRÉ — le chemin de
+# calibration par défaut (voir `resultats_ecoute.md`). Les deux dégradations
+# dynamiques en sont absentes car sur cette matière l'oreille les PRÉFÈRE à
+# l'original (flatten : 16 %, 0 %, 20 % ; scramble : 40 %, 40 %, 17 %).
+# Mais le verdict est PAR MATIÈRE : sur interprétations réelles (session 5,
+# MAESTRO), scramble_dynamics est AUDIBLE à 83 % et l'axe 26 discrimine à
+# AUC 0.93 — sur un tel corpus, --all-degradations est légitime. Optimiser
+# contre un négatif que l'oreille contredit sur la matière du corpus, c'est
+# optimiser à contresens.
 AUDIBLE_DEGRADATIONS = frozenset({
     "shuffle_bars", "transpose_segments", "jitter_onsets", "scramble_melody",
 })
