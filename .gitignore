@@ -10,3 +10,8 @@ examples/demo.mid
 
 # corpus d écoute généré (reproductible via examples/make_corpus.py)
 corpus_ecoute/
+
+# corpus d interprétations réelles (reproductible via examples/fetch_maestro.py)
+# et cache du zip MAESTRO — jamais commités (CC BY-NC-SA, et 58 Mo)
+corpus_humain/
+.cache/

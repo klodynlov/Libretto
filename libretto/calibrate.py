@@ -44,9 +44,12 @@ EXPERT_WEIGHTS: list[float] = [AXES_META[n][2] for n in sorted(AXES_META)]
 # ──────────────────────────────────────────────
 
 def _clone(md: MidiData, notes: list[MidiNote]) -> MidiData:
+    # `controls` copié à l'identique : les dégradations ne touchent jamais
+    # aux contrôleurs. Si la pédale (CC64) manquait d'un seul côté d'une
+    # paire A/B, l'oreille entendrait la pédale, pas la dégradation.
     return MidiData(ppq=md.ppq, notes=notes, tempos=list(md.tempos),
                     time_sigs=list(md.time_sigs), markers=list(md.markers),
-                    end_tick=md.end_tick)
+                    controls=list(md.controls), end_tick=md.end_tick)
 
 
 def degrade_shuffle_bars(md: MidiData, rng: random.Random) -> MidiData:

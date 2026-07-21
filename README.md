@@ -246,8 +246,11 @@ version dégradée dans 82 % des cas. Les deux dégradations sont **inversées**
 vélocités s'entend comme une humanisation, les aplatir comme un nettoyage.
 La question est close sur les trois rendus — le générateur ne produit pas
 de dynamique musicale, les axes 26/28 sont intestables sur corpus généré,
-leurs poids réduits restent. Détail dans
-[`resultats_ecoute.md`](resultats_ecoute.md).
+leurs poids réduits restent. La suite passe par un corpus
+d'**interprétations réelles** : `examples/fetch_maestro.py` découpe des
+extraits de MAESTRO (Disklavier, vraies vélocités de pianistes, pédale
+préservée) pour rejouer le même protocole sur de la dynamique *jouée*.
+Détail dans [`resultats_ecoute.md`](resultats_ecoute.md).
 
 ## Corpus de validation
 

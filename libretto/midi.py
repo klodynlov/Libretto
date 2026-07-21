@@ -29,6 +29,11 @@ class MidiData:
     tempos: list[tuple[int, float]] = field(default_factory=list)      # (tick, bpm)
     time_sigs: list[tuple[int, int, int]] = field(default_factory=list)  # (tick, num, den)
     markers: list[tuple[int, str]] = field(default_factory=list)       # (tick, texte)
+    # (tick, canal, contrôleur, valeur). Capturé pour le corpus
+    # d'interprétations réelles : une performance de piano vit sur la pédale
+    # (CC64), et la perdre d'un seul côté d'une paire A/B ferait entendre la
+    # pédale au lieu de la dynamique. Les dégradations n'y touchent jamais.
+    controls: list[tuple[int, int, int, int]] = field(default_factory=list)
     end_tick: int = 0
 
 
@@ -145,6 +150,8 @@ def _parse_midi_bytes(data: bytes, origin: str) -> MidiData:
                     j += 2
                     if kind == 0x90 and d2 > 0:
                         active.setdefault((channel, d1), []).append((tick, d2))
+                    elif kind == 0xB0:
+                        md.controls.append((tick, channel, d1, d2))
                     elif kind == 0x80 or (kind == 0x90 and d2 == 0):
                         stack = active.get((channel, d1))
                         if stack:
@@ -164,6 +171,7 @@ def _parse_midi_bytes(data: bytes, origin: str) -> MidiData:
     md.tempos.sort()
     md.time_sigs.sort()
     md.markers.sort()
+    md.controls.sort()
     if md.notes:
         md.end_tick = max(md.end_tick, max(n.end for n in md.notes))
     return md
@@ -218,6 +226,11 @@ def write_mididata(path: str | Path, md: MidiData,
     events: list[tuple[int, int, bytes]] = []
     for channel, program in sorted((programs or {}).items()):
         events.append((0, 0, bytes([0xC0 | (channel & 0x0F), program & 0x7F])))
+    # Contrôleurs avant les note-on au même tick (ordre 0 < 1) : une pédale
+    # levée doit précéder les attaques qu'elle ne soutient plus.
+    for tick, channel, controller, value in md.controls:
+        events.append((tick, 0, bytes([0xB0 | (channel & 0x0F),
+                                       controller & 0x7F, value & 0x7F])))
     for n in md.notes:
         events.append((n.start, 1, bytes([0x90 | (n.channel & 0x0F),
                                           n.pitch & 0x7F, max(1, n.velocity) & 0x7F])))
@@ -228,6 +241,94 @@ def write_mididata(path: str | Path, md: MidiData,
     header = b"MThd" + (6).to_bytes(4, "big") + (1).to_bytes(2, "big") \
         + len(chunks).to_bytes(2, "big") + md.ppq.to_bytes(2, "big")
     Path(path).write_bytes(header + b"".join(chunks))
+
+
+# ──────────────────────────────────────────────
+# Temps réel et découpe d'extraits
+# ──────────────────────────────────────────────
+
+def tick_to_seconds(md: MidiData, tick: int) -> float:
+    """Position en secondes d'un tick, par intégration morceau par morceau
+    de la carte de tempo. 120 BPM par convention MIDI avant le premier
+    changement (et pour un fichier sans tempo)."""
+    seconds = 0.0
+    bpm = 120.0
+    last_tick = 0
+    for t, new_bpm in md.tempos:
+        if t >= tick:
+            break
+        seconds += (t - last_tick) / md.ppq * 60.0 / bpm
+        last_tick, bpm = t, new_bpm
+    return seconds + (tick - last_tick) / md.ppq * 60.0 / bpm
+
+
+def seconds_to_tick(md: MidiData, seconds: float) -> int:
+    """Inverse de `tick_to_seconds`, même convention."""
+    elapsed = 0.0
+    bpm = 120.0
+    last_tick = 0
+    for t, new_bpm in md.tempos:
+        span = (t - last_tick) / md.ppq * 60.0 / bpm
+        if elapsed + span >= seconds:
+            break
+        elapsed += span
+        last_tick, bpm = t, new_bpm
+    return last_tick + round((seconds - elapsed) * bpm / 60.0 * md.ppq)
+
+
+def slice_mididata(md: MidiData, start_s: float, dur_s: float) -> MidiData:
+    """Extrait [start_s, start_s + dur_s) rebasé au tick 0.
+
+    Conçu pour découper des extraits d'écoute dans des interprétations
+    réelles (fichiers de 10-30 min). Trois soins particuliers :
+
+    - seules les notes dont l'ATTAQUE tombe dans la fenêtre sont gardées
+      (une note entamée avant serait une résonance sans frappe) ; leur fin
+      est écrêtée à la fenêtre ;
+    - l'état des contrôleurs au début de fenêtre est réémis au tick 0 —
+      une pédale enfoncée trois mesures plus tôt doit rester enfoncée dans
+      l'extrait, sinon les premières secondes sonnent sèches ;
+    - le tempo et la signature actifs au début de fenêtre sont réémis au
+      tick 0, puis les changements internes suivent, décalés.
+    """
+    t0 = seconds_to_tick(md, start_s)
+    t1 = seconds_to_tick(md, start_s + dur_s)
+
+    notes = [MidiNote(n.start - t0, min(n.end, t1) - t0, n.pitch,
+                      n.velocity, n.channel, n.track)
+             for n in md.notes if t0 <= n.start < t1 and min(n.end, t1) > n.start]
+
+    def _rebase(entries, default):
+        """Dernière entrée ≤ t0 réémise à 0 (ou défaut), puis l'intérieur."""
+        state = default
+        inside = []
+        for entry in entries:
+            if entry[0] <= t0:
+                state = entry[1:]
+            elif entry[0] < t1:
+                inside.append((entry[0] - t0, *entry[1:]))
+        head = [(0, *state)] if state is not None else []
+        return head + inside
+
+    tempos = _rebase(md.tempos, (120.0,))
+    time_sigs = _rebase(md.time_sigs, None)
+    markers = [(t - t0, text) for t, text in md.markers if t0 <= t < t1]
+
+    # État de chaque contrôleur (canal, cc) au début de fenêtre, puis les
+    # changements internes. Un état nul n'est pas réémis (défaut MIDI).
+    state: dict[tuple[int, int], int] = {}
+    inside_cc: list[tuple[int, int, int, int]] = []
+    for tick, channel, controller, value in md.controls:
+        if tick <= t0:
+            state[(channel, controller)] = value
+        elif tick < t1:
+            inside_cc.append((tick - t0, channel, controller, value))
+    controls = [(0, ch, cc, val) for (ch, cc), val in sorted(state.items())
+                if val > 0] + inside_cc
+
+    return MidiData(ppq=md.ppq, notes=notes, tempos=tempos,
+                    time_sigs=time_sigs, markers=markers,
+                    controls=controls, end_tick=t1 - t0)
 
 
 def write_midi(

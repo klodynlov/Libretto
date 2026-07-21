@@ -63,6 +63,20 @@ class TestCalibrate(unittest.TestCase):
             # l'original ne doit jamais être muté
             self.assertEqual(len(self.md.notes), 564)
 
+    def test_degradations_preserve_controls(self):
+        """Équité A/B du corpus d'interprétations réelles : la pédale (CC64)
+        doit voyager intacte dans la version dégradée. Si elle manquait d'un
+        seul côté d'une paire, l'oreille entendrait la pédale — sèche contre
+        résonnante — et non la dégradation."""
+        import random
+        from dataclasses import replace as dc_replace
+        md = dc_replace(self.md,
+                        controls=[(0, 0, 64, 127), (960, 0, 64, 0)],
+                        notes=list(self.md.notes))
+        for name, fn in DEGRADATIONS.items():
+            degraded = fn(md, random.Random(1))
+            self.assertEqual(degraded.controls, md.controls, name)
+
     def test_degraded_scores_lower_on_average(self):
         pos, negs, _skipped, _conf = file_vectors(self.mid_path, seed=42, variants=2)
         _acc, margin = evaluate(EXPERT_WEIGHTS, [(pos, n) for _name, n in negs])

@@ -298,6 +298,49 @@ Conséquences :
    dynamique est une intention et non un motif. Hors de portée du
    générateur — noté comme piste externe.
 
+### Session 5 — interprétations humaines réelles (préparée)
+
+La piste externe est outillée : `examples/fetch_maestro.py` constitue un
+corpus d'extraits de **MAESTRO v3** (Hawthorne et al. 2019, CC BY-NC-SA) —
+~1 200 interprétations capturées au Disklavier lors de l'International
+Piano-e-Competition. Chaque vélocité y est le geste réel d'un pianiste.
+C'est exactement la matière dont les sessions 1-4 ont montré l'absence
+dans le corpus généré.
+
+Choix méthodologiques, fixés avant toute écoute :
+
+- **24 extraits de 50 s**, un par interprétation, compositeurs en
+  tourniquet ; fenêtre à 30 % de la durée, glissement déterministe de
+  +12 s si creux (< 60 notes). **Aucune sélection sur la variance de
+  vélocité** — choisir les passages « les plus dynamiques » fabriquerait
+  le résultat.
+- **La pédale voyage avec l'extrait.** Le parseur capture désormais les
+  contrôleurs (CC64/66/67), `slice_mididata` réémet l'état de pédale au
+  début de fenêtre, et les dégradations les recopient à l'identique
+  (testé). Sans cela, un côté de la paire sonnerait sec et l'autre
+  résonnant — on jugerait la pédale, pas la dynamique.
+- Même protocole que la session 4 : rendu v3-instrument, `flatten` +
+  `scramble`, contrôles garantis, aveugle total (URL opaques).
+
+Grille de décision, engagée avant l'écoute :
+
+- **détectées** (IC bas > 0.5) → la dynamique *jouée* porte une structure
+  audible que sa destruction abîme. Ensuite seulement, vérifier que les
+  axes la *mesurent* : AUC de 26/28 sur ce corpus. Si l'AUC suit, poids
+  26/28 recalibrés ; si elle ne suit pas, les axes sont mal construits —
+  à réécrire, pas à repondérer.
+- **rien, ou inversées encore** → même l'interprétation réelle ne fait
+  pas de ces dégradations des négatifs valides ; poids réduits
+  définitifs, et le banc d'essai aura épuisé matière ET rendus.
+
+Dans les deux cas, l'AUC moteur de 26/28 sur ce corpus est mesurée —
+l'accord oreille/moteur se juge des deux côtés.
+
+Réserve notée d'avance : MAESTRO est du piano solo sans carrure fiable
+(pas de vraie grille de mesures) — les axes qui exigent mesures ou
+pupitres tomberont en basse confiance, c'est le rôle de l'indicateur.
+La question posée à l'oreille, elle, ne porte que sur la dynamique.
+
 ### 2. Autres priorités
 
 - Un second annotateur, pour estimer l'accord inter-annotateur — inconnu à
