@@ -363,10 +363,18 @@ beaucoup de notes et que la confiance mesure la quantité de matière, pas sa
 provenance. Le gate `--min-confidence` ne protège donc pas d'une mauvaise
 transcription. Conséquence : sur du transcrit, Forge est un **triage
 grossier** — écarter le tiers du bas est fiable, couronner le n°1 ne l'est
-pas ; livrez une `--shortlist` aux oreilles. `examples/forge_acestep.py`
-implémente la chaîne proprement (Demucs par stems → basic-pitch par stem
-tonal, batterie en onsets canal 9, tempo estimé → fusion multi-pistes →
-sélection), avec `--shortlist 5` par défaut — précisément pour ça. Le rapport signale aussi la
+pas ; livrez une `--shortlist` aux oreilles. La chaîne propre existe, en
+deux étapes découplées — la conversion coûte ~1-3 min par prise, le
+jugement quelques millisecondes, on ne paie le lourd qu'une fois :
+
+```bash
+python3 examples/audio2midi.py prises/ midi/    # Demucs par stems → basic-pitch
+                                                # par stem tonal, batterie en
+                                                # onsets canal 9, tempo estimé
+python3 examples/forge.py sortie/ --from-dir midi/ --axes --shortlist 5
+# ou d'un trait (raccourci) :
+python3 examples/forge_acestep.py prises/ sortie/    # --shortlist 5 par défaut
+``` Le rapport signale aussi la
 **collapse de diversité** qu'induit toute sélection sur un score unique :
 optimiser le SMS resserre le peloton de tête sur l'esthétique inscrite dans
 les bandes de tolérance (cf. circularité, plus haut). C'est montré, pas caché
