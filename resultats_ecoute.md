@@ -422,7 +422,7 @@ chaque contrôle est réinséré dans sa tranche du lot à une position
 imprévisible, donc tout préfixe en contient sa juste part — maintenant
 que plus aucune session ne dépend des ids.
 
-### Session 5b — second annotateur (protocole prêt)
+### Session 5b — second annotateur : répliqué
 
 L'outillage est en place ; il manque une paire d'oreilles qui ne soit pas
 celle des sessions 1-5.
@@ -482,10 +482,54 @@ différence ») et que sa détection à lui seul dépasse aussi 0.5, la
 réserve « critère libéral » de la session 5 est levée par
 triangulation, quel que soit κ.
 
+**Résultat (55/55, second annotateur, 53 min d'écoute, médiane 48 s par
+paire).**
+
+| | A (session 5) | B (session 5b) | groupé |
+|---|---|---|---|
+| `flatten_dynamics` | 71 % [0.51–0.85] | 71 % [0.51–0.85] | **71 % [0.57–0.82]** |
+| `scramble_dynamics` | 73 % [0.52–0.87] | 75 % [0.55–0.88] | **74 % [0.60–0.84]** |
+| contrôles « aucune différence » | 2/7 | 0/7 | |
+
+Les deux IC groupés sont entièrement au-dessus de 0.5 : la branche
+« consolidé par deux oreilles » de la grille s'applique — **les poids
+restaurés restent**, aucune modification de code.
+
+**κ = −0.03, et c'est une bonne nouvelle — la signature de
+l'indépendance.** Sur les 46 paires tranchées par les deux, l'accord
+observé est 0.587 ; un modèle d'erreurs strictement indépendantes
+(p_A = 0.72, p_B = 0.74) prédit 0.604 — l'écart est dans le bruit. Les
+erreurs des deux annotateurs ne sont pas corrélées : pas de paires
+« pièges » partagées, un signal diffus sur tout le lot et deux bruits
+individuels. Détail qui compte : κ ≈ 0 **réfute l'hypothèse de la
+copie** (des réponses recopiées donneraient κ ≈ 1) — les deux lots sont
+bien deux paires d'oreilles. Les deux se trompent ensemble sur 3 paires
+seulement ; au moins un des deux est juste sur 93 % du lot.
+
+**La réserve « critère libéral », soldée par réplication.** B ne répond
+jamais « aucune différence » (0 sur 55, contrôles 0/7) — la clause de
+triangulation (un B conservateur) ne s'applique pas. Mais la réserve
+tombe autrement : deux critères libéraux **indépendants** ne peuvent pas
+fabriquer deux détections au-dessus du hasard, parce qu'un choix forcé
+sur une paire indiscernable reste une pièce jetée face à des positions
+équilibrées — il dilue vers 0.5 chez chacun, et l'indépendance (κ ≈ 0)
+interdit qu'un même artefact les pousse du même côté. Deux mesures
+indépendantes, même verdict : c'est la définition d'une réplication.
+Reste vrai qu'aucun des deux n'utilise « aucune différence » ; un
+troisième annotateur conservateur affinerait la mesure du critère, mais
+n'est plus nécessaire au verdict.
+
+Accord moteur pour B : 50 % — même diagnostic que pour A (sur des paires
+ne différant que par les vélocités, les axes non dynamiques n'apportent
+que du bruit) ; le juge pertinent reste l'AUC par axe, inchangée (même
+corpus, mêmes dégradations : 26 à 0.93).
+
 ### 2. Autres priorités
 
-- Un second annotateur : protocole et outillage prêts (voir session 5b) —
-  il ne manque que les oreilles.
+- Un second annotateur : **fait** (session 5b) — réplication indépendante,
+  κ ≈ 0 signant la décorrélation des erreurs. Un troisième annotateur au
+  critère conservateur affinerait la mesure du critère ; il n'est plus
+  nécessaire au verdict.
 - 20-25 jugements par dégradation, pour resserrer les intervalles.
 - Répondre plus souvent « je n'entends pas de différence » : une seule
   réponse de ce type sur 58 a rendu les contrôles peu concluants.

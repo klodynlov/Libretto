@@ -258,9 +258,12 @@ une *humanisation* sur des rampes de générateur s'entend comme une
 déjà arbitraire. La révision de poids de la session 3 est annulée (26/28
 restaurés). Détail — y compris la réserve sur les contrôles (critère
 libéral mesuré, qui dilue vers le hasard mais ne gonfle pas) — dans
-[`resultats_ecoute.md`](resultats_ecoute.md). Le protocole du second
-annotateur est outillé : `agreement A.json B.json` compare deux lots de
-jugements (κ de Cohen, accord sur la version désignée, verdict groupé).
+[`resultats_ecoute.md`](resultats_ecoute.md). Le second annotateur a
+rejoué le lot à l'identique (session 5b, `agreement A.json B.json`) :
+**réplication indépendante** — 71 % et 75 % de détection, verdict groupé
+à IC entièrement au-dessus de 0.5 (`flatten` [0.57–0.82], `scramble`
+[0.60–0.84]), et κ ≈ 0 signant la décorrélation des erreurs — deux
+oreilles, un même verdict, aucun artefact partagé.
 
 ## Corpus de validation
 
