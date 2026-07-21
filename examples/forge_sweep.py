@@ -22,7 +22,11 @@ qu'aurait désigné la règle *score seul* (le meilleur score parmi les
 - **combien de candidats le gate `--min-confidence` recale** — le garde-fou
   est-il sollicité, même sur un corpus 100 % « morceaux » ?
 - **la collapse de diversité** — combien de formes distinctes survivent dans
-  le top 5, tirage après tirage.
+  le top 5, tirage après tirage ;
+- **ce que la contrainte de diversité coûte** — la shortlist round-robin par
+  forme (`diverse_shortlist`, k=5) contre le top 5 libre : formes gagnées,
+  score moyen cédé. C'est le contrefactuel chiffré de la phrase du README
+  « un vrai pipeline sélectionnerait sous contrainte de diversité ».
 
 Reproductible
 -------------
@@ -49,7 +53,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from forge import forge  # noqa: E402
+from forge import diverse_shortlist, forge  # noqa: E402
 
 # Tranches, de la plus sûre à la moins sûre (pour l'affichage ordonné).
 TIER_ORDER = ["élevée", "moyenne", "faible", "insuffisante"]
@@ -90,6 +94,19 @@ def sweep(n_seeds: int = 10, n: int = 24, start_seed: int = 1,
         winner = lb[0]                                   # fiabilité d'abord
         pure = max(lb, key=lambda c: c["score"])         # score seul
         changed = pure["file"] != winner["file"]
+
+        # Shortlist diverse (k=5) contre top 5 libre : le même round-robin
+        # que forge --shortlist, appliqué au leaderboard sérialisé.
+        k = min(5, len(lb))
+        short = diverse_shortlist(lb, k, form_of=lambda c: c["form"])
+        free = lb[:k]
+        mean = lambda cs: sum(c["score"] for c in cs) / len(cs)  # noqa: E731
+        shortlist = {
+            "k": k,
+            "distinct_forms": len({c["form"] for c in short}),
+            "free_distinct_forms": len({c["form"] for c in free}),
+            "score_cost": round(mean(free) - mean(short), 4),
+        }
         per_seed.append({
             "seed": s,
             "eligible": report["n_eligible"],
@@ -106,6 +123,7 @@ def sweep(n_seeds: int = 10, n: int = 24, start_seed: int = 1,
             "score_sacrificed": round(pure["score"] - winner["score"], 4) if changed else 0.0,
             "tiers": _tier_counts(lb),
             "diversity": report["diversity"],
+            "shortlist": shortlist,
         })
 
     if not keep:
@@ -132,6 +150,9 @@ def _aggregate(per_seed: list[dict]) -> dict:
             tier_total[level] = tier_total.get(level, 0) + c
     div_top = [r["diversity"]["distinct_forms_in_top"] for r in scored]
     div_all = [r["diversity"]["distinct_forms_overall"] for r in scored]
+    sl = [r["shortlist"] for r in scored if r.get("shortlist")]
+    sl_forms = [s["distinct_forms"] for s in sl]
+    sl_costs = [s["score_cost"] for s in sl]
 
     return {
         "n_seeds_scored": n,
@@ -146,6 +167,9 @@ def _aggregate(per_seed: list[dict]) -> dict:
         "tier_totals": {t: tier_total.get(t, 0) for t in TIER_ORDER if tier_total.get(t)},
         "diversity_top_mean": round(sum(div_top) / len(div_top), 2) if div_top else None,
         "diversity_overall_mean": round(sum(div_all) / len(div_all), 2) if div_all else None,
+        "shortlist_forms_mean": round(sum(sl_forms) / len(sl_forms), 2) if sl_forms else None,
+        "shortlist_cost_mean": round(sum(sl_costs) / len(sl_costs), 4) if sl_costs else None,
+        "shortlist_cost_max": max(sl_costs) if sl_costs else None,
     }
 
 
@@ -187,6 +211,10 @@ def _print_report(report: dict) -> None:
     print(f"Tranches (sur {tot} éligibles) : {tiers}")
     print(f"Diversité : {a['diversity_top_mean']} formes distinctes dans le top 5, "
           f"pour {a['diversity_overall_mean']} générées en moyenne")
+    if a["shortlist_forms_mean"] is not None:
+        print(f"  la shortlist diverse (k=5, round-robin par forme) en retient "
+              f"{a['shortlist_forms_mean']}, pour un coût en score moyen de "
+              f"{a['shortlist_cost_mean']:.3f} (max {a['shortlist_cost_max']:.3f})")
 
 
 def main(argv: list[str] | None = None) -> int:

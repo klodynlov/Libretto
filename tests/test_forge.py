@@ -17,9 +17,53 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
 
-from forge import _print_axes_report, forge  # noqa: E402
+from forge import _print_axes_report, diverse_shortlist, forge  # noqa: E402
 
 from libretto.axes import AXES_META  # noqa: E402
+
+
+class TestDiverseShortlist(unittest.TestCase):
+    """Propriétés de la sélection sous contrainte de diversité, sur des
+    classements synthétiques (aucune génération : les invariants de la règle
+    ne dépendent pas du moteur)."""
+
+    @staticmethod
+    def _ranked(forms):
+        # Un classement déjà trié : l'indice EST le rang.
+        return [{"form": f, "rank": i} for i, f in enumerate(forms)]
+
+    def test_le_premier_elu_est_le_gagnant(self):
+        ranked = self._ranked(["a", "a", "b", "c"])
+        short = diverse_shortlist(ranked, 3, form_of=lambda c: c["form"])
+        self.assertEqual(short[0], ranked[0])
+
+    def test_couvre_toutes_les_formes_avant_de_repeter(self):
+        # 3 formes disponibles, k=3 : les trois doivent y être, même si les
+        # mieux classés sont tous de la même forme.
+        ranked = self._ranked(["a", "a", "a", "b", "a", "c"])
+        short = diverse_shortlist(ranked, 3, form_of=lambda c: c["form"])
+        self.assertEqual({c["form"] for c in short}, {"a", "b", "c"})
+        # Et à contrainte égale, le mérite garde l'ordre : c'est le premier
+        # « a », le premier « b », le premier « c ».
+        self.assertEqual([c["rank"] for c in short], [0, 3, 5])
+
+    def test_releve_le_cap_quand_les_formes_sont_epuisees(self):
+        # 2 formes, k=4 : cap 1 prend le meilleur de chaque, cap 2 les seconds.
+        ranked = self._ranked(["a", "a", "b", "b"])
+        short = diverse_shortlist(ranked, 4, form_of=lambda c: c["form"])
+        self.assertEqual([c["rank"] for c in short], [0, 2, 1, 3])
+
+    def test_k_superieur_au_total_rend_tout(self):
+        ranked = self._ranked(["a", "b"])
+        short = diverse_shortlist(ranked, 10, form_of=lambda c: c["form"])
+        self.assertEqual(len(short), 2)
+
+    def test_diversite_garantie_min_k_formes(self):
+        # La shortlist compte min(k, formes distinctes) formes — jamais moins.
+        ranked = self._ranked(["a", "a", "b", "c", "d", "b"])
+        for k in range(1, 7):
+            short = diverse_shortlist(ranked, k, form_of=lambda c: c["form"])
+            self.assertEqual(len({c["form"] for c in short}), min(k, 4), k)
 
 
 class TestForgeAxesReport(unittest.TestCase):
@@ -84,10 +128,37 @@ class TestForgeAxesReport(unittest.TestCase):
         self.assertIn("Rapport axe par axe", out)
         self.assertIn("Avance SMS sur le peloton", out)
 
+    def test_shortlist_integration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report = forge(tmp, n=8, seed=1, shortlist=4)
+            sl = report["shortlist"]
+            self.assertIsNotNone(sl)
+            self.assertEqual(sl["k"], len(sl["picks"]))
+            self.assertLessEqual(sl["k"], 4)
+            # Le premier élu est le gagnant lui-même.
+            self.assertEqual(sl["picks"][0]["file"],
+                             report["leaderboard"][0]["file"])
+            # Jamais moins de formes que le top-k libre.
+            self.assertGreaterEqual(sl["distinct_forms"],
+                                    sl["unconstrained_distinct_forms"])
+            # Cohérence arithmétique du coût affiché.
+            self.assertAlmostEqual(
+                sl["score_cost_mean"],
+                sl["unconstrained_mean_score"] - sl["mean_score"], delta=1e-3)
+            # Les fichiers livrés existent, dans l'ordre annoncé.
+            for p in sl["picks"]:
+                self.assertTrue((Path(tmp) / p["file_out"]).exists(),
+                                p["file_out"])
+            # Et le rapport sur disque les connaît aussi.
+            on_disk = json.loads(
+                (Path(tmp) / "forge_report.json").read_text(encoding="utf-8"))
+            self.assertIn("shortlist", on_disk)
+
     def test_sans_flag_pas_de_rapport(self):
         with tempfile.TemporaryDirectory() as tmp:
             report = forge(tmp, n=3, seed=2)
             self.assertNotIn("axes_report", report)
+            self.assertNotIn("shortlist", report)
             # Et l'affichage du rapport axe par axe est un no-op silencieux.
             buf = io.StringIO()
             with redirect_stdout(buf):

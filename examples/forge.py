@@ -51,14 +51,16 @@ maximal rappelle donc mécaniquement l'esthétique inscrite dans les bandes de
 tolérance — pop, en arche, carrée. Forge le montre au lieu de le cacher : le
 rapport compare la distribution des formes du peloton de tête à celle de tous
 les candidats. Si le top-K est plus pauvre, ce n'est pas un bug de Forge,
-c'est ce que « optimiser un score » fait à la diversité. Un vrai pipeline en
-tiendrait compte (diversité sous contrainte de score, pas score seul).
+c'est ce que « optimiser un score » fait à la diversité. Et `--shortlist K`
+est la réponse : une sélection round-robin par forme (voir
+`diverse_shortlist`) qui garantit min(K, formes distinctes) formes dans le
+peloton livré, avec le coût en score affiché sans fard.
 
 Usage
 -----
     python3 examples/forge.py sortie/ [n=24] [seed=1]
         [--min-confidence 0.55] [--min-score 0.0]
-        [--keep-all] [--axes] [--reaper]
+        [--keep-all] [--axes] [--shortlist K] [--reaper]
 
 Sortie : `sortie/forge_winner.mid` (le gagnant), `sortie/forge_report.json`
 (le classement complet), et un tableau lisible sur stdout. Avec `--axes`,
@@ -176,7 +178,7 @@ def generate_and_score(index: int, seed: int, out_dir: Path) -> Candidate | None
 def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
           min_confidence: float = SenseOfMusicalStructure.INTERPRETABLE_CONFIDENCE,
           min_score: float = 0.0, keep_all: bool = False,
-          axes_report: bool = False) -> dict:
+          axes_report: bool = False, shortlist: int = 0) -> dict:
     """Génère n candidats, les note, sélectionne le meilleur — fiabilité
     d'abord (tranche puis score), après le gate `min_confidence`.
 
@@ -184,7 +186,11 @@ def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
     `forge_winner.mid`. Sans `keep_all`, les candidats non retenus sont
     effacés (un pipeline garde le gagnant, pas les 23 brouillons).
     Avec `axes_report`, le rapport détaille le gagnant axe par axe contre
-    le peloton des autres éligibles (voir `_axes_report`)."""
+    le peloton des autres éligibles (voir `_axes_report`).
+    Avec `shortlist=k`, sélectionne aussi k candidats SOUS CONTRAINTE DE
+    DIVERSITÉ (round-robin par forme, voir `diverse_shortlist`), copiés en
+    `forge_short_XX.mid` — la réponse à la collapse de diversité que le
+    rapport documente."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -218,6 +224,14 @@ def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
         winner_path = out / "forge_winner.mid"
         winner_path.write_bytes(winner.path.read_bytes())
 
+    # Shortlist diverse : copiée AVANT l'effacement des brouillons — ces
+    # fichiers sont un livrable au même titre que le gagnant.
+    short: list[Candidate] = []
+    if shortlist > 0 and ranked:
+        short = diverse_shortlist(ranked, shortlist)
+        for pos, c in enumerate(short, 1):
+            (out / f"forge_short_{pos:02d}.mid").write_bytes(c.path.read_bytes())
+
     # Le gagnant est copié sous `forge_winner.mid` ; sans --keep-all on efface
     # tous les brouillons, l'original compris (un pipeline garde le gagnant,
     # pas les N ébauches).
@@ -243,9 +257,82 @@ def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
     }
     if axes_report:
         report["axes_report"] = _axes_report(ranked)
+    if shortlist > 0:
+        report["shortlist"] = _shortlist_report(ranked, short, out) if short else None
     (out / "forge_report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     return report
+
+
+def diverse_shortlist(ranked: list, k: int, form_of=None) -> list:
+    """Sélection sous contrainte de diversité : round-robin par forme.
+
+    On parcourt le classement (fiabilité d'abord) en n'acceptant un candidat
+    que si sa forme n'a pas atteint le cap courant ; quand une passe complète
+    n'ajoute plus personne, on relève le cap. Cap 1 : le meilleur de chaque
+    forme, dans l'ordre du mérite. Cap 2 : les seconds. Etc.
+
+    Propriétés (verrouillées par les tests) :
+    - tant qu'une forme n'est pas représentée, la place suivante lui revient :
+      la shortlist compte min(k, formes distinctes) formes — jamais moins ;
+    - à contrainte égale, c'est toujours le mieux classé qui passe — la
+      diversité choisit QUI concourt, le mérite garde l'ordre ; le premier
+      élu est donc toujours le gagnant lui-même ;
+    - déterministe, et générique : `form_of` permet de l'appliquer aussi bien
+      aux `Candidate` qu'aux dicts du leaderboard (forge_sweep s'en sert).
+    """
+    if form_of is None:
+        form_of = lambda c: c.form  # noqa: E731
+    picked_idx: list[int] = []
+    taken: set[int] = set()
+    counts: dict[str, int] = {}
+    cap = 1
+    while len(picked_idx) < k:
+        progressed = False
+        for i, c in enumerate(ranked):
+            if len(picked_idx) >= k:
+                break
+            if i in taken:
+                continue
+            form = form_of(c)
+            if counts.get(form, 0) < cap:
+                picked_idx.append(i)
+                taken.add(i)
+                counts[form] = counts.get(form, 0) + 1
+                progressed = True
+        if not progressed:
+            break  # moins de k candidats en tout : on rend ce qu'on a
+        cap += 1
+    return [ranked[i] for i in picked_idx]
+
+
+def _shortlist_report(ranked: list[Candidate], short: list[Candidate],
+                      out: Path) -> dict:
+    """La shortlist diverse, et ce qu'elle coûte — contre le vrai contrefactuel :
+    le top-k SANS contrainte (les k premiers du classement fiabilité d'abord),
+    c'est-à-dire ce que Forge livrerait si on ne lui demandait pas de diversité.
+    Le coût peut être négatif : la contrainte peut repêcher un score élevé
+    d'une tranche plus basse. On rapporte le chiffre tel quel."""
+    k = len(short)
+    unconstrained = ranked[:k]
+    mean = lambda cs: sum(c.score for c in cs) / len(cs)  # noqa: E731
+
+    picks = []
+    for pos, c in enumerate(short, 1):
+        entry = c.as_dict()
+        entry["rank"] = ranked.index(c) + 1  # rang dans le classement libre
+        entry["file_out"] = f"forge_short_{pos:02d}.mid"
+        picks.append(entry)
+
+    return {
+        "k": k,
+        "picks": picks,
+        "distinct_forms": len({c.form for c in short}),
+        "unconstrained_distinct_forms": len({c.form for c in unconstrained}),
+        "mean_score": round(mean(short), 4),
+        "unconstrained_mean_score": round(mean(unconstrained), 4),
+        "score_cost_mean": round(mean(unconstrained) - mean(short), 4),
+    }
 
 
 def _axes_report(ranked: list[Candidate]) -> dict | None:
@@ -346,8 +433,35 @@ def _print_report(report: dict) -> None:
     if d["distinct_forms_in_top"] < d["distinct_forms_overall"]:
         print("  → optimiser le SMS resserre le peloton de tête sur les formes que "
               "les bandes de tolérance récompensent. Attendu, pas accidentel "
-              "(README, circularité) : un vrai pipeline sélectionnerait sous "
+              "(README, circularité) : --shortlist K sélectionne sous "
               "contrainte de diversité, pas sur le score seul.")
+
+
+def _print_shortlist(report: dict) -> None:
+    """La shortlist diverse, et son prix affiché sans fard : formes gagnées
+    contre le top-k libre, score moyen cédé (ou gagné — ça arrive : la
+    contrainte peut repêcher un score élevé d'une tranche plus basse)."""
+    if "shortlist" not in report:
+        return
+    sl = report["shortlist"]
+    if not sl:
+        print("\nShortlist diverse : aucun candidat éligible, rien à sélectionner.")
+        return
+
+    print(f"\nShortlist sous contrainte de diversité (k={sl['k']}, "
+          f"round-robin par forme — le mérite garde l'ordre) :")
+    print(f"  {'fichier':<19} {'rang':>4}  {'tranche':<11} {'score':>6}  "
+          f"{'fiab.':>6}  forme")
+    for p in sl["picks"]:
+        print(f"  {p['file_out']:<19} {p['rank']:>4}  {p['level']:<11} "
+              f"{p['score']:>6.3f}  {p['confidence']:>6.3f}  {p['form']}")
+
+    cost = sl["score_cost_mean"]
+    print(f"  → {sl['distinct_forms']} formes distinctes contre "
+          f"{sl['unconstrained_distinct_forms']} dans le top-{sl['k']} libre ; "
+          f"score moyen {sl['mean_score']:.3f} contre "
+          f"{sl['unconstrained_mean_score']:.3f} "
+          f"({'coût' if cost >= 0 else 'gain'} {abs(cost):.3f}).")
 
 
 def _print_axes_report(report: dict) -> None:
@@ -425,14 +539,20 @@ def main(argv: list[str] | None = None) -> int:
                         help="détailler le gagnant axe par axe : son score, la "
                              "moyenne du peloton éligible, l'écart et le levier "
                              "(écart × poids)")
+    parser.add_argument("--shortlist", type=int, default=0, metavar="K",
+                        help="sélectionner aussi K candidats sous contrainte de "
+                             "diversité (round-robin par forme), copiés en "
+                             "forge_short_XX.mid — coût en score affiché")
     parser.add_argument("--reaper", action="store_true",
                         help="pousser le gagnant dans REAPER via le pont Klody")
     args = parser.parse_args(argv)
 
     report = forge(args.out_dir, n=args.n, seed=args.seed,
                    min_confidence=args.min_confidence, min_score=args.min_score,
-                   keep_all=args.keep_all, axes_report=args.axes)
+                   keep_all=args.keep_all, axes_report=args.axes,
+                   shortlist=args.shortlist)
     _print_report(report)
+    _print_shortlist(report)
     _print_axes_report(report)
 
     if args.reaper and report["winner_file"]:

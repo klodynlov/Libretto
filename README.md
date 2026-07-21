@@ -302,8 +302,9 @@ qui laisserait un 0.68 à confiance 1.00 l'emporter sur un 0.88 à 0.99.)
 
 ```bash
 python3 examples/forge.py sortie/ 24 1          # 24 candidats, graine 1
-python3 examples/forge.py sortie/ 24 1 --axes   # + pourquoi ce gagnant, axe par axe
-python3 examples/forge.py sortie/ 24 1 --reaper # + pousse le gagnant dans REAPER
+python3 examples/forge.py sortie/ 24 1 --axes        # + pourquoi ce gagnant, axe par axe
+python3 examples/forge.py sortie/ 24 1 --shortlist 5 # + 5 candidats, diversité garantie
+python3 examples/forge.py sortie/ 24 1 --reaper      # + pousse le gagnant dans REAPER
 ```
 
 Le mode `--axes` explique **pourquoi ce gagnant** : pour chacun des 29 axes,
@@ -314,6 +315,17 @@ complète, rien ne se cache dans un résidu. On lit d'un coup d'œil où l'avanc
 se construit (« Arc émotionnel +0.017 ») et où elle s'érode (« Variété
 texturale −0.019 ») ; le détail est aussi sérialisé dans `forge_report.json`
 (section `axes_report`, ordre canonique des axes).
+
+Le mode `--shortlist K` répond à la collapse de diversité (circularité, plus
+haut) par une **sélection sous contrainte de diversité** : un round-robin par
+forme sur le classement fiabilité-d'abord — tant qu'une forme n'est pas
+représentée, la place suivante lui revient ; à contrainte égale, c'est
+toujours le mieux classé qui passe. La diversité choisit *qui* concourt, le
+mérite garde l'ordre : la shortlist compte min(K, formes distinctes) formes,
+garanti, et son premier élu reste le gagnant. Les K fichiers sont livrés
+(`forge_short_XX.mid`) et le coût en score est affiché sans fard — il peut
+même être négatif, quand la contrainte repêche un score élevé d'une tranche
+plus basse.
 
 Dans une vraie chaîne, la brique génératrice se remplace par une
 transcription (basic-pitch) d'un rendu audio ou la sortie MIDI d'un modèle —
@@ -336,10 +348,13 @@ Sur 10 graines (déterministe), la règle **change le gagnant six fois sur
 dix**, pour un score brut cédé de seulement **0.026 en moyenne** (min 0.005,
 max 0.054) — on paie moins de trois centièmes de score pour gagner une tranche
 de fiabilité entière. Le gate `--min-confidence` recale au moins un candidat
-sur 4 graines sur 10, même sur ce corpus 100 % « morceaux » : sur 236
-candidats éligibles, **84 % tombent en « élevée » et 15 % en « moyenne »**. Et
-le top 5 ne retient que ~3.9 des ~6.9 formes générées : la collapse de
-diversité est constante, pas un accident de tirage.
+sur 2 graines sur 10, même sur ce corpus 100 % « morceaux » : sur 238
+candidats éligibles, **84 % tombent en « élevée » et 15 % en « moyenne »**. Le
+top 5 libre ne retient que ~3.9 des ~6.9 formes générées — la collapse de
+diversité est constante, pas un accident de tirage. Et la contrainte de
+diversité est bon marché : la shortlist round-robin (k=5) **retient 5.0
+formes sur 5, pour un coût en score moyen de 0.008** (max 0.020) — une forme
+entière regagnée coûte moins d'un centième de score.
 
 ## Interface web locale
 
