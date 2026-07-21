@@ -31,10 +31,12 @@ class TestPontsOptionnels(unittest.TestCase):
     contrat stdlib du dépôt s'arrête à leur main(), pas à leur import."""
 
     def test_importables_sans_dependances(self):
+        import audio2midi
         import forge_acestep
         import forge_musiclang
         import transcription_roundtrip
-        for mod in (forge_acestep, forge_musiclang, transcription_roundtrip):
+        for mod in (audio2midi, forge_acestep, forge_musiclang,
+                    transcription_roundtrip):
             self.assertTrue(callable(mod.main), mod.__name__)
 
 
