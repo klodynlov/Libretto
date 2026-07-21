@@ -524,6 +524,38 @@ ne différant que par les vélocités, les axes non dynamiques n'apportent
 que du bruit) ; le juge pertinent reste l'AUC par axe, inchangée (même
 corpus, mêmes dégradations : 26 à 0.93).
 
+### L'axe 02, réparé — le dernier legs de la session 5
+
+L'AUC de `02_section_balance` sortait à 0.39-0.48 sur les paires
+dynamiques du corpus réel : l'axe votait pour la dégradation. Le
+mécanisme, élucidé en décomposant les paires perdues, est double :
+
+1. **Aplatir ou brouiller les vélocités abaisse le plancher du seuil
+   adaptatif de nouveauté** (médiane + MAD de la courbe) : des pics de
+   chroma jusque-là sous le seuil deviennent des frontières, et les
+   sections longues se scindent. Verdi : `[4, 6, 15]` → `[4, 6, 9, 6]`.
+2. **L'axe notait `1 − CV`**, dont l'optimum est l'uniformité parfaite :
+   la version scindée, plus régulière, gagnait. Même maladie que les
+   huit axes redressés à l'audit — une propriété statistique confondue
+   avec une qualité musicale : deux idées courtes puis un long
+   développement est une *forme*, pas un défaut.
+
+Réparation (l'axe seulement — le seuil du builder porte la F-mesure de
+segmentation, il n'est pas touché) : **plateau** `band(CV, 0–0.65)` —
+un AABA régulier (CV 0) et un couplet 16 / pont 8 / coda 4 (CV 0.54)
+scorent pareil, seule la dégénérescence chute (`[1, 1, 30]`, CV 1.28) ;
+et **une section unique vaut 0.5 neutre**, plus 0.0 — l'ancien zéro
+faisait perdre un extrait à travers-composé contre n'importe quelle
+scission de lui-même (Rachmaninov : 0.000 → 0.943).
+
+Résultat : AUC de l'axe 02 sur les paires dynamiques = **0.50 exactement,
+partout** — que des égalités de plateau. L'axe ne vote plus pour la
+dégradation ; il s'abstient là où il n'a rien à dire (la dynamique est le
+travail de l'axe 26, à 0.93). Sur le corpus généré : experts 0.944 →
+0.934 (le faux gradient rapportait des victoires), validation croisée
+0.941 → **0.944** et surapprentissage +0.003 — l'axe gagné en robustesse
+ce qu'il a perdu en gradient fictif.
+
 ### 2. Autres priorités
 
 - Un second annotateur : **fait** (session 5b) — réplication indépendante,

@@ -116,6 +116,50 @@ class TestMusicTheory(unittest.TestCase):
         self.assertGreater(ax_arch.score, 0.6)
         self.assertGreater(ax_arch.score, ax_flat.score)
 
+    def test_axis02_plateau_tolerates_real_forms(self):
+        """[4, 6, 15] (deux idées courtes, un long développement) est une
+        forme, pas un défaut : elle doit scorer comme un AABA régulier.
+        v2 (1 − CV) la faisait perdre contre sa propre version scindée
+        [4, 6, 9, 6] — l'axe votait pour la dégradation (AUC 0.39 sur les
+        paires dynamiques du corpus réel, session 5)."""
+        def score_of(durs):
+            secs, start = [], 1
+            for i, d in enumerate(durs):
+                secs.append(Section(f"s{i}", start, start + d, "x"))
+                start += d
+            axes = {a.id: a for a in
+                    SenseOfMusicalStructure(Score(sections=secs)).calculate()}
+            return axes["02_section_balance"].score
+
+        varied = score_of([4, 6, 15])
+        split = score_of([4, 6, 9, 6])
+        self.assertEqual(varied, 1.0)          # sur le plateau
+        self.assertGreaterEqual(varied, split)  # la scission ne gagne plus
+
+    def test_axis02_degenerate_segmentation_falls(self):
+        """La dégénérescence — une section qui avale tout, des miettes à
+        côté — doit chuter : c'est une segmentation ratée, pas une forme."""
+        def score_of(durs):
+            secs, start = [], 1
+            for i, d in enumerate(durs):
+                secs.append(Section(f"s{i}", start, start + d, "x"))
+                start += d
+            axes = {a.id: a for a in
+                    SenseOfMusicalStructure(Score(sections=secs)).calculate()}
+            return axes["02_section_balance"].score
+
+        self.assertLess(score_of([1, 1, 30]), 0.5)
+
+    def test_axis02_single_section_is_neutral_not_zero(self):
+        """Une seule section : rien à équilibrer. L'ancien 0.0 faisait
+        perdre le fichier contre n'importe quelle version scindée — un
+        extrait à travers-composé de 50 s perdait d'office contre sa
+        propre dégradation (Rachmaninov, session 5)."""
+        secs = [Section("s0", 1, 31, "x")]
+        axes = {a.id: a for a in
+                SenseOfMusicalStructure(Score(sections=secs)).calculate()}
+        self.assertEqual(axes["02_section_balance"].score, 0.5)
+
     def test_axis24_not_duplicate_of_axis02(self):
         # v1 : axes 2 et 24 = même calcul (CV des durées) → feature comptée
         # double. v2 : durées équilibrées mais SANS carrure (7 mesures) doit
