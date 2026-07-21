@@ -422,10 +422,70 @@ chaque contrôle est réinséré dans sa tranche du lot à une position
 imprévisible, donc tout préfixe en contient sa juste part — maintenant
 que plus aucune session ne dépend des ids.
 
+### Session 5b — second annotateur (protocole prêt)
+
+L'outillage est en place ; il manque une paire d'oreilles qui ne soit pas
+celle des sessions 1-5.
+
+**Lancer la session** (même corpus, même graine — c'est ce qui rend les
+lots comparables) :
+
+```bash
+python3 -m libretto.cli annotate corpus_humain --render instrument \
+    --only flatten_dynamics,scramble_dynamics \
+    --out jugements5b.json --seed 5 --port 8793
+# --host 0.0.0.0 si l'annotateur écoute depuis une autre machine du réseau
+```
+
+Les ids et positions A/B diffèrent du lot de la session 5 (contrôles
+repositionnés depuis) — sans importance : le dépouillement joint sur
+(fichier, dégradation) et compare la **version désignée** (original /
+dégradé / aucune), jamais la lettre.
+
+**Dépouiller** :
+
+```bash
+python3 -m libretto.cli agreement jugements5.json jugements5b.json
+```
+
+Trois lectures : κ de Cohen sur les paires communes (reproductibilité du
+jugement individuel, corrigé des penchants de réponse), accord sur les
+paires tranchées par les deux, et **verdict groupé** par dégradation —
+tous jugements confondus, c'est lui qui resserre les intervalles (en
+comptant des jugements, pas des paires : IC légèrement optimistes,
+l'avertissement est dans le rapport).
+
+**La consigne au second annotateur — et ce qu'on ne lui dit pas.** Lui
+dire : deux versions du même extrait, désigner la mieux structurée,
+« je n'entends pas de différence » est une réponse valide et *utile*,
+aucune limite de temps. Ne PAS lui dire : quelles dégradations existent,
+les taux de la session 5, ni qu'il y a des paires identiques dans le lot
+— et ne pas lui faire lire ce fichier avant sa session. Le critère
+conservateur ne se prescrit pas, il se mesure (ses contrôles le diront).
+
+**Grille de décision, engagée avant l'écoute de 5b :**
+
+- **verdict groupé par dégradation, IC entièrement > 0.5** → consolidé
+  par deux oreilles ; les poids restaurés restent, la réserve de la
+  session 5 tombe.
+- **IC groupé chevauchant 0.5** → « non répliqué » : l'annulation de la
+  révision est elle-même annulée (retour aux poids réduits 26 : 0.010,
+  28 : 0.030) et le désaccord est documenté tel quel.
+- **IC groupé < 0.5** → inversé à deux voix : idem, plus enquête — un
+  tel renversement signalerait un artefact de protocole.
+
+κ est rapporté comme contexte, pas comme porte : un κ modeste avec un
+groupé net signifie « jugement individuel bruité, tendance commune
+réelle » — c'est le cas normal en psychoacoustique. Cas particulier
+utile : si les contrôles de B sont conservateurs (> 50 % de « aucune
+différence ») et que sa détection à lui seul dépasse aussi 0.5, la
+réserve « critère libéral » de la session 5 est levée par
+triangulation, quel que soit κ.
+
 ### 2. Autres priorités
 
-- Un second annotateur, pour estimer l'accord inter-annotateur — inconnu à
-  ce jour.
+- Un second annotateur : protocole et outillage prêts (voir session 5b) —
+  il ne manque que les oreilles.
 - 20-25 jugements par dégradation, pour resserrer les intervalles.
 - Répondre plus souvent « je n'entends pas de différence » : une seule
   réponse de ce type sur 58 a rendu les contrôles peu concluants.

@@ -198,6 +198,194 @@ def _engine_agreement(records: list[dict], corpus_dir: Path, seed: int) -> dict:
     }
 
 
+def _load_records(path: str | Path) -> tuple[str, list[dict]]:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    records = data.get("judgements", [])
+    if not records:
+        raise ValueError(f"aucun jugement dans {path}")
+    return data.get("renderer", "v1-volume"), records
+
+
+def _version_designee(r: dict) -> str:
+    """Catégorie de réponse comparable ENTRE annotateurs : la version
+    désignée (original / dégradé / aucune), jamais la lettre A ou B — les
+    positions sont remélangées d'un lot à l'autre, deux « A » peuvent être
+    deux versions différentes."""
+    if r["picked_original"] is None:
+        return "aucune"
+    return "original" if r["picked_original"] else "degrade"
+
+
+def _kappa(pairs: list[tuple[str, str]]) -> float | None:
+    """κ de Cohen : accord observé corrigé de l'accord attendu par les seuls
+    penchants de réponse des deux annotateurs. Deux annotateurs qui
+    répondraient « original » à tout s'accorderaient à 100 % sans rien
+    entendre — κ le ramène à 0."""
+    if not pairs:
+        return None
+    n = len(pairs)
+    p_o = sum(1 for a, b in pairs if a == b) / n
+    cats = sorted({c for p in pairs for c in p})
+    p_e = sum((sum(1 for a, _ in pairs if a == c) / n)
+              * (sum(1 for _, b in pairs if b == c) / n) for c in cats)
+    if 1 - p_e < 1e-9:
+        return 1.0 if p_o >= 1.0 else 0.0
+    return (p_o - p_e) / (1 - p_e)
+
+
+def inter_annotator(path_a: str | Path, path_b: str | Path) -> dict:
+    """Accord entre deux annotateurs ayant jugé le même lot.
+
+    La jonction se fait sur (fichier, dégradation) et non sur l'id de
+    tâche : `build_tasks` a changé l'ordre des lots entre sessions (voir la
+    répartition des contrôles) et les positions A/B sont remélangées — seuls
+    le morceau, la dégradation et la version désignée sont comparables.
+
+    Trois lectures, de la plus exigeante à la plus utile :
+    - κ de Cohen sur les paires réelles communes (trois catégories) : la
+      reproductibilité du jugement individuel ;
+    - accord sur les paires que les DEUX ont tranchées : même version ?
+    - verdict groupé par dégradation, tous jugements confondus — c'est lui
+      qui resserre les intervalles, en comptant des JUGEMENTS et non des
+      paires (deux oreilles sur la même paire ne sont pas deux paires).
+    """
+    renderer_a, records_a = _load_records(path_a)
+    renderer_b, records_b = _load_records(path_b)
+    if renderer_a != renderer_b:
+        raise ValueError(
+            f"rendus différents ({renderer_a} vs {renderer_b}) : un verdict ne "
+            "vaut que pour le rendu qui l'a produit, les lots ne se comparent pas")
+
+    def index(records: list[dict], origin: str) -> dict[tuple[str, str], dict]:
+        out: dict[tuple[str, str], dict] = {}
+        for r in records:
+            key = (r["file"], r["degradation"])
+            if key in out:
+                raise ValueError(
+                    f"{origin}: (fichier, dégradation) en double {key} — "
+                    "plusieurs lots mélangés dans un même fichier ?")
+            out[key] = r
+        return out
+
+    idx_a = index(records_a, str(path_a))
+    idx_b = index(records_b, str(path_b))
+    common = sorted(set(idx_a) & set(idx_b))
+    real_keys = [k for k in common if k[1] != CONTROL]
+    ctrl_keys = [k for k in common if k[1] == CONTROL]
+
+    # Accord sur les paires réelles : version désignée, 3 catégories.
+    triples = [(_version_designee(idx_a[k]), _version_designee(idx_b[k]))
+               for k in real_keys]
+    both_decided = [(a, b) for a, b in triples if "aucune" not in (a, b)]
+
+    # Verdict groupé par dégradation — jugements des deux annotateurs.
+    pooled: dict[str, dict] = {}
+    by_deg: dict[str, list[dict]] = defaultdict(list)
+    for r in records_a + records_b:
+        if r["degradation"] != CONTROL:
+            by_deg[r["degradation"]].append(r)
+    for name, rows in sorted(by_deg.items()):
+        decided = [r for r in rows if r["picked_original"] is not None]
+        hits = sum(1 for r in decided if r["picked_original"])
+        lo, hi = _wilson(hits, len(decided))
+        pooled[name] = {
+            "n_decided": len(decided),
+            "n_same": len(rows) - len(decided),
+            "taux_original": round(hits / len(decided), 3) if decided else None,
+            "ic95": [round(lo, 3), round(hi, 3)],
+            "audible": bool(decided) and lo > 0.5,
+            "inversee": bool(decided) and hi < 0.5,
+        }
+
+    def per_annotator(records: list[dict]) -> dict:
+        controls = [r for r in records if r["degradation"] == CONTROL]
+        real = [r for r in records if r["degradation"] != CONTROL]
+        ctrl_same = sum(1 for r in controls if r["choice"] == "same")
+        det = {}
+        for name, rows in sorted(
+                ((n, [r for r in real if r["degradation"] == n])
+                 for n in {r["degradation"] for r in real})):
+            decided = [r for r in rows if r["picked_original"] is not None]
+            hits = sum(1 for r in decided if r["picked_original"])
+            lo, hi = _wilson(hits, len(decided))
+            det[name] = {"taux_original":
+                         round(hits / len(decided), 3) if decided else None,
+                         "ic95": [round(lo, 3), round(hi, 3)],
+                         "n_decided": len(decided)}
+        return {"n": len(records),
+                "controles_aucune": round(ctrl_same / len(controls), 3)
+                if controls else None,
+                "detection": det}
+
+    p_o = (sum(1 for a, b in triples if a == b) / len(triples)
+           if triples else None)
+    p_o_decided = (sum(1 for a, b in both_decided if a == b) / len(both_decided)
+                   if both_decided else None)
+    kappa, kappa_decided = _kappa(triples), _kappa(both_decided)
+
+    return {
+        "renderer": renderer_a,
+        "fichiers": [str(path_a), str(path_b)],
+        "n_commun": len(common),
+        "n_commun_reels": len(real_keys),
+        "n_commun_controles": len(ctrl_keys),
+        "annotateurs": [per_annotator(records_a), per_annotator(records_b)],
+        "accord_brut": round(p_o, 3) if p_o is not None else None,
+        "kappa": round(kappa, 3) if kappa is not None else None,
+        "n_tranchees_par_les_deux": len(both_decided),
+        "accord_tranchees": (round(p_o_decided, 3)
+                             if p_o_decided is not None else None),
+        "kappa_tranchees": (round(kappa_decided, 3)
+                            if kappa_decided is not None else None),
+        "verdict_groupe": pooled,
+    }
+
+
+def format_inter_report(report: dict) -> str:
+    lines = ["=== ACCORD INTER-ANNOTATEURS ==="]
+    lines.append(f"rendu audio : {report['renderer']} (identique — exigé)")
+    lines.append(f"paires communes : {report['n_commun']} "
+                 f"({report['n_commun_reels']} réelles, "
+                 f"{report['n_commun_controles']} contrôles)")
+    lines.append("\n── annotateur par annotateur ──")
+    for path, ann in zip(report["fichiers"], report["annotateurs"]):
+        ctrl = ann["controles_aucune"]
+        ctrl_txt = f"{ctrl:.0%}" if ctrl is not None else "—"
+        lines.append(f"  {Path(path).name} ({ann['n']} jugements, contrôles "
+                     f"« aucune différence » : {ctrl_txt})")
+        for name, d in ann["detection"].items():
+            if d["taux_original"] is None:
+                continue
+            lines.append(f"    {name:20} {d['taux_original']:.0%} "
+                         f"(IC95 {d['ic95'][0]:.2f}–{d['ic95'][1]:.2f}, "
+                         f"n={d['n_decided']})")
+    if report["accord_brut"] is not None:
+        lines.append("\n── accord sur les paires réelles communes ──")
+        lines.append(f"  brut (original / dégradé / aucune) : "
+                     f"{report['accord_brut']:.0%}   κ de Cohen : "
+                     f"{report['kappa']:.2f}")
+        if report["accord_tranchees"] is not None:
+            lines.append(f"  tranchées par les deux (n="
+                         f"{report['n_tranchees_par_les_deux']}) : même version "
+                         f"désignée dans {report['accord_tranchees']:.0%} des cas, "
+                         f"κ {report['kappa_tranchees']:.2f}")
+        lines.append("  repères κ (Landis-Koch, indicatifs) : <0.20 faible, "
+                     "0.21–0.40 passable, 0.41–0.60 modéré, >0.60 substantiel")
+    lines.append("\n── verdict groupé (jugements des deux annotateurs) ──")
+    for name, d in report["verdict_groupe"].items():
+        if d["taux_original"] is None:
+            continue
+        mark = ("audible" if d["audible"] else
+                "INVERSÉE" if d["inversee"] else "non concluant")
+        lines.append(f"  {name:20} {d['taux_original']:.0%} "
+                     f"(IC95 {d['ic95'][0]:.2f}–{d['ic95'][1]:.2f}, "
+                     f"n={d['n_decided']}, ø={d['n_same']}) — {mark}")
+    lines.append("  ⚠ le groupé compte des JUGEMENTS, pas des paires : deux "
+                 "oreilles sur la même paire ne sont pas deux paires "
+                 "indépendantes — les IC sont un peu optimistes.")
+    return "\n".join(lines)
+
+
 def format_report(report: dict) -> str:
     lines = ["=== ACCORD HUMAIN / LIBRETTO ==="]
     lines.append(f"rendu audio : {report.get('renderer', 'v1-volume')} — un verdict "

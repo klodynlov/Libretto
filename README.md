@@ -258,7 +258,9 @@ une *humanisation* sur des rampes de générateur s'entend comme une
 déjà arbitraire. La révision de poids de la session 3 est annulée (26/28
 restaurés). Détail — y compris la réserve sur les contrôles (critère
 libéral mesuré, qui dilue vers le hasard mais ne gonfle pas) — dans
-[`resultats_ecoute.md`](resultats_ecoute.md).
+[`resultats_ecoute.md`](resultats_ecoute.md). Le protocole du second
+annotateur est outillé : `agreement A.json B.json` compare deux lots de
+jugements (κ de Cohen, accord sur la version désignée, verdict groupé).
 
 ## Corpus de validation
 

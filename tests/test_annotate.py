@@ -341,5 +341,114 @@ class TestAgreementAnalysis(unittest.TestCase):
             self._analyse({"judgements": []})
 
 
+class TestInterAnnotator(unittest.TestCase):
+    """Accord entre deux annotateurs : jonction sur (fichier, dégradation)
+    et sur la VERSION désignée — jamais sur l'id de tâche ni la lettre,
+    tous deux remélangés d'un lot à l'autre."""
+
+    @staticmethod
+    def _rec(file, deg, slot, choice):
+        return {"task_id": 0, "file": file, "degradation": deg,
+                "original_slot": slot, "choice": choice,
+                "picked_original": (choice == slot
+                                    if choice in ("A", "B") else None),
+                "listened_seconds": 30.0}
+
+    def _write(self, tmp, name, rows, renderer="v3-instrument:X.sf3"):
+        path = Path(tmp) / name
+        path.write_text(json.dumps({"renderer": renderer, "judgements": rows}),
+                        encoding="utf-8")
+        return path
+
+    def test_same_version_through_different_letters(self):
+        """Le lot de B a l'original en face de l'autre lettre : deux choix
+        de lettres opposés qui désignent la MÊME version doivent compter
+        comme un accord parfait."""
+        from libretto.agreement import inter_annotator
+        with tempfile.TemporaryDirectory() as d:
+            a = self._write(d, "a.json", [
+                self._rec("p0.mid", "flatten_dynamics", "A", "A"),
+                self._rec("p1.mid", "scramble_dynamics", "B", "B")])
+            b = self._write(d, "b.json", [
+                self._rec("p0.mid", "flatten_dynamics", "B", "B"),
+                self._rec("p1.mid", "scramble_dynamics", "A", "A")])
+            report = inter_annotator(a, b)
+        self.assertEqual(report["accord_brut"], 1.0)
+        self.assertEqual(report["kappa"], 1.0)
+        self.assertEqual(report["n_commun_reels"], 2)
+
+    def test_kappa_zero_when_independent(self):
+        """Réponses croisées symétriques : accord brut 50 % mais κ = 0 —
+        l'accord observé est exactement celui du hasard des penchants."""
+        from libretto.agreement import inter_annotator
+        files = [f"p{i}.mid" for i in range(4)]
+        a_rows = [self._rec(f, "flatten_dynamics", "A", c)
+                  for f, c in zip(files, ["A", "A", "B", "B"])]
+        b_rows = [self._rec(f, "flatten_dynamics", "A", c)
+                  for f, c in zip(files, ["A", "B", "A", "B"])]
+        with tempfile.TemporaryDirectory() as d:
+            report = inter_annotator(self._write(d, "a.json", a_rows),
+                                     self._write(d, "b.json", b_rows))
+        self.assertEqual(report["accord_brut"], 0.5)
+        self.assertEqual(report["kappa"], 0.0)
+
+    def test_renderer_mismatch_is_refused(self):
+        """Un verdict ne vaut que pour le rendu qui l'a produit : comparer
+        un lot v2 à un lot v3 mélangerait deux expériences."""
+        from libretto.agreement import inter_annotator
+        with tempfile.TemporaryDirectory() as d:
+            a = self._write(d, "a.json",
+                            [self._rec("p0.mid", "flatten_dynamics", "A", "A")],
+                            renderer="v2-timbre")
+            b = self._write(d, "b.json",
+                            [self._rec("p0.mid", "flatten_dynamics", "A", "A")],
+                            renderer="v3-instrument:X.sf3")
+            with self.assertRaises(ValueError):
+                inter_annotator(a, b)
+
+    def test_controls_feed_criterion_not_kappa(self):
+        """Les contrôles mesurent le critère de chaque annotateur (taux de
+        « aucune différence » sur paires identiques) mais n'entrent pas dans
+        l'accord réel : picked_original y est un tirage de lettre sans
+        version sous-jacente."""
+        from libretto.agreement import inter_annotator
+        rows_a = [self._rec("p0.mid", "flatten_dynamics", "A", "A"),
+                  self._rec("p1.mid", CONTROL, "A", "same")]
+        rows_b = [self._rec("p0.mid", "flatten_dynamics", "A", "A"),
+                  self._rec("p1.mid", CONTROL, "B", "A")]
+        with tempfile.TemporaryDirectory() as d:
+            report = inter_annotator(self._write(d, "a.json", rows_a),
+                                     self._write(d, "b.json", rows_b))
+        self.assertEqual(report["n_commun_controles"], 1)
+        self.assertEqual(report["n_commun_reels"], 1)
+        self.assertEqual(report["annotateurs"][0]["controles_aucune"], 1.0)
+        self.assertEqual(report["annotateurs"][1]["controles_aucune"], 0.0)
+        self.assertNotIn(CONTROL, report["verdict_groupe"])
+
+    def test_pooled_counts_all_judgements(self):
+        """Le verdict groupé additionne les jugements des deux annotateurs
+        — y compris les paires qu'un seul a jugées."""
+        from libretto.agreement import inter_annotator
+        rows_a = [self._rec("p0.mid", "flatten_dynamics", "A", "A"),
+                  self._rec("p1.mid", "flatten_dynamics", "B", "B")]
+        rows_b = [self._rec("p0.mid", "flatten_dynamics", "B", "B")]
+        with tempfile.TemporaryDirectory() as d:
+            report = inter_annotator(self._write(d, "a.json", rows_a),
+                                     self._write(d, "b.json", rows_b))
+        pooled = report["verdict_groupe"]["flatten_dynamics"]
+        self.assertEqual(pooled["n_decided"], 3)
+        self.assertEqual(pooled["taux_original"], 1.0)
+
+    def test_duplicate_key_is_refused(self):
+        from libretto.agreement import inter_annotator
+        rows = [self._rec("p0.mid", "flatten_dynamics", "A", "A"),
+                self._rec("p0.mid", "flatten_dynamics", "B", "B")]
+        with tempfile.TemporaryDirectory() as d:
+            a = self._write(d, "a.json", rows)
+            b = self._write(d, "b.json", rows[:1])
+            with self.assertRaises(ValueError):
+                inter_annotator(a, b)
+
+
 if __name__ == "__main__":
     unittest.main()

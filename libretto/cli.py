@@ -136,8 +136,12 @@ def main(argv: list[str] | None = None) -> int:
     p_agr = sub.add_parser(
         "agreement",
         help="dépouille les jugements : les dégradations s'entendent-elles, "
-             "et le moteur est-il d'accord ?")
-    p_agr.add_argument("judgements", help="fichier produit par `annotate`")
+             "et le moteur est-il d'accord ? Deux fichiers = accord "
+             "inter-annotateurs (κ de Cohen, verdict groupé)")
+    p_agr.add_argument("judgements", nargs="+",
+                       help="fichier(s) produit(s) par `annotate` — un seul : "
+                            "dépouille classique ; deux : comparaison "
+                            "inter-annotateurs sur le même lot")
     p_agr.add_argument("--corpus", help="dossier des .mid, pour comparer au moteur")
     p_agr.add_argument("--seed", type=int, default=1,
                        help="doit être celle utilisée pour l'annotation")
@@ -152,13 +156,21 @@ def main(argv: list[str] | None = None) -> int:
                              args.seed, args.per_file, only, args.render)
 
     if args.command == "agreement":
-        from .agreement import analyse, format_report
+        from .agreement import (analyse, format_inter_report, format_report,
+                                inter_annotator)
+        if len(args.judgements) > 2:
+            print("libretto: deux fichiers de jugements au plus", file=sys.stderr)
+            return 1
         try:
-            report = analyse(args.judgements, args.corpus, args.seed)
+            if len(args.judgements) == 2:
+                report = inter_annotator(*args.judgements)
+                print(format_inter_report(report))
+            else:
+                report = analyse(args.judgements[0], args.corpus, args.seed)
+                print(format_report(report))
         except (ValueError, OSError, json.JSONDecodeError) as exc:
             print(f"libretto: {exc}", file=sys.stderr)
             return 1
-        print(format_report(report))
         if args.json:
             Path(args.json).write_text(
                 json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
