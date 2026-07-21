@@ -416,14 +416,37 @@ class SenseOfMusicalStructure:
         return self._make(1, band(n, 1, 3, 7, 12), {"nb_sections": n, "optimal": "3-7"})
 
     def _axe_02_section_balance(self) -> StructuralAxis:
+        """Équilibre des durées : pénalise la DÉGÉNÉRESCENCE, pas la variété.
+
+        v2 notait `1 − CV`, un gradient dont l'optimum est l'uniformité
+        parfaite : [4, 6, 9, 6] battait [4, 6, 15], alors que deux idées
+        courtes puis un long développement est une forme, pas un défaut.
+        Sur les paires dynamiques du corpus d'interprétations réelles,
+        l'axe votait pour la dégradation (AUC 0.39-0.48) : aplatir ou
+        brouiller les vélocités abaisse le plancher du seuil adaptatif de
+        nouveauté, ce qui scinde les sections longues — et l'uniformité
+        ainsi créée était RÉCOMPENSÉE (session 5, `resultats_ecoute.md`).
+
+        Les formes réelles vivent sur un plateau : couplet 16 / pont 8 /
+        coda 4 donne CV ≈ 0.54, un AABA régulier CV = 0 — équivalents
+        musicalement, équivalents ici. Seule la dégénérescence chute :
+        [1, 1, 30] (CV 1.28) est une segmentation en miettes, pas une
+        architecture. Le plateau rend aussi l'axe robuste au tremblement
+        des frontières : un déplacement d'une mesure ne change plus rien.
+
+        Une seule section : rien à équilibrer — valeur neutre 0.5, et la
+        confiance (AXIS_DATA_NEEDS : minimum 2 sections) dit déjà que
+        l'axe n'a pas de matière. L'ancien 0.0 faisait perdre le fichier
+        quoi qu'il arrive, ce qui ne mesurait rien."""
         durations = [s.n_bars for s in self.score.sections]
         if len(durations) < 2:
-            return self._make(2, 0.0, {"nb_sections": len(durations)})
+            return self._make(2, 0.5, {"nb_sections": len(durations)})
         mean_dur = sum(durations) / len(durations)
         if mean_dur <= 0:
-            return self._make(2, 0.0, {"durees": durations})
+            return self._make(2, 0.5, {"durees": durations})
         cv = _std(durations) / mean_dur
-        return self._make(2, 1.0 - cv, {"cv_durees": round(cv, 3), "durees": durations})
+        return self._make(2, band(cv, -1.0, 0.0, 0.65, 1.5),
+                          {"cv_durees": round(cv, 3), "durees": durations})
 
     def _axe_03_section_label_diversity(self) -> StructuralAxis:
         """Diversité = nombre de **matériaux distincts**, pas leur proportion.
