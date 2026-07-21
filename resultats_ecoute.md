@@ -661,6 +661,69 @@ bord de répétition est faux par définition. Un garde-fou par pièce
 magique de plus ; refusé en l'état. C'est la prochaine marche, et elle
 demandera une idée, pas un bouton.
 
+### Les frontières inventées — la porte d'échelle et l'éviction par preuve
+
+L'idée est venue de l'attribution, pas de l'intuition. Sur la graine de
+réglage, chaque frontière en trop a été tracée jusqu'à sa source : 27
+venaient des bords de répétition, 24 de pics de nouveauté. Deux
+mécanismes distincts, deux réponses.
+
+**La porte d'échelle** (famille répétition). La pire pièce inventait 13
+frontières, toutes espacées de 8 mesures : ses sections partagent des
+phrases, et chaque alignement de phrase produit une courte diagonale dont
+les bords deviennent des frontières. Le discriminant était dans les
+longueurs : sur la même pièce, les vrais retours de section formaient des
+runs de 16 à 32 mesures, les alignements de phrase des runs de 4 à 5. Un
+retour de section dure une section. Le plus long run de la pièce établit
+donc l'échelle des sections, et un run n'émet des bords que s'il atteint
+le **tiers de cette échelle**. C'est le `min_run` rejeté plus haut, sans
+sa faute : la constante n'est plus absolue mais relative à la pièce — une
+pièce aux sections courtes garde ses runs courts (l'échelle y est
+courte), là où `min_run = 6` les tuait, ce qui le faisait régresser en
+validation. Le tiers est un optimum intérieur du balayage sur graine 7
+(1/1.5 : 0.668 ; 1/2 : 0.724 ; 1/3 : 0.728 ; 1/4 : 0.726).
+
+**L'éviction par preuve** (famille nouveauté). La porte seule créait 3
+manquées nouvelles — et leur autopsie a révélé un défaut du filtre
+d'espacement qui préexistait : le glouton gauche-à-droite arbitre les
+conflits par position. Un pic de nouveauté recalé deux mesures trop tôt
+bloquait la vraie frontière juste derrière lui ; tant que les bords
+parasites de phrase absorbaient le conflit d'espacement à leur place, le
+défaut restait invisible (le parasite était accidentellement porteur).
+La règle : en conflit d'espacement, un bord de répétition — exact par
+construction, début ou fin d'un chemin diagonal — **évince** un pic de
+nouveauté recalé, qui n'est qu'une estimation. Les deux mécanismes sont
+orthogonaux et cumulatifs sur graine 7 : porte seule +0.017, éviction
+seule +0.018, ensemble +0.050.
+
+**Validation, un coup, graines jamais vues :**
+
+| corpus | F1 | en trop | manquées | exactes |
+|---|---|---|---|---|
+| graine 7 (réglage) | 0.678 → 0.728 | 51 → 27 | 36 → 32 | 73 → 81 |
+| graine 11 (validation) | 0.793 → **0.884** | 17 → 8 | 14 → 8 | 52 → 60 |
+| graine 13 (validation) | 0.835 → **0.894** | 33 → 18 | 11 → 7 | 84 → 91 |
+
+Les gains de validation (+0.09, +0.06) dépassent le gain de réglage
+(+0.05) — l'inverse du sur-ajustement : les mécanismes sont structurels,
+pas cousus sur la graine 7. Total : frontières en trop 101 → 53,
+manquées 61 → 47, exactes 209 → 232. L'histogramme des décalages se
+vide : graine 13 à 70 exactes pour 1 seule décalée. La calibration tient
+(experts 0.932 contre 0.934, bruit) et deux axes de forme en profitent
+sans qu'on les touche : l'axe 06 (répétitions) passe de 0.49 à **0.60**
+d'AUC, l'axe 04 de 0.47 à 0.50 — les étiquettes lisent des sections plus
+propres.
+
+**L'état ouvert, mis à jour.** 53 frontières en trop, 47 manquées. Le
+travers-composé plafonne à 0.66-0.67 sur les trois graines : sans
+reprise, la nouveauté seule fait le travail, et c'est elle qu'il faudrait
+améliorer — le pas-à-pas se laisse encore attirer par les coutures de
+phrase plus nettes que la vraie transition (mesuré : step 0.60 sur une
+couture interne contre 0.42 sur la frontière). Le ternaire de la graine 7
+reste à 0.56. La garde du mécanisme est double : test unitaire sur
+matrice construite (le treillis de phrases ne doit émettre aucun bord) et
+harnais rejouable pour les chiffres d'ensemble.
+
 ### 2. Autres priorités
 
 - Un second annotateur : **fait** (session 5b) — réplication indépendante,
