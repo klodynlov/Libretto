@@ -349,7 +349,24 @@ ne connaît la forme voulue d'un MIDI venu d'un modèle — et c'est elle que
 l'honnêteté du banc d'essai : MusicLang produit des textures harmoniques
 cohérentes, pas des chansons à couplets/refrains — attendez-vous à des
 fiabilités plus basses et un gate plus sollicité que sur `make_corpus`.
-C'est le juge qui fait son travail, pas le branchement qui échoue. Le rapport signale aussi la
+C'est le juge qui fait son travail, pas le branchement qui échoue.
+
+Pour un modèle **audio** (ACE-Step, Suno local, YuE…), il faut transcrire —
+et le maillon transcription a un piège, mesuré par le harnais rejouable
+`examples/transcription_roundtrip.py` (MIDI connu → synthèse → basic-pitch →
+re-jugement) : le score SMS chute (**−0.18 en moyenne** sur de l'audio
+*propre* — un mix réel fera pire), le classement n'est que partiellement
+préservé (**Spearman +0.1 à +0.6**, le vrai n°1 peut ressortir 5ᵉ), et —
+le piège — **la fiabilité ne détecte rien** : elle peut même *monter* après
+transcription (0.66 → 1.00 observé), parce que le transcripteur produit
+beaucoup de notes et que la confiance mesure la quantité de matière, pas sa
+provenance. Le gate `--min-confidence` ne protège donc pas d'une mauvaise
+transcription. Conséquence : sur du transcrit, Forge est un **triage
+grossier** — écarter le tiers du bas est fiable, couronner le n°1 ne l'est
+pas ; livrez une `--shortlist` aux oreilles. `examples/forge_acestep.py`
+implémente la chaîne proprement (Demucs par stems → basic-pitch par stem
+tonal, batterie en onsets canal 9, tempo estimé → fusion multi-pistes →
+sélection), avec `--shortlist 5` par défaut — précisément pour ça. Le rapport signale aussi la
 **collapse de diversité** qu'induit toute sélection sur un score unique :
 optimiser le SMS resserre le peloton de tête sur l'esthétique inscrite dans
 les bandes de tolérance (cf. circularité, plus haut). C'est montré, pas caché

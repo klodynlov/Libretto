@@ -251,7 +251,17 @@ def forge_from_dir(candidates_dir: str | Path, out_dir: str | Path,
     noms de fichiers (déterministe), la « forme » est la signature de
     sections jugée par Libretto (voir `_label_signature`), et les fichiers
     source ne sont JAMAIS effacés — ils ne nous appartiennent pas. Le
-    gagnant et la shortlist restent copiés dans `out_dir`."""
+    gagnant et la shortlist restent copiés dans `out_dir`.
+
+    ⚠ Si les MIDI viennent d'une TRANSCRIPTION audio (basic-pitch…) : la
+    fiabilité ne détecte pas les artefacts de transcription — elle peut
+    même monter, car le transcripteur produit beaucoup de notes et la
+    confiance mesure la quantité de matière, pas sa provenance. Le gate
+    `min_confidence` ne protège donc pas d'une mauvaise transcription, et
+    le classement fin n'est que partiellement préservé (mesuré : Spearman
+    +0.1 à +0.6, score −0.18 — voir `transcription_roundtrip.py`). Sur du
+    transcrit, utilisez le résultat en triage grossier + `shortlist`, pas
+    en verdict."""
     src = Path(candidates_dir)
     paths = sorted(p for p in src.iterdir()
                    if p.suffix.lower() in (".mid", ".midi"))
