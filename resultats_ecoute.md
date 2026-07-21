@@ -609,6 +609,58 @@ portes de check.sh passées. Le même échange que pour l'axe 02 : moins
 de victoires d'ensemble dues à des gradients fictifs, des axes qui ne
 votent plus jamais pour la dégradation.
 
+### La segmentation, mesurée de près — le recalage de pics
+
+Le chantier annoncé par l'acquittement des axes 03/06 : la détection de
+frontières est le plafond commun. Premier acte, un harnais **rejouable**
+(`scripts/mesure_segmentation.py`) — la campagne F historique
+(0.55 → 0.73) n'avait laissé aucun outil, et un chiffre qu'on ne peut
+pas remesurer ne protège de rien. Protocole : réglage sur la graine 7,
+validation sur les graines 11 et 13 tenues à l'écart.
+
+**La vraie photo, marqueurs écartés** (les fichiers à marqueurs lisent
+leurs frontières, ils ne les détectent pas — plomberie parfaite, 63/63) :
+F1 ±1 mesure entre 0.68 et 0.83 selon la graine, nombre de sections
+exact ~25 %, séquence de forme exacte 5-13 %. Le « 55 % » du diagnostic
+des axes mélangeait les deux populations.
+
+**L'histogramme qui a désigné le correctif.** Sur 204 frontières
+appariées (±3, trois graines) : 138 exactes, et un biais net — 22
+frontières posées 2 mesures TROP TÔT contre 6 trop tard. Mécanisme :
+les fins de section (cadence, creux, remplissage) diffèrent du corps de
+leur section, la nouveauté fenêtrée monte donc AVANT la bascule, et le
+pic lissé se pose en amont. Correctif structurel, zéro constante
+nouvelle : **chaque pic fenêtré est recalé sur l'argmax local de la
+nouveauté pas-à-pas** (distance entre mesures consécutives, nette à la
+transition même) ; les bords de répétition, positions exactes par
+construction, ne bougent pas. Après recalage : **152 exactes sur 204**,
+queue ±2/3 réduite de 41 à 27, biais symétrisé (15/10). En aval :
+experts 0.928 → 0.934, validation croisée +0.003, et **l'axe 03 sort à
+son tour de la liste des axes sous 0.5**.
+
+**Mesuré et rejeté** — consigné pour ne pas y revenir :
+
+- *Sélection par suppression de non-maxima* (le plus fort gagne au lieu
+  du plus à gauche) : régression sur les trois graines (jusqu'à −0.10).
+  La force utilisée — la nouveauté locale — est le mauvais juge pour les
+  bords de répétition, faibles en nouveauté par construction : la NMS
+  les faisait toujours perdre.
+- *Runs de répétition plus longs* (min_run 6 au lieu de 4) : nombre de
+  sections exact en hausse partout, mais F1 en baisse sur les deux
+  graines de validation (−0.11 sur l'une) — le filtre tue les vraies
+  répétitions de sections courtes. Le réglage fin de ce seuil serait
+  du sur-ajustement à la graine de réglage : la leçon Foote.
+
+**L'état ouvert, chiffré.** Restent 75 frontières inventées (à plus de
+3 mesures de toute vérité) et 35 manquées. L'ablation les éclaire : sans
+les bords de répétition, la F1 s'effondre (0.68/0.79/0.83 →
+0.58/0.45/0.53) — ils sont le squelette de la détection — mais le
+travers-composé s'améliore partout, car sur une forme sans reprise tout
+bord de répétition est faux par définition. Un garde-fou par pièce
+(« assez de matière répétée pour témoigner ») exigerait une constante
+magique de plus ; refusé en l'état. C'est la prochaine marche, et elle
+demandera une idée, pas un bouton.
+
 ### 2. Autres priorités
 
 - Un second annotateur : **fait** (session 5b) — réplication indépendante,

@@ -250,11 +250,32 @@ def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: in
     # connu) mais très bien en répétition.
     strong = [b for b in candidates
               if novelty[b] >= threshold and novelty[b] == max(novelty[max(0, b - 2):b + 3])]
+
+    # Recalage du pic sur la transition exacte. La nouveauté FENÊTRÉE est
+    # lissée sur `window` mesures et biaisée vers l'amont : une fin de
+    # section (cadence, creux, remplissage) diffère du corps de sa section,
+    # donc la courbe monte AVANT la frontière — mesuré sur trois corpus,
+    # les frontières appariées sortaient 2 mesures trop tôt quatre fois
+    # plus souvent que trop tard (22 contre 6). La nouveauté PAS-À-PAS
+    # (distance entre deux mesures consécutives), elle, est maximale à la
+    # transition même : chaque pic fenêtré est recalé sur son argmax local.
+    # Les bords de répétition ne sont pas recalés — leurs positions sont
+    # exactes par construction (débuts et fins de chemins diagonaux).
+    step = [0.0] * n
+    for b in range(1, n):
+        step[b] = _cosine_dist(features[b - 1], features[b])
+    lo_c, hi_c = candidates[0], candidates[-1]
+    snapped = []
+    for b in strong:
+        zone = range(max(lo_c, b - 2), min(hi_c, b + 2) + 1)
+        snapped.append(max(zone, key=lambda x: step[x]))
+    strong = snapped
+
     for b in sorted(repeats):
         if b in candidates and b not in strong:
             strong.append(b)
     boundaries = [0]
-    for b in sorted(strong):
+    for b in sorted(set(strong)):
         if b - boundaries[-1] >= min_len:
             boundaries.append(b)
     # Une note qui sonne au-delà de la dernière mesure pleine crée une queue
