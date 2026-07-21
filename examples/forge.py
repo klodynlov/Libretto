@@ -58,10 +58,13 @@ Usage
 -----
     python3 examples/forge.py sortie/ [n=24] [seed=1]
         [--min-confidence 0.55] [--min-score 0.0]
-        [--keep-all] [--reaper]
+        [--keep-all] [--axes] [--reaper]
 
 Sortie : `sortie/forge_winner.mid` (le gagnant), `sortie/forge_report.json`
-(le classement complet), et un tableau lisible sur stdout.
+(le classement complet), et un tableau lisible sur stdout. Avec `--axes`,
+le rapport explique POURQUOI ce gagnant, axe par axe : pour chacun des 29
+axes, son score contre la moyenne du peloton éligible, et le levier
+(écart × poids) — dont la somme vaut exactement l'avance SMS du gagnant.
 """
 
 from __future__ import annotations
@@ -69,13 +72,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from libretto.axes import SenseOfMusicalStructure  # noqa: E402
+from libretto.axes import AXES_META, SenseOfMusicalStructure  # noqa: E402
 from libretto.builder import build_score  # noqa: E402
 from libretto.midi import parse_midi, write_midi  # noqa: E402
 
@@ -105,6 +108,11 @@ class Candidate:
     level: str
     interpretable: bool
     groups: dict[str, float]
+    # Les 29 axes bruts (id, nom, groupe, poids, score, confiance) : la
+    # matière du mode --axes. Gardés en mémoire pour tous les candidats —
+    # c'est ce qui permet de comparer le gagnant au peloton — mais absents
+    # de as_dict() pour ne pas gonfler le leaderboard du rapport JSON.
+    axes: list[dict] = field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {
@@ -156,18 +164,27 @@ def generate_and_score(index: int, seed: int, out_dir: Path) -> Candidate | None
         level=sms.confidence_level(),
         interpretable=sms.is_interpretable(),
         groups=sms.group_scores(),
+        axes=[{"id": a.id, "name": a.name,
+               "group": AXES_META[int(a.id[:2])][3],
+               "weight": a.weight,
+               "score": a.score,
+               "confidence": a.confidence}
+              for a in sms.axes],
     )
 
 
 def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
           min_confidence: float = SenseOfMusicalStructure.INTERPRETABLE_CONFIDENCE,
-          min_score: float = 0.0, keep_all: bool = False) -> dict:
+          min_score: float = 0.0, keep_all: bool = False,
+          axes_report: bool = False) -> dict:
     """Génère n candidats, les note, sélectionne le meilleur — fiabilité
     d'abord (tranche puis score), après le gate `min_confidence`.
 
     Renvoie un rapport sérialisable. Le gagnant est copié en
     `forge_winner.mid`. Sans `keep_all`, les candidats non retenus sont
-    effacés (un pipeline garde le gagnant, pas les 23 brouillons)."""
+    effacés (un pipeline garde le gagnant, pas les 23 brouillons).
+    Avec `axes_report`, le rapport détaille le gagnant axe par axe contre
+    le peloton des autres éligibles (voir `_axes_report`)."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -224,9 +241,53 @@ def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
                                     sorted(rejected_conf, key=lambda c: c.confidence)],
         "diversity": _diversity_report(candidates, ranked),
     }
+    if axes_report:
+        report["axes_report"] = _axes_report(ranked)
     (out / "forge_report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     return report
+
+
+def _axes_report(ranked: list[Candidate]) -> dict | None:
+    """Pourquoi CE gagnant — axe par axe.
+
+    Pour chacun des 29 axes : le score du gagnant, la moyenne du peloton
+    (les autres éligibles), l'écart, et le **levier** (écart × poids) — la
+    part de l'avance globale que l'axe explique. Comme les poids somment à
+    1.0, la somme des leviers vaut exactement l'écart entre le SMS du
+    gagnant et le SMS moyen du peloton : la décomposition est complète,
+    rien ne se cache dans un résidu.
+
+    Les lignes restent dans l'ordre canonique des axes (stable pour un
+    consommateur JSON) ; c'est l'affichage qui trie par levier."""
+    if not ranked:
+        return None
+    winner, field_ = ranked[0], ranked[1:]
+    # Alignement par id, pas par index : ne dépend pas de l'ordre interne
+    # de calculate().
+    field_by_id = [{a["id"]: a["score"] for a in c.axes} for c in field_]
+
+    rows = []
+    for ax in winner.axes:
+        others = [d[ax["id"]] for d in field_by_id if ax["id"] in d]
+        mean = sum(others) / len(others) if others else None
+        delta = (ax["score"] - mean) if mean is not None else None
+        rows.append({
+            "id": ax["id"],
+            "name": ax["name"],
+            "group": ax["group"],
+            "weight": ax["weight"],
+            "winner_score": round(ax["score"], 4),
+            "winner_confidence": round(ax["confidence"], 4),
+            "field_mean": round(mean, 4) if mean is not None else None,
+            "delta": round(delta, 4) if delta is not None else None,
+            "leverage": round(delta * ax["weight"], 6) if delta is not None else None,
+        })
+    return {
+        "winner_file": winner.path.name,
+        "field_size": len(field_),
+        "axes": rows,
+    }
 
 
 def _diversity_report(all_c: list[Candidate], ranked: list[Candidate],
@@ -289,6 +350,49 @@ def _print_report(report: dict) -> None:
               "contrainte de diversité, pas sur le score seul.")
 
 
+def _print_axes_report(report: dict) -> None:
+    """Tableau lisible du rapport axe par axe : trié par levier décroissant,
+    pour lire de haut en bas où l'avance se construit puis où elle s'érode.
+    Le JSON, lui, garde l'ordre canonique des axes."""
+    ar = report.get("axes_report")
+    if not ar:
+        return
+
+    rows = ar["axes"]
+    if ar["field_size"] == 0:
+        # Un seul éligible : pas de peloton, on montre le profil brut.
+        print("\nRapport axe par axe — seul éligible, profil brut :")
+        for r in rows:
+            flag = "" if r["winner_confidence"] >= 0.5 else \
+                f"  ⚠ fiabilité {r['winner_confidence']:.2f}"
+            print(f"  [{r['id']}] {r['name']}: {r['winner_score']:.3f}{flag}")
+        return
+
+    print(f"\nRapport axe par axe — le gagnant contre le peloton "
+          f"({ar['field_size']} autres éligibles), trié par levier "
+          f"(écart × poids) :")
+    print(f"  {'axe':<33} {'gagnant':>7} {'peloton':>7} {'Δ':>7} {'levier':>8}")
+    for r in sorted(rows, key=lambda r: r["leverage"], reverse=True):
+        flag = "" if r["winner_confidence"] >= 0.5 else \
+            f"  ⚠ fiabilité {r['winner_confidence']:.2f}"
+        print(f"  {r['id']:<33} {r['winner_score']:>7.3f} {r['field_mean']:>7.3f} "
+              f"{r['delta']:>+7.3f} {r['leverage']:>+8.4f}{flag}")
+
+    total = sum(r["leverage"] for r in rows)
+    gains = sorted((r for r in rows if r["leverage"] > 0),
+                   key=lambda r: -r["leverage"])[:3]
+    losses = sorted((r for r in rows if r["leverage"] < 0),
+                    key=lambda r: r["leverage"])[:3]
+    print(f"\n  Avance SMS sur le peloton : {total:+.4f} "
+          f"(la somme des leviers — décomposition exacte).")
+    if gains:
+        print("  Elle se construit surtout sur : "
+              + ", ".join(f"{r['name']} ({r['leverage']:+.4f})" for r in gains))
+    if losses:
+        print("  Elle s'érode sur : "
+              + ", ".join(f"{r['name']} ({r['leverage']:+.4f})" for r in losses))
+
+
 def _maybe_push_reaper(winner_file: Path) -> None:
     from libretto.reaper import BridgeError, push_mididata
     try:
@@ -317,14 +421,19 @@ def main(argv: list[str] | None = None) -> int:
                         help="score SMS minimal pour concourir (défaut 0.0)")
     parser.add_argument("--keep-all", action="store_true",
                         help="conserver tous les candidats (défaut : garder le gagnant)")
+    parser.add_argument("--axes", action="store_true",
+                        help="détailler le gagnant axe par axe : son score, la "
+                             "moyenne du peloton éligible, l'écart et le levier "
+                             "(écart × poids)")
     parser.add_argument("--reaper", action="store_true",
                         help="pousser le gagnant dans REAPER via le pont Klody")
     args = parser.parse_args(argv)
 
     report = forge(args.out_dir, n=args.n, seed=args.seed,
                    min_confidence=args.min_confidence, min_score=args.min_score,
-                   keep_all=args.keep_all)
+                   keep_all=args.keep_all, axes_report=args.axes)
     _print_report(report)
+    _print_axes_report(report)
 
     if args.reaper and report["winner_file"]:
         _maybe_push_reaper(Path(args.out_dir) / report["winner_file"])

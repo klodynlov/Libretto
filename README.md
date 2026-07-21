@@ -302,8 +302,18 @@ qui laisserait un 0.68 à confiance 1.00 l'emporter sur un 0.88 à 0.99.)
 
 ```bash
 python3 examples/forge.py sortie/ 24 1          # 24 candidats, graine 1
+python3 examples/forge.py sortie/ 24 1 --axes   # + pourquoi ce gagnant, axe par axe
 python3 examples/forge.py sortie/ 24 1 --reaper # + pousse le gagnant dans REAPER
 ```
+
+Le mode `--axes` explique **pourquoi ce gagnant** : pour chacun des 29 axes,
+son score contre la moyenne du peloton éligible, l'écart, et le **levier**
+(écart × poids). Les poids sommant à 1.0, la somme des leviers vaut
+*exactement* l'avance SMS du gagnant sur le peloton — la décomposition est
+complète, rien ne se cache dans un résidu. On lit d'un coup d'œil où l'avance
+se construit (« Arc émotionnel +0.017 ») et où elle s'érode (« Variété
+texturale −0.019 ») ; le détail est aussi sérialisé dans `forge_report.json`
+(section `axes_report`, ordre canonique des axes).
 
 Dans une vraie chaîne, la brique génératrice se remplace par une
 transcription (basic-pitch) d'un rendu audio ou la sortie MIDI d'un modèle —
