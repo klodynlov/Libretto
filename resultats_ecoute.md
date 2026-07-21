@@ -828,6 +828,61 @@ Garde : test unitaire sur matrice 12×12 construite, valeurs diagonales
 distinctes à dessein (des égalités partageraient le seuil et masqueraient
 l'impossibilité).
 
+### La lame de rasoir — mesurée, bornée, acquittée
+
+Le dernier front ouvert : la pièce de 16 mesures dont les pics tombent à
+0.002 du seuil (verse_chorus_court, graine 11, 0.67 → 0.40 au passage
+des dims gestuelles). Le chantier l'a d'abord recensée, puis disséquée,
+puis a tué quatre candidats — et conclu à l'acquittement.
+
+**Recensement.** Sur les 57 pièces sans marqueurs des trois corpus, 5 ont
+leur meilleur pic à moins de 15 % du seuil, et 2 échouent réellement. La
+lame est rare.
+
+**Anatomie — le vrai mécanisme n'était pas la nouveauté.** La pièce-lame
+est un VC-VC dont la première moitié revient quasi verbatim : sa
+diagonale de lag 8 vaut [1.0, 0.9987, 1.0, 1.0, 1.0, 0.9995, 0.9991,
+1.0]. Mais la pièce contient assez de paires PARFAITES pour saturer le
+quantile : le seuil de similarité vaut exactement 1.0, et une cellule à
+0.9987 — identique à une fioriture près — est traitée comme « pas
+semblable ». Le run de 8 se fragmente en 1+3+1 : rien ne passe. C'est la
+maladie du ternaire un étage plus haut : le quantile-valeur peut siéger
+au plafond de la distribution, où « ≥ seuil » dégénère en égalité
+exacte.
+
+**Mesuré et rejeté** (graine 7 + graines fraîches 17/19 en réglage
+auxiliaire ; validation 11/13 jamais entamée) :
+
+- *Quantile sur les niveaux distincts* (un plateau de paires parfaites ne
+  pousse plus le seuil à l'égalité exacte) : graine 17 en recul
+  (0.826 → 0.815, court 0.96 → 0.85) — la réinterprétation déplace les
+  seuils de toutes les pièces, pas seulement des dégénérées.
+- *Pontage des trous d'une cellule dans les runs* (« une mesure ornementée
+  ne casse pas un retour ») : extras +8 sur graine 7, +10 sur graine 17 —
+  le pont soude aussi les alignements de phrases en pseudo-runs de
+  section. F1 −0.023 / −0.032 / ±0.
+- *Descente de niveaux quand le seuil == max* : vérifiée cellule par
+  cellule sur la pièce-lame — un niveau sous le plafond donne un run
+  décalé (bords {2, 6, 10, 14}, tous faux) ; il faudrait en descendre
+  exactement trois pour retrouver le vrai run. Aucun principe ne dit
+  « trois » : du sur-mesure, refusé.
+- (Chantier précédent, même famille : le retrait du recalage et la
+  corroboration à la médiane avaient déjà montré que les mécanismes
+  globaux coûtent plus que les 2 pièces qu'ils visent.)
+
+**Le verdict.** Une pièce de 16 mesures offre 9 candidats de frontière et
+78 paires de similarité. Ses sections font 4 mesures = min_len = la
+fenêtre de nouveauté : chaque statistique du pipeline siège à sa propre
+limite de résolution, et le bruit d'échantillon y vaut le signal. Ce
+n'est pas un bug, c'est la taille de l'échantillon. Toute correction
+générale mesurée coûte plus cher ailleurs que ce qu'elle sauve ici. La
+lame reste, documentée : elle coupe 2 pièces sur 57, aux miettes du
+corpus.
+
+Au passage, deux corpus frais (graines 17 et 19) ont rejoint le banc de
+réglage auxiliaire — leurs bases : F1 0.826 et 0.751. Ils serviront aux
+prochains chantiers sans jamais toucher les graines de validation.
+
 ### 2. Autres priorités
 
 - Un second annotateur : **fait** (session 5b) — réplication indépendante,
