@@ -173,7 +173,17 @@ def _repetition_edges(ssm: list[list[float]], min_len: int = 4,
     flat = sorted(ssm[i][j] for i in range(n) for j in range(i + min_len, n))
     if not flat:
         return set()
-    threshold = flat[min(len(flat) - 1, int(len(flat) * quantile))]
+    # Plafond arithmétique du quantile : sur une petite matrice, le
+    # quantile brut n'admet pas assez de cellules pour qu'un run de
+    # `min_len` puisse EXISTER. Un ternaire de 12 mesures (sections de 4)
+    # n'a que 36 paires hors bande : le quantile 0.94 n'en admet que 3, et
+    # le retour A-A — 4 cellules, la définition même de la forme — était
+    # invisible quelle que soit sa netteté. Le plafond garantit qu'au
+    # moins `min_len` cellules passent ; il dérive de min_len et de la
+    # taille, aucune constante neuve. Sur les grandes matrices il est
+    # inactif (n=24 : 210 paires, 12 admises).
+    q_eff = min(quantile, 1.0 - min_len / len(flat))
+    threshold = flat[min(len(flat) - 1, int(len(flat) * q_eff))]
     runs: list[tuple[int, int, int]] = []
     for lag in range(min_len, n - min_len + 1):
         run = 0

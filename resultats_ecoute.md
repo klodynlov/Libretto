@@ -798,6 +798,36 @@ geste ne bouge pas non plus), ternaire graine 7 à 0.56, et la fragilité
 de seuil des pièces de 16 mesures (9 candidats pour une statistique
 méd + MAD) documentée ci-dessus.
 
+### Le ternaire — l'impossibilité arithmétique du petit retour
+
+Ternaire graine 7 à 0.56, mais 1.00 sur graine 13. La différence n'était
+pas musicale : les ternaires de la graine 13 font 24-36 mesures, trois
+des quatre de la graine 7 font **12 mesures, sections de 4** — le plus
+petit ABA possible. Et sur une matrice de 12 mesures, il n'y a que 36
+paires hors bande : le quantile 0.94 n'en admet que les 3 plus hautes,
+si bien qu'un run de min_len = 4 — le retour A-A, la définition même de
+la forme — était **arithmétiquement impossible**, quelle que soit sa
+netteté. Aucun réglage musical en cause : de l'arithmétique de quantile.
+
+Le plafond : `q_eff = min(q, 1 − min_len/paires)` — au moins min_len
+cellules peuvent toujours passer. Dérivé de min_len et de la taille de la
+matrice, aucune constante neuve ; inactif dès que la matrice est normale
+(24 mesures : 210 paires, 12 admises, plafond muet).
+
+Résultat graine 7 : ternaire 0.56 → 0.71, F1 globale 0.749 → **0.775**,
+toutes les autres formes strictement inchangées. Validation graines
+11/13 : **strictement identique à la base** — aucune petite matrice
+là-bas, le fix ne touche que son cas. Calibration inchangée
+(experts 0.947, CV 0.950). Les deux ternaires restants échouent pour des
+raisons honnêtes, vérifiées cellule par cellule : la montée (006) noie
+son retour dans un continuum de crescendo (contraste de matrice 0.0005),
+et 036 a la première cellule de son retour sous un intrus non-diagonal —
+le plafond garantit la possibilité du run, pas le miracle.
+
+Garde : test unitaire sur matrice 12×12 construite, valeurs diagonales
+distinctes à dessein (des égalités partageraient le seuil et masqueraient
+l'impossibilité).
+
 ### 2. Autres priorités
 
 - Un second annotateur : **fait** (session 5b) — réplication indépendante,
