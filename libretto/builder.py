@@ -139,7 +139,8 @@ def _self_similarity(features: list[list[float]]) -> list[list[float]]:
 
 
 def _repetition_edges(ssm: list[list[float]], min_len: int = 4,
-                      quantile: float = 0.94) -> set[int]:
+                      quantile: float = 0.94,
+                      scale_ratio: int = 3) -> set[int]:
     """Bords des segments répétés, lus sur les diagonales de la matrice.
 
     Une section rejouée plus loin forme un chemin de forte similarité
@@ -150,7 +151,22 @@ def _repetition_edges(ssm: list[list[float]], min_len: int = 4,
 
     Le seuil est un quantile de la matrice elle-même : les valeurs absolues
     de similarité dépendent trop du matériau pour qu'une constante tienne
-    d'un morceau à l'autre."""
+    d'un morceau à l'autre.
+
+    **Porte d'échelle.** Toutes les diagonales ne témoignent pas d'un retour
+    de section : une pièce dont les sections partagent des phrases de quatre
+    mesures produit un treillis d'alignements courts (runs de 4-5 mesures, à
+    tous les lags multiples de la phrase) dont chaque bord devenait une
+    frontière — jusqu'à treize frontières inventées dans une seule pièce,
+    espacées de la longueur de phrase. Les vrais retours, eux, durent une
+    section entière : sur les mêmes pièces, leurs runs faisaient 12 à 32
+    mesures. Le plus long run de la pièce établit donc l'échelle des
+    sections, et un run n'émet des bords que s'il atteint le tiers de cette
+    échelle — assez lâche pour qu'un pont de 8 mesures survive à côté d'un
+    couplet de 24, assez strict pour que les phrases meurent. Le tiers est
+    réglé sur graine 7 (optimum intérieur du balayage 1/1.5..1/4) et validé
+    sur graines 11/13 tenues à l'écart : frontières en trop 101 → 53 sur les
+    trois corpus, F-mesure en hausse partout (+0.05, +0.09, +0.06)."""
     n = len(ssm)
     if n < 2 * min_len:
         return set()
@@ -158,7 +174,7 @@ def _repetition_edges(ssm: list[list[float]], min_len: int = 4,
     if not flat:
         return set()
     threshold = flat[min(len(flat) - 1, int(len(flat) * quantile))]
-    edges: set[int] = set()
+    runs: list[tuple[int, int, int]] = []
     for lag in range(min_len, n - min_len + 1):
         run = 0
         for i in range(n - lag):
@@ -166,12 +182,18 @@ def _repetition_edges(ssm: list[list[float]], min_len: int = 4,
                 run += 1
             else:
                 if run >= min_len:
-                    start = i - run
-                    edges.update((start, i, start + lag, i + lag))
+                    runs.append((lag, i - run, run))
                 run = 0
         if run >= min_len:
-            start = n - lag - run
-            edges.update((start, n - lag, start + lag, n))
+            runs.append((lag, n - lag - run, run))
+    if not runs:
+        return set()
+    scale = max(length for _, _, length in runs)
+    edges: set[int] = set()
+    for lag, start, length in runs:
+        if length * scale_ratio < scale:
+            continue
+        edges.update((start, start + length, start + lag, start + length + lag))
     return {b for b in edges if 0 < b < n}
 
 
@@ -270,14 +292,31 @@ def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: in
         zone = range(max(lo_c, b - 2), min(hi_c, b + 2) + 1)
         snapped.append(max(zone, key=lambda x: step[x]))
     strong = snapped
+    nov_set = set(strong)
 
+    rep_set: set[int] = set()
     for b in sorted(repeats):
         if b in candidates and b not in strong:
             strong.append(b)
+            rep_set.add(b)
+
+    # Le filtre d'espacement arbitre les conflits par **classe de preuve**,
+    # pas par position. Un bord de répétition est exact par construction
+    # (début ou fin d'un chemin diagonal) ; un pic de nouveauté recalé reste
+    # une estimation. Quand les deux tombent à moins de `min_len` l'un de
+    # l'autre, le bord de répétition évince le pic — le glouton
+    # gauche-à-droite pur laissait un pic recalé deux mesures trop tôt
+    # bloquer la vraie frontière juste derrière lui (défaut resté invisible
+    # tant que les bords parasites de phrase absorbaient le conflit
+    # d'espacement à leur place).
     boundaries = [0]
     for b in sorted(set(strong)):
         if b - boundaries[-1] >= min_len:
             boundaries.append(b)
+        elif b in rep_set and boundaries[-1] in nov_set:
+            prev = boundaries[-2] if len(boundaries) > 1 else None
+            if prev is None or b - prev >= min_len:
+                boundaries[-1] = b
     # Une note qui sonne au-delà de la dernière mesure pleine crée une queue
     # d'une poignée de mesures : on la fusionne avec la section précédente.
     if len(boundaries) > 1 and n - boundaries[-1] < min_len:

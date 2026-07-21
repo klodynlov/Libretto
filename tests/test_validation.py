@@ -325,6 +325,34 @@ class TestRepetitionSegmentation(unittest.TestCase):
         # une frontière doit tomber près de 6 ou 12
         self.assertTrue(any(abs(e - 6) <= 1 or abs(e - 12) <= 1 for e in edges), edges)
 
+    def test_phrase_lattice_does_not_emit_edges(self):
+        """Garde de la porte d'échelle. Des phrases partagées entre sections
+        produisent des alignements diagonaux courts (runs de 4-5 mesures)
+        dont chaque bord devenait une frontière — jusqu'à 13 frontières
+        inventées dans une seule pièce, espacées de la longueur de phrase.
+        Un vrai retour de section dure une section (runs de 12-32 mesures
+        sur les mêmes pièces). Le plus long run établit l'échelle ; un run
+        sous le tiers de l'échelle est une phrase, pas une section.
+
+        Matrice construite cellule par cellule pour contrôler exactement le
+        seuil-quantile et les runs : un retour long (16 mesures, lag 20),
+        un alignement de phrase (4 mesures, lag 8), fond sous le seuil."""
+        n = 40
+        ssm = [[0.2 if min(i, j) % 7 == 3 else 0.1 for j in range(n)]
+               for i in range(n)]
+        for i in range(n):
+            ssm[i][i] = 1.0
+        for i in range(16):                     # retour de section, lag 20
+            ssm[i][i + 20] = ssm[i + 20][i] = 0.99
+        for i in range(24, 28):                 # phrase partagée, lag 8
+            ssm[i][i + 8] = ssm[i + 8][i] = 0.99
+        sans_porte = _repetition_edges(ssm, min_len=4, scale_ratio=10 ** 9)
+        self.assertIn(28, sans_porte,
+                      "prémisse : sans porte, le bord de phrase existe")
+        avec_porte = _repetition_edges(ssm, min_len=4)
+        self.assertEqual(avec_porte, {16, 20, 36},
+                         "seuls les bords du retour de section survivent")
+
     def test_labelling_threshold_adapts_to_material(self):
         """Seuil fixe à 0.82 : une pièce à couleur harmonique unique voyait
         toutes ses sections rangées dans le même groupe — 29 morceaux sur 34
