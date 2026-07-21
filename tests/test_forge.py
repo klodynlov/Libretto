@@ -25,6 +25,19 @@ from libretto.axes import AXES_META  # noqa: E402
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 
 
+class TestPontsOptionnels(unittest.TestCase):
+    """Les ponts à dépendances optionnelles (MusicLang, ACE-Step,
+    round-trip) doivent rester IMPORTABLES sans leurs dépendances — le
+    contrat stdlib du dépôt s'arrête à leur main(), pas à leur import."""
+
+    def test_importables_sans_dependances(self):
+        import forge_acestep
+        import forge_musiclang
+        import transcription_roundtrip
+        for mod in (forge_acestep, forge_musiclang, transcription_roundtrip):
+            self.assertTrue(callable(mod.main), mod.__name__)
+
+
 class TestForgeFromDir(unittest.TestCase):
     """Le point de branchement universel : Forge sur un dossier de MIDI
     venus d'ailleurs. On le nourrit avec des candidats make_corpus (générés
