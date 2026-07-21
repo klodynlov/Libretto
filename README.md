@@ -286,6 +286,50 @@ dégradée. Cette question résiste à la synthèse, puisque la dégradation
 s'applique au fichier généré lui-même. Le générateur varie délibérément
 au-delà de la zone de confort des axes, y compris là où ils sont faibles.
 
+## Sélection structurelle (Forge)
+
+Le score SMS peut servir de **fonction de fitness** : générer plusieurs
+ébauches, garder celle que Libretto juge la mieux construite.
+`examples/forge.py` en fait la démonstration — il tire N candidats (via le
+générateur de `make_corpus`), les note, et sélectionne le meilleur
+**fiabilité d'abord** : le gate `--min-confidence` écarte les scores non
+interprétables avant le classement, puis les éligibles sont triés par
+**tranche de fiabilité** (« élevée » ≥ 0.75 avant « moyenne » ≥ 0.55) et
+seulement ensuite par score. Un morceau très bien noté mais moyennement
+fiable ne bat donc pas un morceau à peine moins noté mais pleinement fiable —
+son chiffre est plus digne de foi. (On ne trie pas sur la confiance brute,
+qui laisserait un 0.68 à confiance 1.00 l'emporter sur un 0.88 à 0.99.)
+
+```bash
+python3 examples/forge.py sortie/ 24 1          # 24 candidats, graine 1
+python3 examples/forge.py sortie/ 24 1 --reaper # + pousse le gagnant dans REAPER
+```
+
+Dans une vraie chaîne, la brique génératrice se remplace par une
+transcription (basic-pitch) d'un rendu audio ou la sortie MIDI d'un modèle —
+Forge ne parle que MIDI, le reste ne bouge pas. Le rapport signale aussi la
+**collapse de diversité** qu'induit toute sélection sur un score unique :
+optimiser le SMS resserre le peloton de tête sur l'esthétique inscrite dans
+les bandes de tolérance (cf. circularité, plus haut). C'est montré, pas caché
+— un pipeline sérieux sélectionnerait sous contrainte de diversité, pas sur
+le score seul.
+
+`examples/forge_sweep.py` mesure ce que la règle « fiabilité d'abord »
+apporte, agrégé sur plusieurs graines : pour chaque tirage il compare le
+gagnant à celui qu'aurait désigné le tri sur le score seul.
+
+```bash
+python3 examples/forge_sweep.py 10 24 1     # 10 graines × 24 candidats
+```
+
+Sur 10 graines (déterministe), la règle **change le gagnant une fois sur
+deux**, pour un score brut cédé de seulement **0.031 en moyenne** — on paie
+trois centièmes de score pour gagner une tranche de fiabilité entière. Le
+gate `--min-confidence` recale au moins un candidat sur 4 graines sur 10,
+même sur ce corpus 100 % « morceaux ». Et le top 5 ne retient que ~3.7 des
+~6.9 formes générées : la collapse de diversité est constante, pas un accident
+de tirage.
+
 ## Interface web locale
 
 ```bash
