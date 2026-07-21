@@ -556,6 +556,59 @@ travail de l'axe 26, à 0.93). Sur le corpus généré : experts 0.944 →
 0.941 → **0.944** et surapprentissage +0.003 — l'axe gagné en robustesse
 ce qu'il a perdu en gradient fictif.
 
+### Les axes 03/04/06 — un réparé, deux acquittés
+
+Les trois axes de forme qui flottaient sous 0.5 sur corpus généré
+(04 : 0.45, 03 : 0.49, 06 : 0.50), passés par la même méthode que
+l'axe 02 : décomposer les paires perdues avant de toucher au code.
+
+**Axe 04 (symétrie) : deux vrais bugs, réparés.**
+
+1. **Le palindrome dégénéré.** `AAAAA` se lit pareil dans les deux sens
+   — palindrome parfait, forme fermée : note maximale sur les deux
+   composantes d'étiquettes. Cas d'école du corpus : la vraie
+   architecture `chorus chorus bridge outro` scorait **0.293**, sa
+   version aplatie en bouillie `chorus × 5` scorait **0.947**. 55 des
+   102 défaites de l'axe avaient moins de matériaux côté dégradé.
+2. **Le palindrome par accident.** Une séquence sur-segmentée aux
+   étiquettes répétitives aligne des paires symétriques par hasard —
+   plus de sections, plus de chances. Réparation de principe : le
+   palindrome est compté **au-dessus du hasard** — on soustrait
+   P(match) qu'offre gratuitement la distribution des étiquettes
+   (Σ n_c(n_c−1)/(n(n−1))). ABBA dépasse son hasard (1.0 contre 1/3) ;
+   un alignement accidentel ne rapporte plus rien. Au passage,
+   l'équilibre des moitiés devient un plateau (même racine que
+   l'axe 02).
+
+Mesure : AUC 04 global 0.45 → **0.52**, plus aucune dégradation
+inversée (pire : 0.47), et les vraies dégradations de forme montent —
+transpose_segments 0.53 → 0.58, scramble_melody 0.50 → 0.55. La
+correction du hasard n'a pas seulement retiré les fausses victoires,
+elle a affûté la vraie détection. **L'axe 04 est sorti de la liste des
+axes sous 0.5** — première fois depuis sa création.
+
+**Axes 03 et 06 : acquittés — le goulot est en amont.** La mesure qui
+tranche : contre la vérité terrain du corpus généré, le nombre de
+sections détecté n'est exact que dans **55 %** des cas ; mais sur les
+fichiers aux frontières justes, la séquence de forme est juste à
+**91 %** (20/22). Les étiquettes sont bonnes quand les frontières le
+sont : le regroupement n'est pas le coupable — un prototype de
+clustering agglomératif à liaison moyenne a d'ailleurs été mesuré
+contre le greedy actuel : **aucun gain** (50 % → 50 % de formes
+exactes), non retenu. Les formulations de 03 et 06 sont saines (leurs
+défaites suivent presque toutes un changement du *nombre* de sections
+— 41/43 pour l'axe 06) ; leur flottement au bruit est le prix de la
+détection de frontières, et d'un choix assumé (l'axe 06 pénalise le
+travers-composé par construction). Le levier qui les relèverait tous
+les trois est le chantier F-mesure de la segmentation — hors de portée
+d'une reformulation d'axe, noté comme piste.
+
+Coût d'ensemble sur corpus généré : experts 0.934 → 0.928, validation
+croisée 0.944 → 0.928 (± 0.069 — l'écart est dans le bruit des plis),
+portes de check.sh passées. Le même échange que pour l'axe 02 : moins
+de victoires d'ensemble dues à des gradients fictifs, des axes qui ne
+votent plus jamais pour la dégradation.
+
 ### 2. Autres priorités
 
 - Un second annotateur : **fait** (session 5b) — réplication indépendante,

@@ -160,6 +160,41 @@ class TestMusicTheory(unittest.TestCase):
                 SenseOfMusicalStructure(Score(sections=secs)).calculate()}
         self.assertEqual(axes["02_section_balance"].score, 0.5)
 
+    def test_axis04_monomaterial_is_not_symmetric(self):
+        """`AAAAA` se lit pareil dans les deux sens, mais ce n'est pas une
+        symétrie — c'est l'absence de forme. v2 lui donnait palindrome
+        parfait + forme fermée : une pièce réduite en bouillie uniforme
+        scorait 0.947 contre 0.293 pour la vraie architecture qu'elle
+        dégradait (fichier 004 du corpus généré, session axes 03/04/06)."""
+        def score_of(lbls):
+            secs = [Section(f"s{i}", i * 8 + 1, i * 8 + 9, lbl)
+                    for i, lbl in enumerate(lbls)]
+            axes = {a.id: a for a in
+                    SenseOfMusicalStructure(Score(sections=secs)).calculate()}
+            return axes["04_symmetry"].score
+
+        mono = score_of(["chorus"] * 5)
+        real = score_of(["chorus", "chorus", "bridge", "outro"])
+        symmetric = score_of(["verse", "chorus", "verse"])
+        self.assertGreaterEqual(real, mono)      # v2 : 0.293 contre 0.947
+        self.assertGreater(symmetric, mono)      # la vraie symétrie domine
+
+    def test_axis04_palindrome_above_chance(self):
+        """ABBA est un vrai palindrome (1.0 contre 1/3 de hasard) ; une
+        suite sur-segmentée d'étiquettes répétitives n'aligne des paires
+        symétriques que par accident — le hasard est soustrait, l'accident
+        ne rapporte plus."""
+        def score_of(lbls):
+            secs = [Section(f"s{i}", i * 8 + 1, i * 8 + 9, lbl)
+                    for i, lbl in enumerate(lbls)]
+            axes = {a.id: a for a in
+                    SenseOfMusicalStructure(Score(sections=secs)).calculate()}
+            return axes["04_symmetry"].score
+
+        # même multiset d'étiquettes, arrangements opposés
+        self.assertGreater(score_of(["A", "B", "B", "A"]),
+                           score_of(["A", "A", "B", "B"]))
+
     def test_axis24_not_duplicate_of_axis02(self):
         # v1 : axes 2 et 24 = même calcul (CV des durées) → feature comptée
         # double. v2 : durées équilibrées mais SANS carrure (7 mesures) doit

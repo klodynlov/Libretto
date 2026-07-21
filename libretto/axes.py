@@ -478,15 +478,62 @@ class SenseOfMusicalStructure:
         nul sur la majorité des morceaux ne discrimine rien et flotte au
         niveau du bruit. L'équilibre des durées ajoute une composante
         d'architecture qui ne dépend pas d'une égalité exacte d'étiquettes,
-        donc robuste à la finesse du regroupement par matériau."""
+        donc robuste à la finesse du regroupement par matériau.
+
+        v3 corrige deux défauts mesurés (AUC 0.39-0.49 selon la
+        dégradation : l'axe votait pour le dégradé).
+
+        **Sans contraste, pas de symétrie.** Une pièce d'un seul matériau
+        est un palindrome parfait — `AAAAA` se lit pareil dans les deux
+        sens — et obtenait la note maximale sur les deux composantes de
+        forme. Le cas d'école du corpus : `chorus chorus bridge outro`
+        (une vraie architecture) scorait 0.293, sa version aplatie
+        `chorus chorus chorus chorus chorus` scorait 0.947. Une pièce sans
+        contraste n'est pas symétrique, elle est informe : en dessous de
+        deux matériaux distincts, les deux composantes qui lisent les
+        étiquettes (palindrome, forme fermée) valent 0. C'est la même
+        maladie que les huit axes redressés à l'audit — une propriété
+        formelle dégénérée prise pour une qualité. L'équilibre des durées,
+        lui, est conservé : il ne dépend d'aucune étiquette, et l'annuler
+        punirait un morceau pour une erreur de regroupement en amont — le
+        labelling ne retrouve la forme annotée que dans un cas sur deux.
+
+        **L'équilibre des moitiés est un plateau, pas un gradient.** Noter
+        `1 − déséquilibre` fait de l'égalité parfaite l'unique optimum, si
+        bien qu'une dégradation qui uniformise les durées était
+        récompensée (le défaut réparé sur l'axe 02, même racine). Une
+        forme tolère qu'une moitié pèse un tiers de plus que l'autre ;
+        elle ne tolère pas qu'une moitié avale tout."""
         secs = self.score.sections
         labels = [s.label for s in secs]
         if len(labels) < 3:
             return self._make(4, 0.0, {"labels": labels})
-        half = len(labels) // 2
-        pairs = sum(1 for i in range(half) if labels[i] == labels[-(i + 1)])
-        palindrome = pairs / half if half else 0.0
-        arch = 1.0 if labels[0] == labels[-1] else 0.0
+        n_types = len(set(labels))
+        pairs = 0
+        if n_types < 2:
+            # Aucun contraste : `AAAAA` se lit pareil dans les deux sens,
+            # mais ce n'est pas une symétrie — c'est l'absence de forme.
+            palindrome = arch = 0.0
+        else:
+            half = len(labels) // 2
+            pairs = sum(1 for i in range(half) if labels[i] == labels[-(i + 1)])
+            raw = pairs / half if half else 0.0
+            # Palindrome AU-DESSUS DU HASARD. Une séquence sur-segmentée aux
+            # étiquettes répétitives aligne des paires symétriques par
+            # accident — plus de sections, plus de chances — et l'axe
+            # récompensait ce hasard chez les versions dégradées. On
+            # soustrait donc la symétrie qu'offre gratuitement la
+            # distribution des étiquettes : P(deux positions au hasard
+            # portent la même) = Σ n_c(n_c−1) / (n(n−1)). ABBA dépasse son
+            # hasard (1.0 contre 1/3) ; un AABA ne fait que l'atteindre —
+            # sa vraie qualité, la forme fermée, est portée par `arch`.
+            n = len(labels)
+            counts = Counter(labels)
+            expected = (sum(c * (c - 1) for c in counts.values())
+                        / (n * (n - 1))) if n > 1 else 1.0
+            palindrome = (clamp01((raw - expected) / (1.0 - expected))
+                          if expected < 1.0 else 0.0)
+            arch = 1.0 if labels[0] == labels[-1] else 0.0
 
         durations = [s.n_bars for s in secs]
         total = sum(durations)
@@ -494,12 +541,14 @@ class SenseOfMusicalStructure:
             cut = len(durations) // 2
             first = sum(durations[:cut])
             second = sum(durations[len(durations) - cut:])
-            balance = 1.0 - abs(first - second) / max(first + second, 1)
+            skew = abs(first - second) / max(first + second, 1)
+            balance = band(skew, -1.0, 0.0, 0.30, 0.75)
         else:
             balance = 0.0
         score = 0.5 * palindrome + 0.2 * arch + 0.3 * balance
         return self._make(4, score,
-                          {"labels": labels, "paires_symetriques": pairs,
+                          {"labels": labels, "nb_types": n_types,
+                           "paires_symetriques": pairs,
                            "equilibre_moities": round(balance, 3)})
 
     def _axe_05_section_progression(self) -> StructuralAxis:
