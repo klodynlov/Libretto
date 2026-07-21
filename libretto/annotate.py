@@ -66,6 +66,10 @@ MAX_NOTES = 4000          # au-delà, le navigateur peine à programmer les voix
 # Mélanger dans un même fichier des jugements issus de rendus distincts les
 # rendrait ininterprétables ; la reprise d'une session le refuse donc.
 RENDERER = "v2-timbre"
+# Rendu instrumental (annotate --render instrument) : FluidSynth + SoundFont,
+# la vélocité déclenche de vraies couches d'échantillons. Dernier étage du
+# banc d'essai pour la question dynamique.
+RENDERER_INSTRUMENT = "v3-instrument"
 
 
 def notes_in_seconds(md: MidiData) -> list[list]:
@@ -159,19 +163,23 @@ def build_tasks(corpus_dir: str | Path, seed: int = 1, per_file: int = 2,
     return tasks
 
 
-def render_task(task: dict, seed: int = 1) -> dict:
-    """Les deux versions audibles, sans indiquer laquelle est l'originale."""
+def midi_pair(task: dict, seed: int = 1):
+    """(MidiData du côté A, MidiData du côté B) — la position de l'original
+    est déjà résolue, l'appelant n'a aucun moyen de la connaître."""
     md = parse_midi(task["path"])
-    original = notes_in_seconds(md)
     if task["degradation"] == "__control__":
-        other = original
+        other = md
     else:
         rng = random.Random(f"{seed}:{task['file']}:{task['degradation']}")
-        other = notes_in_seconds(DEGRADATIONS[task["degradation"]](md, rng))
-    a, b = ((original, other) if task["original_slot"] == "A"
-            else (other, original))
+        other = DEGRADATIONS[task["degradation"]](md, rng)
+    return (md, other) if task["original_slot"] == "A" else (other, md)
+
+
+def render_task(task: dict, seed: int = 1) -> dict:
+    """Les deux versions audibles, sans indiquer laquelle est l'originale."""
+    side_a, side_b = midi_pair(task, seed)
     return {"id": task["id"], "n_total": task.get("n_total", 0),
-            "A": a, "B": b}
+            "A": notes_in_seconds(side_a), "B": notes_in_seconds(side_b)}
 
 
 class _Judgements:
@@ -292,7 +300,9 @@ let task=null, ctx=null, playing=[], listened=0, tStart=0;
 function ac(){ if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)(); return ctx; }
 function noiseBuf(c){ const b=c.createBuffer(1, c.sampleRate*0.2, c.sampleRate);
   const d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; return b; }
-function stopAll(){ playing.forEach(n=>{try{n.stop()}catch(e){}}); playing=[];
+function stopAll(){
+  playing.forEach(n=>{try{n.stop()}catch(e){} try{n.pause()}catch(e){}});
+  playing=[];
   if(tStart){ listened+=(performance.now()-tStart)/1000; tStart=0; } }
 // Rendu __RENDERER__ : la vélocité module le TIMBRE, pas seulement le volume.
 // Les sessions 1-2 ont montré qu'en pur volume, aucune structure dynamique
@@ -333,7 +343,11 @@ function schedule(c, dest, notes, t0){
   return nodes;
 }
 function play(side){
-  stopAll(); const c=ac(); tStart=performance.now();
+  stopAll(); tStart=performance.now();
+  if(task.wav){
+    const au=new Audio(task.wav[side]); au.play(); playing=[au]; return;
+  }
+  const c=ac();
   playing=schedule(c, c.destination, task[side], c.currentTime+0.08);
 }
 async function load(){
@@ -361,7 +375,35 @@ load();
 </script></body></html>"""
 
 
-def _handler(store: _Judgements, seed: int):
+class _WavCache:
+    """Rendus WAV par (tâche, côté), calculés à la demande et gardés sur
+    disque le temps de la session. Le nom de fichier ne contient que l'id de
+    tâche et le côté : rien qui trahisse la dégradation ou l'original."""
+
+    def __init__(self, tasks: list[dict], seed: int, binary: str, font):
+        import tempfile as _tf
+        self.tasks = {t["id"]: t for t in tasks}
+        self.seed = seed
+        self.binary = binary
+        self.font = font
+        self.dir = Path(_tf.mkdtemp(prefix="libretto_wav_"))
+        self.lock = threading.Lock()
+
+    def wav_for(self, task_id: int, slot: str) -> Path:
+        from .render import render_wav
+        if slot not in ("A", "B") or task_id not in self.tasks:
+            raise ValueError(f"tâche/côté inconnu : {task_id}/{slot}")
+        out = self.dir / f"{task_id}_{slot}.wav"
+        with self.lock:                      # un rendu à la fois suffit
+            if not out.exists():
+                side_a, side_b = midi_pair(self.tasks[task_id], self.seed)
+                md = side_a if slot == "A" else side_b
+                render_wav(md, out, self.binary, self.font)
+        return out
+
+
+def _handler(store: _Judgements, seed: int, renderer: str = RENDERER,
+             wav_cache: "_WavCache | None" = None):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
             pass
@@ -379,17 +421,32 @@ def _handler(store: _Judgements, seed: int):
 
         def do_GET(self):
             if self.path == "/":
-                page = PAGE.replace("__RENDERER__", RENDERER)
+                page = PAGE.replace("__RENDERER__", renderer)
                 self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
             elif self.path == "/api/task":
                 task = store.next_task()
                 if task is None:
                     self._json(200, {"done": True})
                     return
-                payload = render_task(task, seed)
+                if wav_cache is not None:
+                    # mode instrument : le client ne reçoit que deux URL
+                    # opaques — même pas les notes
+                    payload = {"id": task["id"],
+                               "wav": {"A": f"/api/audio/{task['id']}/A.wav",
+                                       "B": f"/api/audio/{task['id']}/B.wav"}}
+                else:
+                    payload = render_task(task, seed)
                 payload["n_total"] = len(store.tasks)
                 payload["n_done"] = len(store.done_ids())
                 self._json(200, payload)
+            elif self.path.startswith("/api/audio/") and wav_cache is not None:
+                try:
+                    _api, _audio, tid, name = self.path.strip("/").split("/")
+                    wav = wav_cache.wav_for(int(tid), name.split(".")[0])
+                except (ValueError, KeyError) as exc:
+                    self._json(404, {"error": str(exc)})
+                    return
+                self._send(200, wav.read_bytes(), "audio/wav")
             else:
                 self._json(404, {"error": "inconnu"})
 
@@ -412,7 +469,7 @@ def _handler(store: _Judgements, seed: int):
 
 def main(corpus_dir: str, out: str, host: str = "127.0.0.1",
          port: int | None = None, seed: int = 1, per_file: int = 2,
-         only: list[str] | None = None) -> int:
+         only: list[str] | None = None, render: str = "synth") -> int:
     if only:
         inconnues = sorted(set(only) - set(DEGRADATIONS))
         if inconnues:
@@ -423,12 +480,24 @@ def main(corpus_dir: str, out: str, host: str = "127.0.0.1",
     if not tasks:
         print(f"libretto: aucun MIDI exploitable dans {corpus_dir}")
         return 1
+    wav_cache = None
+    renderer = RENDERER
+    if render == "instrument":
+        from .render import renderer_available, install_hint
+        avail = renderer_available()
+        if avail is None:
+            print(f"libretto: {install_hint()}")
+            return 1
+        binary, font = avail
+        renderer = f"{RENDERER_INSTRUMENT}:{font.name}"
+        wav_cache = _WavCache(tasks, seed, binary, font)
+        print(f"rendu instrumental : {font.name} via {binary}")
     try:
-        store = _Judgements(Path(out), tasks, seed, RENDERER)
+        store = _Judgements(Path(out), tasks, seed, renderer)
     except ValueError as exc:
         print(f"libretto: {exc}")
         return 1
-    handler = _handler(store, seed)
+    handler = _handler(store, seed, renderer, wav_cache)
     chosen = port if port is not None else 8788
     for candidate in ([chosen] if port is not None else [chosen, 0]):
         try:
@@ -442,7 +511,7 @@ def main(corpus_dir: str, out: str, host: str = "127.0.0.1",
     real = httpd.server_address[1]
     n_control = sum(1 for t in tasks if t["degradation"] == "__control__")
     print(f"{len(tasks)} comparaisons ({n_control} paires de contrôle identiques), "
-          f"rendu {RENDERER}")
+          f"rendu {renderer}")
     print(f"déjà jugées : {len(store.done_ids())}   →  jugements dans {out}")
     print(f"écoute comparée : http://{host}:{real}   (Ctrl-C pour arrêter)")
     try:

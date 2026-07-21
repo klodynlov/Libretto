@@ -1,0 +1,16 @@
+{
+ "seed": 4,
+ "n_tasks": 62,
+ "renderer": "v3-instrument:MuseScore_General.sf3",
+ "judgements": [
+  {
+   "task_id": 0,
+   "file": "079_aaba_mixolydien_6-8_84bpm_arche.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 80.1
+  }
+ ]
+}

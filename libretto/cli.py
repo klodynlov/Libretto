@@ -123,6 +123,11 @@ def main(argv: list[str] | None = None) -> int:
     p_ann.add_argument("--seed", type=int, default=1)
     p_ann.add_argument("--per-file", type=int, default=2,
                        help="dégradations comparées par fichier (défaut 2)")
+    p_ann.add_argument("--render", choices=["synth", "instrument"],
+                       default="synth",
+                       help="synth = Web Audio (v2-timbre) ; instrument = "
+                            "FluidSynth + SoundFont, vraies couches de "
+                            "vélocité (v3)")
     p_ann.add_argument("--only", metavar="NOMS",
                        help="restreindre à certaines dégradations, séparées par "
                             "des virgules — pour une session ciblée sur celles "
@@ -144,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
         from .annotate import main as annotate_main
         only = [x.strip() for x in args.only.split(",")] if args.only else None
         return annotate_main(args.corpus, args.out, args.host, args.port,
-                             args.seed, args.per_file, only)
+                             args.seed, args.per_file, only, args.render)
 
     if args.command == "agreement":
         from .agreement import analyse, format_report

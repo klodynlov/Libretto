@@ -194,6 +194,42 @@ def _track_chunk(events: list[tuple[int, int, bytes]]) -> bytes:
     return b"MTrk" + len(payload).to_bytes(4, "big") + bytes(payload)
 
 
+def write_mididata(path: str | Path, md: MidiData,
+                   programs: dict[int, int] | None = None) -> None:
+    """Écrit un MidiData complet (notes, tempos, signatures, marqueurs) en
+    SMF format 1, avec des program changes optionnels {canal: programme GM}
+    au tick 0.
+
+    Nécessaire au rendu instrumental : nos fichiers générés n'assignent
+    aucun instrument, et un synthétiseur SoundFont jouerait tout au piano.
+    Les vélocités sont recopiées telles quelles — c'est la variable
+    d'expérience, elle ne doit subir aucune transformation ici."""
+    meta: list[tuple[int, int, bytes]] = []
+    for tick, bpm in (md.tempos or [(0, 120.0)]):
+        us = round(60_000_000 / max(1e-6, bpm))
+        meta.append((tick, 0, bytes([0xFF, 0x51, 0x03]) + us.to_bytes(3, "big")))
+    for tick, num, den in md.time_sigs:
+        den_pow = max(0, int(den).bit_length() - 1)
+        meta.append((tick, 1, bytes([0xFF, 0x58, 0x04, num, den_pow, 24, 8])))
+    for tick, text in md.markers:
+        raw = text.encode("latin-1", errors="replace")
+        meta.append((tick, 2, bytes([0xFF, 0x06]) + _varlen(len(raw)) + raw))
+
+    events: list[tuple[int, int, bytes]] = []
+    for channel, program in sorted((programs or {}).items()):
+        events.append((0, 0, bytes([0xC0 | (channel & 0x0F), program & 0x7F])))
+    for n in md.notes:
+        events.append((n.start, 1, bytes([0x90 | (n.channel & 0x0F),
+                                          n.pitch & 0x7F, max(1, n.velocity) & 0x7F])))
+        events.append((max(n.start + 1, n.end), 0,
+                       bytes([0x80 | (n.channel & 0x0F), n.pitch & 0x7F, 0])))
+
+    chunks = [_track_chunk(meta), _track_chunk(events)]
+    header = b"MThd" + (6).to_bytes(4, "big") + (1).to_bytes(2, "big") \
+        + len(chunks).to_bytes(2, "big") + md.ppq.to_bytes(2, "big")
+    Path(path).write_bytes(header + b"".join(chunks))
+
+
 def write_midi(
     path: str | Path,
     tracks: list[list[tuple[float, float, int, int, int]]],

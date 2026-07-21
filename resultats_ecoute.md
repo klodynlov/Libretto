@@ -215,6 +215,38 @@ Conséquences appliquées :
 3. Effet mesuré : accuracy experts 0.926, validation croisée 0.930 sur le
    corpus de morceaux ; 0.873 sur le pack sloopy (contre 0.823).
 
+### Session 4 — rendu v3-instrument (en cours)
+
+Dernier étage du banc d'essai : de **vrais échantillons**. FluidSynth +
+MuseScore_General.sf3, où la vélocité ne module plus un filtre mais
+déclenche des couches d'enregistrement distinctes — un piano frappé fort
+n'est pas un piano doux amplifié, c'est un autre son. Vérifié par test :
+deux rendus ne différant que par les vélocités produisent des signaux dont
+le RMS diffère d'un facteur > 1.5.
+
+```bash
+python3 -m libretto.cli annotate corpus_ecoute --render instrument \
+    --only flatten_dynamics,scramble_dynamics --out jugements4.json --seed 4
+```
+
+Le serveur rend chaque côté en WAV (à la demande, en cache) et ne sert au
+navigateur que deux URL opaques — le client ne reçoit même plus les notes.
+Une paire de contrôle produit deux WAV strictement identiques (testé
+octet à octet). Instruments assignés par program change : piano, basse
+électrique, piano électrique, cordes, batterie GM.
+
+C'est la dernière hypothèse qui puisse réhabiliter les axes dynamiques :
+
+- **audibles sous v3** → la dynamique s'entend sur de vrais échantillons ;
+  les poids 26/28 sont restaurés et le verdict des sessions 1-3 est
+  requalifié en limite des rendus de synthèse ;
+- **toujours rien** → la question est close sur les trois étages du banc
+  d'essai, et les poids réduits restent.
+
+FluidSynth est un outil externe optionnel, comme REAPER : le paquet Python
+reste 100 % stdlib, et sans l'outil `--render instrument` explique quoi
+installer au lieu de planter.
+
 ### 2. Autres priorités
 
 - Un second annotateur, pour estimer l'accord inter-annotateur — inconnu à

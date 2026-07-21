@@ -234,7 +234,13 @@ dynamique MIDI ne porte pas de structure perceptible, sous aucun des deux
 rendus**. Conséquences appliquées : poids de `26_dynamic_range` réduit à
 0.010 et `28_emotional_arc` à 0.030 au profit des axes validés par
 l'oreille, et la calibration n'optimise plus par défaut que contre les
-quatre dégradations audibles (`--all-degradations` sinon). Détail dans
+quatre dégradations audibles (`--all-degradations` sinon).
+
+Un troisième étage existe : `annotate --render instrument` rend chaque côté
+en WAV via FluidSynth + SoundFont (outil externe optionnel — le paquet
+reste stdlib), où la vélocité déclenche de vraies couches d'échantillons.
+C'est la dernière hypothèse qui puisse réhabiliter les axes dynamiques ;
+la session 4 est en cours. Détail dans
 [`resultats_ecoute.md`](resultats_ecoute.md).
 
 ## Corpus de validation
