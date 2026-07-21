@@ -353,6 +353,29 @@ class TestRepetitionSegmentation(unittest.TestCase):
         self.assertEqual(avec_porte, {16, 20, 36},
                          "seuls les bords du retour de section survivent")
 
+    def test_small_matrix_quantile_cap_lets_the_return_exist(self):
+        """Plafond arithmétique du quantile. Sur un ternaire de 12 mesures
+        (sections de 4), la matrice n'a que 36 paires hors bande : le
+        quantile 0.94 n'en admet que 3, et le retour A-A — 4 cellules, la
+        définition même de la forme — ne pouvait JAMAIS former un run de
+        min_len, quelle que soit sa netteté. Le plafond
+        q_eff = min(q, 1 − min_len/paires) garantit qu'au moins min_len
+        cellules passent.
+
+        Valeurs diagonales distinctes à dessein : des égalités laisseraient
+        plusieurs cellules partager le seuil et masqueraient
+        l'impossibilité."""
+        n = 12
+        ssm = [[0.2 if min(i, j) % 7 == 3 else 0.1 for j in range(n)]
+               for i in range(n)]
+        for i in range(n):
+            ssm[i][i] = 1.0
+        for i, v in enumerate((0.96, 0.97, 0.98, 0.99)):   # retour A-A, lag 8
+            ssm[i][i + 8] = ssm[i + 8][i] = v
+        edges = _repetition_edges(ssm, min_len=4)
+        self.assertEqual(edges, {4, 8},
+                         "le retour A-A d'un petit ternaire doit exister")
+
     def test_labelling_threshold_adapts_to_material(self):
         """Seuil fixe à 0.82 : une pièce à couleur harmonique unique voyait
         toutes ses sections rangées dans le même groupe — 29 morceaux sur 34
