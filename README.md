@@ -249,14 +249,15 @@ de dynamique musicale, les axes 26/28 y sont intestables. La session 5 a
 rejoué le même protocole sur des **interprétations réelles**
 (`examples/fetch_maestro.py` : extraits de MAESTRO, vraies vélocités de
 pianistes, pédale préservée) — et tout bascule : pour la première fois,
-l'oreille désigne l'original (75 % global ; `scramble` **audible** à 83 %,
-IC95 [0.55–0.95]), et l'axe 26 discrimine à **AUC 0.93** sur la matière
-qui contient enfin sa grandeur. La même permutation de vélocités qui
-s'entendait comme une *humanisation* sur des rampes de générateur s'entend
-comme une *destruction* sur du jeu de pianiste : l'aléa n'améliore que ce
-qui était déjà arbitraire. La révision de poids de la session 3 est
-annulée (26/28 restaurés). Détail — y compris la réserve sur les
-contrôles, session en cours — dans
+l'oreille désigne l'original — lot complet de 55, les **deux** dégradations
+audibles (`flatten` 71 % [0.51–0.85], `scramble` 73 % [0.52–0.87], global
+72 %) — et l'axe 26 discrimine à **AUC 0.93** sur la matière qui contient
+enfin sa grandeur. La même permutation de vélocités qui s'entendait comme
+une *humanisation* sur des rampes de générateur s'entend comme une
+*destruction* sur du jeu de pianiste : l'aléa n'améliore que ce qui était
+déjà arbitraire. La révision de poids de la session 3 est annulée (26/28
+restaurés). Détail — y compris la réserve sur les contrôles (critère
+libéral mesuré, qui dilue vers le hasard mais ne gonfle pas) — dans
 [`resultats_ecoute.md`](resultats_ecoute.md).
 
 ## Corpus de validation

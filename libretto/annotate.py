@@ -155,6 +155,23 @@ def build_tasks(corpus_dir: str | Path, seed: int = 1, per_file: int = 2,
             tasks.append({"file": path.name, "path": str(path),
                           "degradation": "__control__"})
     rng.shuffle(tasks)
+    # Répartition POSITIONNELLE des contrôles garantie, et non laissée au
+    # mélange : en session 5, un mélange malchanceux a groupé 6 contrôles
+    # sur 7 au-delà de la 30e tâche — l'annotateur qui s'arrête à mi-lot
+    # n'en a croisé qu'un, et son bruit de réponse n'était pas estimable.
+    # Chaque contrôle est réinséré dans sa tranche du lot, à une position
+    # tirée DANS la tranche : tout préfixe en contient sa juste part, sans
+    # que les positions soient prévisibles (un contrôle tous les k
+    # exactement s'apprendrait, et l'annotateur saurait répondre « aucune
+    # différence » sans écouter).
+    controls = [t for t in tasks if t["degradation"] == "__control__"]
+    others = [t for t in tasks if t["degradation"] != "__control__"]
+    if controls:
+        tasks = list(others)
+        step = (len(others) + len(controls)) / len(controls)
+        for k, ctrl in enumerate(controls):
+            pos = round((k + rng.uniform(0.2, 0.8)) * step)
+            tasks.insert(min(len(tasks), pos), ctrl)
     slots = ["A", "B"] * ((len(tasks) + 1) // 2)
     rng.shuffle(slots)
     for i, task in enumerate(tasks):

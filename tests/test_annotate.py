@@ -103,6 +103,37 @@ class TestTaskPreparation(unittest.TestCase):
             self.assertGreaterEqual(
                 sum(1 for t in tasks if t["degradation"] == CONTROL), 4)
 
+    def test_controls_cover_every_prefix(self):
+        """Session 5 : le mélange avait groupé 6 contrôles sur 7 au-delà de
+        la 30e tâche — l'annotateur arrêté à mi-lot n'avait qu'un contrôle,
+        bruit de réponse inestimable. La répartition doit couvrir tout
+        préfixe : l'écart entre contrôles consécutifs (bords compris) reste
+        borné par deux tranches."""
+        with tempfile.TemporaryDirectory() as d:
+            corpus = _corpus(Path(d), n=24)
+            for seed in (1, 2, 5, 7, 11):
+                tasks = build_tasks(corpus, seed=seed, per_file=2)
+                positions = [i for i, t in enumerate(tasks)
+                             if t["degradation"] == CONTROL]
+                n_ctrl = len(positions)
+                step = len(tasks) / n_ctrl
+                bounds = [-1] + positions + [len(tasks)]
+                worst = max(b - a for a, b in zip(bounds, bounds[1:]))
+                self.assertLessEqual(worst, 2 * step + 1, f"graine {seed}")
+
+    def test_control_positions_vary_between_seeds(self):
+        """Des positions de contrôle FIXES (un contrôle tous les k
+        exactement) s'apprendraient : l'annotateur saurait répondre sans
+        écouter. La tranche est garantie, la position dans la tranche non."""
+        with tempfile.TemporaryDirectory() as d:
+            corpus = _corpus(Path(d), n=24)
+            seen = set()
+            for seed in (1, 2, 5, 7, 11):
+                tasks = build_tasks(corpus, seed=seed, per_file=2)
+                seen.add(tuple(i for i, t in enumerate(tasks)
+                               if t["degradation"] == CONTROL))
+            self.assertGreater(len(seen), 1)
+
     def test_control_pair_is_truly_identical(self):
         with tempfile.TemporaryDirectory() as d:
             corpus = _corpus(Path(d), n=1)

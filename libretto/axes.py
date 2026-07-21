@@ -164,13 +164,14 @@ class StructuralAxis:
 # mécaniques, pas de la dynamique musicale. Poids 26/28 réduits (0.010/0.030),
 # masse redistribuée vers 12/16/17/20.
 #
-# Session 5 (corpus d'INTERPRÉTATIONS RÉELLES, MAESTRO) : la prémisse de la
-# réduction — « aucun corrélat perceptif mesurable » — est morte. Sur de la
-# dynamique jouée, l'oreille détecte scramble_dynamics à 83 % (IC95
-# 0.55-0.95), et l'axe 26 discrimine à AUC 0.93 sous les DEUX dégradations
-# dynamiques (l'axe 28 : 0.75 flatten / 0.58 scramble). La révision de la
-# session 3 est donc ANNULÉE à l'identique — le verdict n'était pas « la
-# dynamique ne compte pas » mais « le corpus généré n'en contient pas » :
+# Session 5 (corpus d'INTERPRÉTATIONS RÉELLES, MAESTRO, lot complet de 55) :
+# la prémisse de la réduction — « aucun corrélat perceptif mesurable » — est
+# morte. Sur de la dynamique jouée, l'oreille détecte les DEUX dégradations
+# dynamiques (flatten 71 % IC95 0.51-0.85, scramble 73 % IC95 0.52-0.87), et
+# l'axe 26 discrimine à AUC 0.93 sous les deux (l'axe 28 : 0.75/0.58). La
+# révision de la session 3 est donc ANNULÉE à l'identique — le verdict
+# n'était pas « la dynamique ne compte pas » mais « le corpus généré n'en
+# contient pas » :
 #   26_dynamic_range   0.030   28_emotional_arc   0.050   (restaurés)
 #   12_harmonic_rhythm 0.030   16_motivic_dev     0.050   (retour au prior)
 #   17_theme_recog     0.040   20_syncopation     0.025

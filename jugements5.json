@@ -272,6 +272,231 @@
    "choice": "A",
    "picked_original": true,
    "listened_seconds": 43.4
+  },
+  {
+   "task_id": 30,
+   "file": "2009_sergei-rachmaninoff_16.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 31.5
+  },
+  {
+   "task_id": 31,
+   "file": "2006_jean-philippe-rameau_19.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 32.3
+  },
+  {
+   "task_id": 32,
+   "file": "2018_orlando-gibbons_09.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 31.3
+  },
+  {
+   "task_id": 33,
+   "file": "2009_nikolai-medtner_17.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 26.3
+  },
+  {
+   "task_id": 34,
+   "file": "2009_antonio-soler_18.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 20.1
+  },
+  {
+   "task_id": 35,
+   "file": "2004_johann-christian-fis_02.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 19.9
+  },
+  {
+   "task_id": 36,
+   "file": "2008_mikhail-glinka-mily_12.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 28.7
+  },
+  {
+   "task_id": 37,
+   "file": "2009_muzio-clementi_14.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 37.6
+  },
+  {
+   "task_id": 38,
+   "file": "2017_george-frideric-hand_21.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 37.9
+  },
+  {
+   "task_id": 39,
+   "file": "2006_joseph-haydn_01.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 23.6
+  },
+  {
+   "task_id": 40,
+   "file": "2006_giuseppe-verdi-franz_13.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 21.3
+  },
+  {
+   "task_id": 41,
+   "file": "2015_johann-strauss-alfre_23.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 26.4
+  },
+  {
+   "task_id": 42,
+   "file": "2014_cesar-franck_15.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 19.3
+  },
+  {
+   "task_id": 43,
+   "file": "2006_modest-mussorgsky_07.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 18.6
+  },
+  {
+   "task_id": 44,
+   "file": "2008_niccolo-paganini-fra_03.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 23.9
+  },
+  {
+   "task_id": 45,
+   "file": "2008_mikhail-glinka-mily_12.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 19.3
+  },
+  {
+   "task_id": 46,
+   "file": "2018_orlando-gibbons_09.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 16.1
+  },
+  {
+   "task_id": 47,
+   "file": "2006_joseph-haydn_01.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 16.4
+  },
+  {
+   "task_id": 48,
+   "file": "2014_cesar-franck_15.mid",
+   "degradation": "__control__",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 18.7
+  },
+  {
+   "task_id": 49,
+   "file": "2008_niccolo-paganini-fra_03.mid",
+   "degradation": "__control__",
+   "original_slot": "B",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 82.6
+  },
+  {
+   "task_id": 50,
+   "file": "2006_modest-mussorgsky_07.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 26.1
+  },
+  {
+   "task_id": 51,
+   "file": "2006_sergei-rachmaninoff_04.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 21.2
+  },
+  {
+   "task_id": 52,
+   "file": "2004_johann-christian-fis_02.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 48.6
+  },
+  {
+   "task_id": 53,
+   "file": "2017_george-frideric-hand_21.mid",
+   "degradation": "__control__",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 29.9
+  },
+  {
+   "task_id": 54,
+   "file": "2006_jean-philippe-rameau_19.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 20.0
   }
  ]
 }

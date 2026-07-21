@@ -105,9 +105,10 @@ def degrade_flatten_dynamics(md: MidiData, rng: random.Random) -> MidiData:
     session 3), 20 % en rendu par échantillons réels (3/15, session 4 —
     zéro « aucune différence » : la différence s'entend, le dégradé gagne).
     Sur des vélocités de générateur, l'aplatissement sonne comme un
-    nettoyage. Sur des INTERPRÉTATIONS RÉELLES (session 5, MAESTRO), la
-    direction s'inverse : 69 % de détection (11/16, IC95 0.44-0.86) — non
-    concluant mais penchant, session en cours. Le verdict est PAR MATIÈRE.
+    nettoyage. Sur des INTERPRÉTATIONS RÉELLES (session 5, MAESTRO, lot
+    complet de 55), la direction s'inverse : AUDIBLE à 71 % (17/24, IC95
+    0.51-0.85). Le verdict est PAR MATIÈRE : aplatir un motif mécanique
+    « nettoie », aplatir un phrasé l'efface.
 
     Depuis la session 3, la calibration ne l'utilise plus par défaut
     (`audible_only=True`) : optimiser des poids contre un négatif que
@@ -153,11 +154,11 @@ def degrade_scramble_dynamics(md: MidiData, rng: random.Random) -> MidiData:
     mécaniques dont la destruction est au pire neutre, au mieux une
     amélioration perçue.
 
-    La session 5 (interprétations réelles, MAESTRO) confirme par
-    l'inverse : sur des vélocités de PIANISTE, la même permutation
-    s'entend comme une destruction — 83 % de détection (10/12, IC95
-    0.55-0.95, AUDIBLE), et l'axe 26 discrimine à AUC 0.93. Le verdict
-    est PAR MATIÈRE : l'aléa n'améliore que ce qui était déjà arbitraire.
+    La session 5 (interprétations réelles, MAESTRO, lot complet de 55)
+    confirme par l'inverse : sur des vélocités de PIANISTE, la même
+    permutation s'entend comme une destruction — AUDIBLE à 73 % (16/22,
+    IC95 0.52-0.87), et l'axe 26 discrimine à AUC 0.93. Le verdict est
+    PAR MATIÈRE : l'aléa n'améliore que ce qui était déjà arbitraire.
     Voir `resultats_ecoute.md`, sessions 4 et 5.
 
     Hors `AUDIBLE_DEGRADATIONS` (le chemin de calibration par défaut
@@ -213,8 +214,9 @@ DEGRADATIONS = {
 # dynamiques en sont absentes car sur cette matière l'oreille les PRÉFÈRE à
 # l'original (flatten : 16 %, 0 %, 20 % ; scramble : 40 %, 40 %, 17 %).
 # Mais le verdict est PAR MATIÈRE : sur interprétations réelles (session 5,
-# MAESTRO), scramble_dynamics est AUDIBLE à 83 % et l'axe 26 discrimine à
-# AUC 0.93 — sur un tel corpus, --all-degradations est légitime. Optimiser
+# MAESTRO, lot complet), les DEUX sont AUDIBLES — flatten 71 % [0.51-0.85],
+# scramble 73 % [0.52-0.87] — et l'axe 26 discrimine à AUC 0.93 sous les
+# deux. Sur un tel corpus, --all-degradations est légitime. Optimiser
 # contre un négatif que l'oreille contredit sur la matière du corpus, c'est
 # optimiser à contresens.
 AUDIBLE_DEGRADATIONS = frozenset({
