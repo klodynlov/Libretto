@@ -157,11 +157,13 @@ class StructuralAxis:
 
 # id, nom, poids, groupe. Somme des poids = 1.0 (vérifiée par les tests).
 #
-# Pondération révisée après trois sessions d'écoute A/B en aveugle (voir
+# Pondération révisée après quatre sessions d'écoute A/B en aveugle (voir
 # resultats_ecoute.md). Les deux négatifs dynamiques ont échoué au test de
-# perception sous DEUX rendus — volume seul, puis timbre+attaque+volume :
-# aplatir les vélocités est PRÉFÉRÉ à l'original (16 % puis 0 % de détection),
-# les permuter est indétectable (40 % sous les deux rendus). En conséquence :
+# perception sous TROIS rendus — volume, timbre modélisé, échantillons
+# réels : aplatir les vélocités est PRÉFÉRÉ à l'original (16 %, 0 %, 20 %),
+# les permuter est passé d'indétectable (40 %, 40 %) à préféré (17 % sous
+# échantillons réels — l'aléa s'entend comme une humanisation). Le corpus
+# généré ne produit pas de dynamique musicale : intestable. En conséquence :
 #   26_dynamic_range   0.030 -> 0.010  (axe purement vélocité : sa matière
 #                                       n'a aucun corrélat perceptif mesuré)
 #   28_emotional_arc   0.050 -> 0.030  (réduit, pas plancher : son énergie

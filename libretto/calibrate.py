@@ -96,11 +96,13 @@ def degrade_flatten_dynamics(md: MidiData, rng: random.Random) -> MidiData:
     """Toutes les vélocités à la moyenne : arc énergétique, gamme dynamique
     et progression aplatis.
 
-    ⚠ NÉGATIF RÉFUTÉ PAR L'ÉCOUTE, sous les DEUX rendus. L'oreille préfère
+    ⚠ NÉGATIF RÉFUTÉ PAR L'ÉCOUTE, sous les TROIS rendus. L'oreille préfère
     la version aplatie : 16 % de détection en rendu volume (4/25, deux
-    sessions), et 0 % en rendu timbre+attaque (0/11, session 3, contrôles à
-    67 %). L'hypothèse de l'artefact de rendu est morte — donner un canal
-    timbral à la vélocité a rendu l'aplatissement PLUS préféré, pas moins.
+    sessions), 0 % en rendu timbre+attaque (0/11, session 3), 20 % en rendu
+    par échantillons réels (3/15, session 4, FluidSynth + SoundFont — zéro
+    « aucune différence » : la différence s'entend, le dégradé gagne). Sur
+    de vrais échantillons, l'aplatissement sonne comme un nettoyage, un
+    timbre homogène et « produit ». La question est close.
 
     Depuis la session 3, la calibration ne l'utilise plus par défaut
     (`audible_only=True`) : optimiser des poids contre un négatif que
@@ -131,18 +133,20 @@ def degrade_scramble_dynamics(md: MidiData, rng: random.Random) -> MidiData:
     des percussions sur le piano et réciproquement, ce qui déséquilibre le
     mixage — un artefact d'orchestration, sans rapport avec la structure.
 
-    Proposée en remplacement de `flatten_dynamics`, puis **testée et
-    écartée deux fois** : 4/10 sous le rendu volume (session 2) et 4/10 sous
-    le rendu timbre+attaque (session 3) — exactement le même taux, deux lots
-    indépendants, deux rendus. IC95 [0.17, 0.69], et un taux au voisinage de
-    0.5 ne devient pas significatif en accumulant des jugements autour de
-    0.5. L'hypothèse « l'incohérence dynamique s'entend comme un défaut »
-    n'est pas confirmée, même quand la vélocité module le timbre.
+    Proposée en remplacement de `flatten_dynamics`, testée sur les trois
+    rendus du banc d'essai : 40 % sous le rendu volume (session 2), 40 %
+    sous le rendu timbre+attaque (session 3), puis **17 % — INVERSÉE — sous
+    le rendu par échantillons réels** (2/12, session 4, IC95 [0.05, 0.45],
+    zéro « aucune différence »). Plus le rendu est réaliste, plus la
+    permutation est préférée : sur de vrais échantillons, des vélocités
+    aléatoires note à note produisent exactement ce que les stations audio
+    appellent « humanize » — une micro-variation qui sonne humaine.
 
-    Joint à l'inversion de `flatten_dynamics` sous les deux rendus, le
-    constat est ferme : **la dynamique MIDI ne porte pas de structure
-    perceptible dans ce banc d'essai**, ni en amplitude ni en organisation.
-    Voir `resultats_ecoute.md` pour la grille de lecture et ses suites.
+    Joint à l'inversion de `flatten_dynamics` sous les trois rendus, le
+    constat final déplace la conclusion du rendu vers le corpus : le
+    générateur ne produit pas de dynamique MUSICALE — ses vélocités sont
+    des motifs mécaniques dont la destruction est au pire neutre, au mieux
+    une amélioration perçue. Voir `resultats_ecoute.md`, session 4.
 
     Conservée dans le dictionnaire mais hors calibration par défaut et hors
     `AUDIBLE_DEGRADATIONS` : diagnostic seulement, via --all-degradations."""
@@ -191,12 +195,13 @@ DEGRADATIONS = {
 }
 
 # Dégradations validées par l'écoute (voir `resultats_ecoute.md`).
-# `flatten_dynamics` en est absente : PRÉFÉRÉE à l'original sous les deux
-# rendus (16 % puis 0 % de détection). `scramble_dynamics` aussi :
-# indétectable, 40 % sous les deux rendus — testée, pas seulement présumée.
-# Depuis la session 3, la calibration n'utilise par défaut QUE ces quatre :
-# optimiser des poids contre un négatif que l'oreille contredit, c'est
-# optimiser à contresens (--all-degradations pour l'ancien comportement).
+# `flatten_dynamics` en est absente : PRÉFÉRÉE à l'original sous les trois
+# rendus (16 %, 0 %, puis 20 % de détection). `scramble_dynamics` aussi :
+# 40 %, 40 %, puis INVERSÉE à 17 % sous le rendu par échantillons réels —
+# l'aléa de vélocité s'y entend comme une humanisation. Verdict clos sur
+# les trois étages du banc d'essai (sessions 1-4). La calibration n'utilise
+# par défaut QUE ces quatre : optimiser contre un négatif que l'oreille
+# contredit, c'est optimiser à contresens (--all-degradations sinon).
 AUDIBLE_DEGRADATIONS = frozenset({
     "shuffle_bars", "transpose_segments", "jitter_onsets", "scramble_melody",
 })

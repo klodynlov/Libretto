@@ -236,11 +236,17 @@ rendus**. Conséquences appliquées : poids de `26_dynamic_range` réduit à
 l'oreille, et la calibration n'optimise plus par défaut que contre les
 quatre dégradations audibles (`--all-degradations` sinon).
 
-Un troisième étage existe : `annotate --render instrument` rend chaque côté
-en WAV via FluidSynth + SoundFont (outil externe optionnel — le paquet
+Le troisième étage a tranché : `annotate --render instrument` rend chaque
+côté en WAV via FluidSynth + SoundFont (outil externe optionnel — le paquet
 reste stdlib), où la vélocité déclenche de vraies couches d'échantillons.
-C'est la dernière hypothèse qui puisse réhabiliter les axes dynamiques ;
-la session 4 est en cours. Détail dans
+Session 4 (30 jugements) : **zéro « aucune différence »** sur les paires
+réelles — la dynamique s'entend parfaitement — et l'oreille préfère la
+version dégradée dans 82 % des cas. Les deux dégradations sont **inversées**
+(IC95 entièrement sous 0.5) : sur de vrais échantillons, permuter les
+vélocités s'entend comme une humanisation, les aplatir comme un nettoyage.
+La question est close sur les trois rendus — le générateur ne produit pas
+de dynamique musicale, les axes 26/28 sont intestables sur corpus généré,
+leurs poids réduits restent. Détail dans
 [`resultats_ecoute.md`](resultats_ecoute.md).
 
 ## Corpus de validation

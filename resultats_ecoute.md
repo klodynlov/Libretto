@@ -215,7 +215,7 @@ Conséquences appliquées :
 3. Effet mesuré : accuracy experts 0.926, validation croisée 0.930 sur le
    corpus de morceaux ; 0.873 sur le pack sloopy (contre 0.823).
 
-### Session 4 — rendu v3-instrument (en cours)
+### Session 4 — rendu v3-instrument : la question est close
 
 Dernier étage du banc d'essai : de **vrais échantillons**. FluidSynth +
 MuseScore_General.sf3, où la vélocité ne module plus un filtre mais
@@ -247,6 +247,57 @@ FluidSynth est un outil externe optionnel, comme REAPER : le paquet Python
 reste 100 % stdlib, et sans l'outil `--render instrument` explique quoi
 installer au lieu de planter.
 
+**Résultat (30 jugements : 27 tranchés, 3 contrôles).** La grille ci-dessus
+prévoyait deux issues ; la réalité a pris une troisième voie qu'elle
+n'anticipait pas : **audible ET inversée**.
+
+| dégradation | l'oreille désigne l'original | verdict |
+|---|---|---|
+| `flatten_dynamics` | 3/15 = 20 % [0.07–0.45] | **INVERSÉE** |
+| `scramble_dynamics` | 2/12 = 17 % [0.05–0.45] | **INVERSÉE** |
+
+Le fait nouveau n'est pas le taux, c'est le zéro : **zéro « aucune
+différence » sur 27 paires réelles** (médiane d'écoute 13 s par paire,
+contrôles à 67 % de « aucune différence »). Sous v1 et v2, `scramble`
+stagnait à 40 % ; sous v3, chaque paire sonne distinctement — le rendu par
+échantillons transmet parfaitement la dynamique — et l'oreille choisit la
+version dégradée dans 22 paires sur 27. L'hypothèse « le rendu masque la
+dynamique » est morte de la meilleure façon possible : la dynamique
+s'entend, et c'est le dégradé qui gagne.
+
+La trajectoire de `scramble_dynamics` raconte le mécanisme : 40 % (volume)
+→ 40 % (timbre modélisé) → 17 % (échantillons réels). Plus le rendu est
+réaliste, plus la permutation est préférée. Sur de vrais échantillons, des
+vélocités aléatoires note à note produisent exactement ce que les stations
+audio appellent *humanize* : une micro-variation dynamique qui sonne
+humaine. Et l'aplatissement s'entend comme un nettoyage — timbre homogène,
+rendu « produit ». Les rampes de vélocité par blocs du générateur, elles,
+sonnent arbitraires.
+
+**La conclusion se déplace donc du rendu vers le corpus** : le générateur
+ne produit pas de dynamique *musicale*. Ses vélocités sont des motifs
+mécaniques dont la destruction est au pire neutre, au mieux une
+amélioration perçue. Les axes 26/28 ne sont pas réfutés comme idées — sur
+de vraies interprétations, la dynamique porte évidemment de la structure —
+mais ils sont **intestables sur ce banc d'essai** : aucune des trois
+générations de rendu ni aucune des deux dégradations ne peut produire de
+preuve en leur faveur, parce que la matière première n'existe pas dans le
+corpus généré.
+
+Conséquences :
+
+1. La branche « toujours rien » de la grille s'applique *a fortiori*
+   (inversée est plus forte que rien) : **les poids réduits restent**
+   (26 à 0.010, 28 à 0.030) — non parce que la dynamique ne compte pas,
+   mais parce qu'aucune preuve en sa faveur n'est productible ici.
+2. `flatten_dynamics` et `scramble_dynamics` sont définitivement hors
+   calibration par défaut : le verdict couvre désormais les trois étages
+   du banc d'essai (4 sessions, 4 lots indépendants, 3 rendus).
+3. La seule voie restante pour valider 26/28 : un corpus
+   d'**interprétations humaines réelles** (MIDI joué, pas généré), où la
+   dynamique est une intention et non un motif. Hors de portée du
+   générateur — noté comme piste externe.
+
 ### 2. Autres priorités
 
 - Un second annotateur, pour estimer l'accord inter-annotateur — inconnu à
@@ -255,8 +306,8 @@ installer au lieu de planter.
 - Répondre plus souvent « je n'entends pas de différence » : une seule
   réponse de ce type sur 58 a rendu les contrôles peu concluants.
 
-En attendant, `flatten_dynamics` est conservée mais signalée dans
-`calibrate.py`, et les poids calibrés qui en dépendent restent provisoires.
-`AUDIBLE_DEGRADATIONS` recense les quatre dégradations effectivement
-validées — ni `flatten_dynamics`, réfutée, ni `scramble_dynamics`, non
-testée.
+`AUDIBLE_DEGRADATIONS` recense les quatre dégradations validées par
+l'oreille. Les deux dégradations dynamiques en sont définitivement
+absentes : réfutées puis inversées sur les trois étages du banc d'essai
+(sessions 1-4). Elles restent dans le dictionnaire pour diagnostic, via
+`--all-degradations`.
