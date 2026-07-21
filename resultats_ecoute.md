@@ -159,6 +159,38 @@ Les deux dégradations dans le même lot, sur les mêmes morceaux : si
 la substitution est fondée. Sinon, c'est toute la dimension dynamique du
 moteur qu'il faut revoir — et les axes 26 et 28 avec elle.
 
+### Session 3 — rendu v2-timbre (en cours)
+
+Les sessions 1-2 partageaient un défaut de banc d'essai : la vélocité n'y
+modulait **que le volume**. Sur un instrument réel, frapper fort rend aussi
+le son plus brillant et l'attaque plus mordante — c'est probablement là que
+l'arc dynamique s'entend. Le rendu `v2-timbre` le modélise en synthèse
+soustractive, toujours sans dépendance : dent de scie → passe-bas dont la
+coupure suit v², attaque de 4 à 32 ms selon la vélocité, pour les voix comme
+pour les percussions.
+
+Vérifié à l'analyseur spectral, sur la page servie : centroïde 299 Hz à
+vélocité 30 contre 492 Hz à vélocité 115 (rapport 1.6×, comparable à l'écart
+doux/fort d'un instrument acoustique), en plus des écarts d'attaque et de
+volume.
+
+Chaque fichier de jugements enregistre désormais la **version du rendu** qui
+l'a produit, et la reprise d'une session refuse de mélanger deux rendus —
+deux rendus sont deux expériences, les mélanger rendrait le fichier
+ininterprétable. Les fichiers antérieurs valent `v1-volume`.
+
+Session ciblée identique à la session 2 (mêmes 27 morceaux, `flatten` +
+`scramble`, 8 contrôles), graine 3, `jugements3.json`. Lecture des issues :
+
+- **les deux dégradations deviennent audibles** → les sessions 1-2
+  mesuraient un artefact de rendu ; les axes 26 et 28 sont réhabilités ;
+- **toujours rien** → la dynamique ne porte pas de structure perceptible
+  même quand le timbre la véhicule, et les axes 26/28 devraient perdre
+  leur poids dans le score ;
+- **`scramble` audible, `flatten` non** → l'uniformité est acceptée mais
+  l'incohérence s'entend : `scramble_dynamics` devient le négatif dynamique
+  légitime.
+
 ### 2. Autres priorités
 
 - Un second annotateur, pour estimer l'accord inter-annotateur — inconnu à

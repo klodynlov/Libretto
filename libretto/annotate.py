@@ -29,9 +29,15 @@ Protocole
   sur un type de dégradation.
 - Rien n'est chronométré ni imposé : l'annotateur écoute autant qu'il veut.
 
-Lecture : synthèse Web Audio dans le navigateur (ondes simples, bruit filtré
-pour les percussions). Le rendu est rudimentaire — c'est voulu, on juge la
-structure, pas le timbre — et surtout il n'ajoute aucune dépendance.
+Lecture : synthèse Web Audio dans le navigateur, sans aucune dépendance.
+Le rendu initial (v1-volume) mappait la vélocité sur le seul gain — et les
+sessions 1-2 ont montré qu'ainsi rendue, la dynamique ne porte AUCUNE
+structure perceptible : l'argument « on juge la structure, pas le timbre »
+était faux, le timbre est précisément le canal par lequel la dynamique
+s'entend. Le rendu v2-timbre la fait donc porter par une synthèse
+soustractive : vélocité -> coupure du filtre (en v²), durée d'attaque et
+gain, pour les voix comme pour les percussions. Chaque fichier de jugements
+enregistre la version du rendu qui l'a produit.
 
 Usage : libretto annotate corpus/ --out jugements.json
 """
@@ -52,6 +58,14 @@ DRUM_CHANNEL = 9
 # perception mais le bruit de réponse de l'annotateur.
 CONTROL_RATIO = 0.15
 MAX_NOTES = 4000          # au-delà, le navigateur peine à programmer les voix
+
+# Version du rendu audio, inscrite dans chaque fichier de jugements. Deux
+# rendus différents sont deux expériences différentes : les sessions 1-2
+# (v1-volume, où la vélocité ne modulait que le gain) ont conclu que la
+# dynamique ne s'entend pas — conclusion qui ne vaut QUE pour ce rendu.
+# Mélanger dans un même fichier des jugements issus de rendus distincts les
+# rendrait ininterprétables ; la reprise d'une session le refuse donc.
+RENDERER = "v2-timbre"
 
 
 def notes_in_seconds(md: MidiData) -> list[list]:
@@ -161,18 +175,27 @@ def render_task(task: dict, seed: int = 1) -> dict:
 
 
 class _Judgements:
-    def __init__(self, out_path: Path, tasks: list[dict], seed: int):
+    def __init__(self, out_path: Path, tasks: list[dict], seed: int,
+                 renderer: str = RENDERER):
         self.lock = threading.Lock()
         self.out_path = out_path
         self.tasks = tasks
         self.seed = seed
+        self.renderer = renderer
         self.records: list[dict] = []
         if out_path.exists():
             try:
                 data = json.loads(out_path.read_text(encoding="utf-8"))
-                self.records = data.get("judgements", [])
             except (ValueError, OSError):
-                self.records = []
+                data = {}
+            # Les fichiers d'avant le versionnage du rendu sont v1-volume.
+            existing = data.get("renderer", "v1-volume")
+            if data.get("judgements") and existing != renderer:
+                raise ValueError(
+                    f"{out_path} contient des jugements du rendu « {existing} », "
+                    f"le rendu actuel est « {renderer} ». Les mélanger rendrait la "
+                    "session ininterprétable — reprenez avec un nouveau --out.")
+            self.records = data.get("judgements", [])
 
     def done_ids(self) -> set[int]:
         return {r["task_id"] for r in self.records}
@@ -206,6 +229,7 @@ class _Judgements:
 
     def _flush(self) -> None:
         payload = {"seed": self.seed, "n_tasks": len(self.tasks),
+                   "renderer": self.renderer,
                    "judgements": sorted(self.records, key=lambda r: r["task_id"])}
         self.out_path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -259,7 +283,8 @@ structurée&nbsp;? Aucune indication n'est donnée sur leur origine.</small></h1
   </div>
   <p class="muted" style="margin-top:14px">Raccourcis : <kbd>a</kbd> <kbd>b</kbd>
   écouter · <kbd>1</kbd> <kbd>2</kbd> <kbd>0</kbd> répondre · <kbd>s</kbd> stop.
-  Répondre « je n'entends pas de différence » est une réponse valide et utile.</p>
+  Répondre « je n'entends pas de différence » est une réponse valide et utile.<br>
+  Rendu <b>__RENDERER__</b> — la vélocité module timbre, attaque et volume.</p>
 </div>
 <p class="muted" id="status"></p>
 </main><script>
@@ -269,26 +294,47 @@ function noiseBuf(c){ const b=c.createBuffer(1, c.sampleRate*0.2, c.sampleRate);
   const d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; return b; }
 function stopAll(){ playing.forEach(n=>{try{n.stop()}catch(e){}}); playing=[];
   if(tStart){ listened+=(performance.now()-tStart)/1000; tStart=0; } }
-function play(side){
-  stopAll(); const c=ac(); const t0=c.currentTime+0.08; tStart=performance.now();
-  const nb=noiseBuf(c);
-  for(const [st,du,pi,ve,drum] of task[side]){
-    const t=t0+st, g=c.createGain(), amp=Math.min(.22, ve/127*.22);
-    if(drum){ const s=c.createBufferSource(); s.buffer=nb;
-      const f=c.createBiquadFilter(); f.type = pi<=41?'lowpass':'highpass';
-      f.frequency.value = pi<=41?220:4000;
-      g.gain.setValueAtTime(amp,t); g.gain.exponentialRampToValueAtTime(.0008,t+.14);
-      s.connect(f); f.connect(g); g.connect(c.destination); s.start(t); s.stop(t+.2);
-      playing.push(s);
+// Rendu __RENDERER__ : la vélocité module le TIMBRE, pas seulement le volume.
+// Les sessions 1-2 ont montré qu'en pur volume, aucune structure dynamique
+// n'est perceptible — sur un vrai instrument, frapper fort rend aussi le son
+// plus brillant (filtre) et plus mordant (attaque). Synthèse soustractive :
+// dent de scie -> passe-bas dont la coupure suit v², attaque en 4-32 ms.
+// `schedule` est séparée de `play` pour être testable sur un AnalyserNode.
+function schedule(c, dest, notes, t0){
+  const nb=noiseBuf(c), nodes=[];
+  for(const [st,du,pi,ve,drum] of notes){
+    const t=t0+st, v=ve/127, g=c.createGain();
+    if(drum){
+      const s=c.createBufferSource(); s.buffer=nb;
+      const f=c.createBiquadFilter(); const low = pi<=41;
+      f.type = low?'lowpass':'highpass';
+      f.frequency.value = low ? 120+260*v : 2000+7000*v;   // fort = brillant
+      const dec=.06+.16*v;
+      g.gain.setValueAtTime(.04+.20*v, t);
+      g.gain.exponentialRampToValueAtTime(.0006, t+dec);
+      s.connect(f); f.connect(g); g.connect(dest);
+      s.start(t); s.stop(t+dec+.05); nodes.push(s);
     } else {
-      const o=c.createOscillator(); o.type='triangle';
-      o.frequency.value=440*Math.pow(2,(pi-69)/12);
-      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(amp,t+.012);
-      g.gain.exponentialRampToValueAtTime(.0008,t+Math.max(.12,du));
-      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+du+.06);
-      playing.push(o);
+      const f0=440*Math.pow(2,(pi-69)/12);
+      const o=c.createOscillator(); o.type='sawtooth'; o.frequency.value=f0;
+      const flt=c.createBiquadFilter(); flt.type='lowpass'; flt.Q.value=1.1;
+      const bright=Math.min(11000, f0*(1.6+10*v*v));       // coupure en v²
+      flt.frequency.setValueAtTime(bright, t);
+      flt.frequency.exponentialRampToValueAtTime(
+        Math.max(f0*1.4, bright*.4), t+Math.max(.18, du*.8));
+      const atk=.004+.028*(1-v);                           // doux = attaque lente
+      g.gain.setValueAtTime(0,t);
+      g.gain.linearRampToValueAtTime(.028+.16*Math.pow(v,1.2), t+atk);
+      g.gain.exponentialRampToValueAtTime(.0006, t+Math.max(.14,du));
+      o.connect(flt); flt.connect(g); g.connect(dest);
+      o.start(t); o.stop(t+du+.08); nodes.push(o);
     }
   }
+  return nodes;
+}
+function play(side){
+  stopAll(); const c=ac(); tStart=performance.now();
+  playing=schedule(c, c.destination, task[side], c.currentTime+0.08);
 }
 async function load(){
   const r=await fetch('/api/task'); const d=await r.json();
@@ -333,7 +379,8 @@ def _handler(store: _Judgements, seed: int):
 
         def do_GET(self):
             if self.path == "/":
-                self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
+                page = PAGE.replace("__RENDERER__", RENDERER)
+                self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
             elif self.path == "/api/task":
                 task = store.next_task()
                 if task is None:
@@ -376,7 +423,11 @@ def main(corpus_dir: str, out: str, host: str = "127.0.0.1",
     if not tasks:
         print(f"libretto: aucun MIDI exploitable dans {corpus_dir}")
         return 1
-    store = _Judgements(Path(out), tasks, seed)
+    try:
+        store = _Judgements(Path(out), tasks, seed, RENDERER)
+    except ValueError as exc:
+        print(f"libretto: {exc}")
+        return 1
     handler = _handler(store, seed)
     chosen = port if port is not None else 8788
     for candidate in ([chosen] if port is not None else [chosen, 0]):
@@ -390,7 +441,8 @@ def main(corpus_dir: str, out: str, host: str = "127.0.0.1",
         return 1
     real = httpd.server_address[1]
     n_control = sum(1 for t in tasks if t["degradation"] == "__control__")
-    print(f"{len(tasks)} comparaisons ({n_control} paires de contrôle identiques)")
+    print(f"{len(tasks)} comparaisons ({n_control} paires de contrôle identiques), "
+          f"rendu {RENDERER}")
     print(f"déjà jugées : {len(store.done_ids())}   →  jugements dans {out}")
     print(f"écoute comparée : http://{host}:{real}   (Ctrl-C pour arrêter)")
     try:

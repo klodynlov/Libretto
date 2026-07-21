@@ -18,6 +18,7 @@ from pathlib import Path
 
 from libretto.agreement import CONTROL, analyse, format_report
 from libretto.annotate import (
+    RENDERER,
     build_tasks,
     notes_in_seconds,
     render_task,
@@ -137,6 +138,71 @@ class TestTaskPreparation(unittest.TestCase):
             notes = notes_in_seconds(parse_midi(corpus / "p0.mid"))
         self.assertTrue(any(n[4] == 1 for n in notes), "percussions non marquées")
         self.assertTrue(any(n[4] == 0 for n in notes))
+
+
+class TestRendererVersioning(unittest.TestCase):
+    """Deux rendus audio sont deux expériences : les sessions 1-2 (v1-volume)
+    ont conclu que la dynamique ne s'entend pas, conclusion qui ne vaut que
+    pour ce rendu. Un fichier de jugements doit dire quel rendu l'a produit,
+    et refuser d'en mélanger deux."""
+
+    def test_renderer_is_recorded_in_judgements(self):
+        with tempfile.TemporaryDirectory() as d:
+            corpus = _corpus(Path(d), n=1)
+            tasks = build_tasks(corpus, seed=1, per_file=1)
+            out = Path(d) / "j.json"
+            store = _Judgements(out, tasks, 1)
+            store.record(tasks[0]["id"], "A", 5.0)
+            self.assertEqual(json.loads(out.read_text())["renderer"], RENDERER)
+
+    def test_resume_with_other_renderer_is_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            corpus = _corpus(Path(d), n=1)
+            tasks = build_tasks(corpus, seed=1, per_file=1)
+            out = Path(d) / "j.json"
+            out.write_text(json.dumps({
+                "seed": 1, "n_tasks": 1, "renderer": "v0-imaginaire",
+                "judgements": [{"task_id": 0, "file": "x", "degradation": "d",
+                                "original_slot": "A", "choice": "A",
+                                "picked_original": True, "listened_seconds": 1.0}],
+            }))
+            with self.assertRaises(ValueError):
+                _Judgements(out, tasks, 1)
+
+    def test_legacy_file_without_renderer_is_v1(self):
+        """Les fichiers d'avant le versionnage sont v1-volume : les reprendre
+        sous v2 mélangerait les rendus, donc refus."""
+        with tempfile.TemporaryDirectory() as d:
+            corpus = _corpus(Path(d), n=1)
+            tasks = build_tasks(corpus, seed=1, per_file=1)
+            out = Path(d) / "j.json"
+            out.write_text(json.dumps({
+                "seed": 1, "n_tasks": 1,
+                "judgements": [{"task_id": 0, "file": "x", "degradation": "d",
+                                "original_slot": "A", "choice": "A",
+                                "picked_original": True, "listened_seconds": 1.0}],
+            }))
+            with self.assertRaises(ValueError):
+                _Judgements(out, tasks, 1)
+
+    def test_empty_legacy_file_is_resumable(self):
+        # Aucun jugement encore : rien à mélanger, la reprise est saine.
+        with tempfile.TemporaryDirectory() as d:
+            corpus = _corpus(Path(d), n=1)
+            tasks = build_tasks(corpus, seed=1, per_file=1)
+            out = Path(d) / "j.json"
+            out.write_text(json.dumps({"seed": 1, "n_tasks": 1, "judgements": []}))
+            store = _Judgements(out, tasks, 1)
+            self.assertEqual(store.records, [])
+
+    def test_page_carries_renderer_placeholder(self):
+        # Servi après substitution ; le placeholder doit exister dans la page
+        # (bandeau visible par l'annotateur) — une page muette sur son rendu
+        # redonnerait des sessions incomparables silencieusement.
+        from libretto.annotate import PAGE
+        self.assertGreaterEqual(PAGE.count("__RENDERER__"), 2)
+        self.assertIn("sawtooth", PAGE)      # le timbre dépend bien d'un filtre
+        self.assertIn("v*v", PAGE)           # coupure en v² — la marque du v2
 
 
 class TestJudgementStore(unittest.TestCase):

@@ -228,9 +228,11 @@ plus économique n'est pas qu'elles sont mal conçues, mais que **la vélocité
 MIDI, en rendu de synthèse, ne porte pas de structure perceptible** : elle
 n'y module que le volume, là où un vrai instrument change aussi le timbre.
 Les axes `26_dynamic_range` et `28_emotional_arc` mesurent une dimension
-réelle de la partition, mais que ce banc d'essai ne peut pas valider — il y
-faudrait un rendu instrumental. Détail et cumul dans
-[`resultats_ecoute.md`](resultats_ecoute.md).
+réelle de la partition, mais que ce banc d'essai ne pouvait pas valider. Le
+rendu `v2-timbre` lève cette limite — la vélocité y module brillance et
+attaque, comme sur un instrument — et une session 3 doit retester les deux
+dégradations dynamiques sous ce rendu. Détail, cumul et grille de lecture
+des issues dans [`resultats_ecoute.md`](resultats_ecoute.md).
 
 ## Corpus de validation
 
@@ -345,6 +347,9 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
   (original > dégradé), pas l'accord avec un jugement humain. L'outil de
   recueil existe (`annotate` / `agreement`), les annotations non — **le
   moteur n'a jamais été confronté à une oreille**.
-- Synthèse d'écoute rudimentaire (ondes simples, bruit filtré pour les
-  percussions) : suffisante pour juger une structure, pas un arrangement.
-  Au-delà de 4000 notes le fichier est tronqué à la lecture.
+- Synthèse d'écoute sommaire, mais plus aveugle à la dynamique : depuis le
+  rendu `v2-timbre`, la vélocité module la brillance (filtre en v²) et
+  l'attaque, pas seulement le volume — vérifié à l'analyseur (centroïde
+  299 → 492 Hz entre vélocités 30 et 115). Chaque fichier de jugements
+  enregistre la version du rendu qui l'a produit. Au-delà de 4000 notes le
+  fichier est tronqué à la lecture.

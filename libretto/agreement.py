@@ -61,6 +61,8 @@ def analyse(judgements_path: str | Path, corpus_dir: str | Path | None = None,
     records = data.get("judgements", [])
     if not records:
         raise ValueError(f"aucun jugement dans {judgements_path}")
+    # Absent des fichiers d'avant le versionnage : c'était le rendu volume.
+    renderer = data.get("renderer", "v1-volume")
 
     controls = [r for r in records if r["degradation"] == CONTROL]
     real = [r for r in records if r["degradation"] != CONTROL]
@@ -100,6 +102,7 @@ def analyse(judgements_path: str | Path, corpus_dir: str | Path | None = None,
     lo, hi = _wilson(hits_all, len(decided_all))
 
     report = {
+        "renderer": renderer,
         "n_judgements": len(records),
         "n_control": len(controls),
         "control_answered_same": round(control_quality, 3) if control_quality is not None else None,
@@ -197,6 +200,8 @@ def _engine_agreement(records: list[dict], corpus_dir: Path, seed: int) -> dict:
 
 def format_report(report: dict) -> str:
     lines = ["=== ACCORD HUMAIN / LIBRETTO ==="]
+    lines.append(f"rendu audio : {report.get('renderer', 'v1-volume')} — un verdict "
+                 "ne vaut que pour le rendu qui l'a produit")
     lines.append(f"jugements : {report['n_judgements']}  "
                  f"(tranchés {report['n_decided']}, « aucune différence » "
                  f"{report['n_same']}, contrôles {report['n_control']})")
