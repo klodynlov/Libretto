@@ -217,15 +217,20 @@ Accord moteur / oreille : **74 %**, et **88 %** en écartant
 `flatten_dynamics`, sur laquelle le désaccord est concentré.
 
 Aplatir les vélocités n'est donc pas perçu comme une dégradation : c'est
-préféré, avec un intervalle de confiance entièrement sous 0.5. Or
-`26_dynamic_range` et `28_emotional_arc` tiraient l'essentiel de leur
-pouvoir discriminant de ce négatif-là. Leur poids dans le score repose sur
-une prémisse que l'écoute ne confirme pas — et les retirer du protocole ne
-coûterait rien (validation croisée 0.924 → 0.929).
+préféré, avec un intervalle de confiance entièrement sous 0.5. Une seconde
+session ciblée (31 jugements) l'a **reconfirmé** — cumul 16 %, IC95
+[0.06, 0.35] — et a testé une dégradation de remplacement, `scramble_dynamics`
+(permuter les vélocités au lieu de les aplatir) : **non concluante** elle
+aussi, IC95 [0.17, 0.69].
 
-Un seul annotateur, onze jugements par dégradation, des contrôles
-imparfaits : de quoi remettre en cause une hypothèse, pas de quoi refonder
-le protocole. `flatten_dynamics` est conservée mais signalée dans le code.
+Les deux façons de dégrader la dynamique échouent au test. La conclusion la
+plus économique n'est pas qu'elles sont mal conçues, mais que **la vélocité
+MIDI, en rendu de synthèse, ne porte pas de structure perceptible** : elle
+n'y module que le volume, là où un vrai instrument change aussi le timbre.
+Les axes `26_dynamic_range` et `28_emotional_arc` mesurent une dimension
+réelle de la partition, mais que ce banc d'essai ne peut pas valider — il y
+faudrait un rendu instrumental. Détail et cumul dans
+[`resultats_ecoute.md`](resultats_ecoute.md).
 
 ## Corpus de validation
 

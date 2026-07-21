@@ -76,7 +76,48 @@ croisée monte même légèrement.
 
 ## Suite
 
-### 1. `scramble_dynamics` — ajoutée, pas encore validée
+### 1. `scramble_dynamics` — testée, écartée (session 2)
+
+Seconde session, 31 jugements, ciblée sur les deux dégradations dynamiques
+(`jugements2.json`, seed 2). Contrôles corrects cette fois : 50 % de « aucune
+différence » sur les paires identiques, contre 25 % à la session 1.
+
+| dégradation | l'oreille désigne l'original | IC95 | verdict |
+|---|---|---|---|
+| `flatten_dynamics` | 14 % | 0.04–0.40 | inversée (reconfirmée) |
+| `scramble_dynamics` | 40 % | 0.17–0.69 | **non concluante** |
+
+Deux constats, un provisoire et un de fond.
+
+`flatten_dynamics` est **réfutée une seconde fois**, sur un lot indépendant.
+Cumul des deux sessions : 4 succès sur 25, soit 16 %, IC95 [0.06, 0.35].
+Ce n'est pas un accident d'échantillonnage.
+
+`scramble_dynamics` n'est **pas** la solution espérée. Son intervalle enjambe
+0.5, avec une pente vers l'inversion. Et ce n'est pas une question de
+puissance statistique : un taux au voisinage de 0.5 ne devient pas
+significatif en accumulant des jugements autour de 0.5 — à n=60 simulé,
+l'IC resterait [0.29, 0.53].
+
+**Ce que ça dit du moteur.** Les deux façons de dégrader la dynamique —
+supprimer son amplitude, détruire son organisation — échouent au test
+d'écoute. La conclusion la plus économique n'est pas que ces dégradations
+sont mal conçues, mais que **la vélocité MIDI, en rendu de synthèse, ne
+porte pas de structure perceptible**. En synthèse, la vélocité ne module que
+le volume ; sur un vrai instrument, elle change aussi le timbre, l'attaque,
+la brillance — et c'est probablement là que l'arc dynamique s'entend.
+
+Les axes 26 (`dynamic_range`) et 28 (`emotional_arc`) mesurent donc une
+dimension réelle de la partition, mais que ce protocole ne peut pas valider.
+Ce n'est pas une réfutation des axes ; c'est une limite du banc d'essai, à
+lever avec un rendu instrumental (SoundFont, ou export vers un synthé). En
+attendant, leur poids reste à considérer comme non vérifié par l'oreille.
+
+`scramble_dynamics` est conservée comme négatif de cohérence interne (elle
+raffermit la calibration : validation croisée 0.924 → 0.937) mais reste hors
+d'`AUDIBLE_DEGRADATIONS`, au même titre que `flatten_dynamics`.
+
+### Historique — `scramble_dynamics`, l'hypothèse initiale
 
 Une sixième dégradation permute les vélocités **à l'intérieur de chaque
 canal**, au lieu de les aplatir. Hypothèse musicale : l'incohérence

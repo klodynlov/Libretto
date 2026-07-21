@@ -79,6 +79,29 @@ class TestTaskPreparation(unittest.TestCase):
             tasks = build_tasks(_corpus(Path(d), n=40), seed=5, per_file=1)
             self.assertTrue(any(t["degradation"] == CONTROL for t in tasks))
 
+    def test_control_count_is_guaranteed_not_drawn(self):
+        """Le tirage fichier par fichier pouvait ne produire qu'un contrôle
+        sur un lot entier. Sans eux, le bruit de réponse n'est pas estimable
+        et aucun taux de détection n'est interprétable."""
+        with tempfile.TemporaryDirectory() as d:
+            corpus = _corpus(Path(d), n=20)
+            for seed in (1, 2, 3, 7, 11):
+                tasks = build_tasks(corpus, seed=seed, per_file=2)
+                n_ctrl = sum(1 for t in tasks if t["degradation"] == CONTROL)
+                self.assertGreaterEqual(n_ctrl, 4, f"graine {seed}")
+
+    def test_targeted_session_keeps_its_controls(self):
+        """Restreindre les dégradations ne doit pas faire fondre les
+        contrôles : c'est justement une session ciblée qui a besoin d'un
+        verdict net."""
+        with tempfile.TemporaryDirectory() as d:
+            tasks = build_tasks(_corpus(Path(d), n=20), seed=2, per_file=2,
+                                only=["flatten_dynamics", "scramble_dynamics"])
+            kinds = {t["degradation"] for t in tasks}
+            self.assertEqual(kinds, {"flatten_dynamics", "scramble_dynamics", CONTROL})
+            self.assertGreaterEqual(
+                sum(1 for t in tasks if t["degradation"] == CONTROL), 4)
+
     def test_control_pair_is_truly_identical(self):
         with tempfile.TemporaryDirectory() as d:
             corpus = _corpus(Path(d), n=1)

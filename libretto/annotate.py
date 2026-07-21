@@ -102,6 +102,7 @@ def build_tasks(corpus_dir: str | Path, seed: int = 1, per_file: int = 2,
     rng = random.Random(seed)
     paths = sorted(p for p in Path(corpus_dir).rglob("*.mid*") if p.is_file())
     tasks: list[dict] = []
+    pool: list[Path] = []
     used: dict[str, int] = {name: 0 for name in DEGRADATIONS}
     for path in paths:
         try:
@@ -122,7 +123,17 @@ def build_tasks(corpus_dir: str | Path, seed: int = 1, per_file: int = 2,
             used[name] += 1
             tasks.append({"file": path.name, "path": str(path),
                           "degradation": name})
-        if rng.random() < CONTROL_RATIO:
+        pool.append(path)
+
+    # Nombre de contrôles GARANTI, et non tiré au sort fichier par fichier :
+    # ce tirage pouvait n'en produire qu'un ou deux sur un lot entier, et
+    # sans eux le bruit de réponse de l'annotateur n'est pas estimable — donc
+    # aucun taux de détection n'est interprétable. Plancher à 4, parce qu'en
+    # dessous la proportion observée ne veut rien dire non plus.
+    if pool:
+        n_control = max(4, round(CONTROL_RATIO * len(tasks)))
+        for i in range(n_control):
+            path = pool[(i * 7 + 3) % len(pool)]     # étalé sur le corpus
             tasks.append({"file": path.name, "path": str(path),
                           "degradation": "__control__"})
     rng.shuffle(tasks)

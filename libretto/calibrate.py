@@ -142,11 +142,24 @@ def degrade_scramble_dynamics(md: MidiData, rng: random.Random) -> MidiData:
     des percussions sur le piano et réciproquement, ce qui déséquilibre le
     mixage — un artefact d'orchestration, sans rapport avec la structure.
 
-    Cette dégradation est proposée en remplacement de `flatten_dynamics`, que
-    l'écoute a réfutée (voir sa docstring et `resultats_ecoute.md`).
-    L'hypothèse musicale : l'incohérence dynamique s'entend comme un défaut,
-    là où l'uniformité passe pour de la production. **Elle n'est pas encore
-    validée** — il y faut une session d'écoute."""
+    Proposée en remplacement de `flatten_dynamics`, puis **testée et écartée**.
+    Sur 10 comparaisons A/B (`jugements2.json`), l'oreille désigne l'original
+    dans 40 % des cas seulement — IC95 [0.17, 0.69], indistinguable du hasard,
+    avec même une pente vers l'inversion. L'hypothèse « l'incohérence
+    dynamique s'entend comme un défaut » n'est pas confirmée.
+
+    Ce n'est pas un problème d'échantillon : un taux au voisinage de 0.5 ne
+    devient pas significatif en accumulant des données autour de 0.5 (à n=60,
+    l'IC resterait [0.29, 0.53]). Joint à l'inversion de `flatten_dynamics`,
+    le constat porte plus loin que ces deux dégradations : **la vélocité MIDI,
+    en rendu de synthèse, ne porte aucune structure perceptible** — ni son
+    amplitude, ni son organisation. Les axes 26 et 28 mesurent donc une
+    dimension réelle de la partition, mais que ce protocole d'écoute ne peut
+    pas valider. Il faudrait un rendu instrumental (où la vélocité change
+    aussi le timbre) pour la trancher. Voir `resultats_ecoute.md`.
+
+    Conservée dans le dictionnaire mais absente d'`AUDIBLE_DEGRADATIONS` :
+    utile comme négatif de cohérence interne, sans prétention perceptive."""
     by_channel: dict[int, list[int]] = {}
     for i, n in enumerate(md.notes):
         by_channel.setdefault(n.channel, []).append(i)

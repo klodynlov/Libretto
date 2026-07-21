@@ -1,0 +1,285 @@
+{
+ "seed": 2,
+ "n_tasks": 62,
+ "judgements": [
+  {
+   "task_id": 0,
+   "file": "004_binaire_min_12-8_168bpm_arche.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 3435.0
+  },
+  {
+   "task_id": 1,
+   "file": "051_binaire_maj_4-4_112bpm_plat.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 165.2
+  },
+  {
+   "task_id": 2,
+   "file": "053_verse_chorus_court_maj_4-4_168bpm_descente.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 65.5
+  },
+  {
+   "task_id": 3,
+   "file": "005_aaba_min_3-4_90bpm_arche.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 12.4
+  },
+  {
+   "task_id": 4,
+   "file": "004_binaire_min_12-8_168bpm_arche.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 34.2
+  },
+  {
+   "task_id": 5,
+   "file": "059_ternaire_maj_5-4_120bpm_arche.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 24.6
+  },
+  {
+   "task_id": 6,
+   "file": "005_aaba_min_3-4_90bpm_arche.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 9.4
+  },
+  {
+   "task_id": 7,
+   "file": "009_aaba_dorien_6-8_112bpm_descente.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 1313.8
+  },
+  {
+   "task_id": 8,
+   "file": "020_ternaire_dorien_12-8_140bpm_arche.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 40.7
+  },
+  {
+   "task_id": 9,
+   "file": "026_verse_chorus_maj_3-4_120bpm_descente.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 94.1
+  },
+  {
+   "task_id": 10,
+   "file": "015_verse_chorus_court_mixolydien_6-8_100bpm_arche.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 77.8
+  },
+  {
+   "task_id": 11,
+   "file": "034_binaire_maj_3-4_140bpm_arche.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 38.3
+  },
+  {
+   "task_id": 12,
+   "file": "077_verse_chorus_mixolydien_4-4_96bpm_arche.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 9.8
+  },
+  {
+   "task_id": 13,
+   "file": "015_verse_chorus_court_mixolydien_6-8_100bpm_arche.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 9.1
+  },
+  {
+   "task_id": 14,
+   "file": "008_ternaire_min_6-8_84bpm_arche.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 23.1
+  },
+  {
+   "task_id": 15,
+   "file": "012_rondo_min_4-4_100bpm_arche.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 12.7
+  },
+  {
+   "task_id": 16,
+   "file": "042_travers_compose_dorien_4-4_84bpm_plat.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 28.8
+  },
+  {
+   "task_id": 17,
+   "file": "012_rondo_min_4-4_100bpm_arche.mid",
+   "degradation": "__control__",
+   "original_slot": "B",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 61.4
+  },
+  {
+   "task_id": 18,
+   "file": "008_ternaire_min_6-8_84bpm_arche.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 5.4
+  },
+  {
+   "task_id": 19,
+   "file": "059_ternaire_maj_5-4_120bpm_arche.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 13.4
+  },
+  {
+   "task_id": 20,
+   "file": "009_aaba_dorien_6-8_112bpm_descente.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 30.8
+  },
+  {
+   "task_id": 21,
+   "file": "067_binaire_maj_6-8_64bpm_arche.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 5.7
+  },
+  {
+   "task_id": 22,
+   "file": "038_binaire_min_5-4_140bpm_montee.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 7.1
+  },
+  {
+   "task_id": 23,
+   "file": "085_verse_chorus_court_maj_6-8_96bpm_plat.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 19.9
+  },
+  {
+   "task_id": 24,
+   "file": "085_verse_chorus_court_maj_6-8_96bpm_plat.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 6.2
+  },
+  {
+   "task_id": 25,
+   "file": "026_verse_chorus_maj_3-4_120bpm_descente.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 6.0
+  },
+  {
+   "task_id": 26,
+   "file": "079_aaba_mixolydien_6-8_84bpm_arche.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 15.7
+  },
+  {
+   "task_id": 27,
+   "file": "057_ternaire_maj_3-4_168bpm_arche.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 5.6
+  },
+  {
+   "task_id": 28,
+   "file": "017_verse_chorus_court_min_6-8_96bpm_descente.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 8.0
+  },
+  {
+   "task_id": 29,
+   "file": "060_aaba_dorien_4-4_72bpm_plat.mid",
+   "degradation": "flatten_dynamics",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 6.1
+  },
+  {
+   "task_id": 30,
+   "file": "030_verse_chorus_court_min_6-8_140bpm_plat.mid",
+   "degradation": "scramble_dynamics",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 0.0
+  }
+ ]
+}
