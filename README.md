@@ -322,13 +322,14 @@ gagnant à celui qu'aurait désigné le tri sur le score seul.
 python3 examples/forge_sweep.py 10 24 1     # 10 graines × 24 candidats
 ```
 
-Sur 10 graines (déterministe), la règle **change le gagnant une fois sur
-deux**, pour un score brut cédé de seulement **0.031 en moyenne** — on paie
-trois centièmes de score pour gagner une tranche de fiabilité entière. Le
-gate `--min-confidence` recale au moins un candidat sur 4 graines sur 10,
-même sur ce corpus 100 % « morceaux ». Et le top 5 ne retient que ~3.7 des
-~6.9 formes générées : la collapse de diversité est constante, pas un accident
-de tirage.
+Sur 10 graines (déterministe), la règle **change le gagnant six fois sur
+dix**, pour un score brut cédé de seulement **0.026 en moyenne** (min 0.005,
+max 0.054) — on paie moins de trois centièmes de score pour gagner une tranche
+de fiabilité entière. Le gate `--min-confidence` recale au moins un candidat
+sur 4 graines sur 10, même sur ce corpus 100 % « morceaux » : sur 236
+candidats éligibles, **84 % tombent en « élevée » et 15 % en « moyenne »**. Et
+le top 5 ne retient que ~3.9 des ~6.9 formes générées : la collapse de
+diversité est constante, pas un accident de tirage.
 
 ## Interface web locale
 
