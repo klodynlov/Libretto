@@ -378,6 +378,35 @@ class TestRepetitionSegmentation(unittest.TestCase):
         self.assertEqual(len(set(_assign_letters(feats))), 1)
 
 
+class TestGestureDims(unittest.TestCase):
+    """Dims gestuelles de segmentation (intervalle mélodique moyen, durée
+    moyenne). Le chroma moyenné est aveugle aux pièces qui changent
+    d'harmonie à chaque mesure : le contraste inter-sections s'y noie dans
+    le contraste intra-section. Mesuré sur travers-composé : passage de
+    pas conjoints (±3-4) à grands sauts (±20-31) à la frontière, nouveauté
+    chroma 0.013."""
+
+    def test_gesture_alone_creates_a_boundary(self):
+        """Deux moitiés au chroma identique (mêmes classes de hauteur,
+        mêmes durées, même vélocité, même densité, même registre moyen) :
+        seule la taille des intervalles change. Sans les dims gestuelles,
+        aucune feature ne distingue les deux moitiés."""
+        notes = []
+        for bar in range(8):        # pas conjoints, moyenne 75.25
+            for k, pitch in enumerate((72, 74, 76, 79)):
+                notes.append((bar * 4.0 + k, 0.9, pitch, 80, 0))
+        for bar in range(8, 16):    # grands sauts, mêmes pcs, même moyenne
+            for k, pitch in enumerate((60, 86, 64, 91)):
+                notes.append((bar * 4.0 + k, 0.9, pitch, 80, 0))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "geste.mid"
+            write_midi(path, [notes], ppq=480, bpm=100)
+            score = build_score(parse_midi(path))
+        bounds = [s.start_bar - 1 for s in score.sections]
+        self.assertTrue(any(abs(b - 8) <= 1 for b in bounds),
+                        f"le geste seul doit créer la frontière : {bounds}")
+
+
 class TestScrambleDynamics(unittest.TestCase):
     """`scramble_dynamics` doit détruire l'ORGANISATION de la dynamique sans
     toucher à sa quantité — c'est ce qui la distingue de `flatten_dynamics`,

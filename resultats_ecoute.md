@@ -724,6 +724,80 @@ reste à 0.56. La garde du mécanisme est double : test unitaire sur
 matrice construite (le treillis de phrases ne doit émettre aucun bord) et
 harnais rejouable pour les chiffres d'ensemble.
 
+### Le travers-composé — quatre candidats tués, un trou de features comblé
+
+Le chantier visait le plafond 0.66-0.67 du travers-composé. Quatre
+candidats sont morts sur la graine de réglage — sans entamer la
+validation, c'est à ça qu'elle sert — avant que l'autopsie du contenu ne
+retourne le diagnostic.
+
+**Mesuré et rejeté :**
+
+- *Porte de crédibilité* (aucun bord si le plus long run < 2·min_len —
+  « une pièce sans diagonale de deux sections minimales n'a pas de
+  reprise démontrée ») : travers +0.03, mais aaba 0.86 → 0.40 et
+  verse_chorus touché. Les runs parasites des pièces courtes (4-7
+  mesures) et les vraies reprises de sections courtes (5-8) se
+  **chevauchent** — aucun plancher absolu ne les sépare. Même mort que
+  min_run, pour la même raison.
+- *Corroboration à la médiane* (un bord de répétition ne survit que si la
+  nouveauté locale atteint la médiane de la pièce) : 0.728 → 0.706. Les
+  vrais bords de retour vivent souvent **sous** la médiane — « le
+  matériau est déjà connu » n'était pas une métaphore. La bande utile des
+  bords est précisément là où la nouveauté ne regarde pas.
+- *Fenêtre 8 et chroma seul* : marges vraies-frontières/coutures pires
+  dans les deux cas, mesurées point par point avant tout essai global.
+- *Retrait du recalage de pics* : le plus instructif. Sur graine 7,
+  +0.061 (0.728 → 0.789) — l'éviction par preuve a repris le travail
+  d'exactitude du recalage et son coût restait seul. Mais la validation
+  est plate (+0.006 / −0.001) et tout l'aval recule (experts −0.005, axes
+  03/04/06 en baisse). La leçon Foote s'applique **symétriquement** : un
+  retrait qui ne gagne que sur la graine de réglage est aussi suspect
+  qu'un ajout. Le recalage reste.
+
+**Le vrai diagnostic.** Les frontières « invisibles » du travers
+(nouveauté 0.013 là où le seuil demande 0.024) ne sont pas invisibles —
+tout y est **également visible**. Le travers du générateur change
+d'harmonie à chaque mesure : le contraste inter-sections se noie dans le
+contraste intra-section, et le chroma moyenné ne voit qu'une plaine
+uniformément agitée. L'autopsie des notes a montré ce que le chroma
+rate : à la frontière, la mélodie passe de pas conjoints (±3-4 demi-tons)
+à grands sauts (±20-31), ou les croches cèdent aux blanches. Le geste
+porte le signal, pas l'harmonie.
+
+**Les dims gestuelles.** Deux dimensions ajoutées aux features de
+segmentation : l'intervalle mélodique moyen de la surface (voix haute par
+instant d'attaque) et la durée moyenne des notes, poids 0.3 (balayage sur
+graine 7 : plateau à 0.3-0.4, effondrement du verse_chorus à 0.6 — le
+geste ne doit pas crier plus fort que l'harmonie). Validation un coup :
+
+| corpus | F1 | dont travers-composé |
+|---|---|---|
+| graine 7 (réglage) | 0.728 → 0.749 | 0.67 → 0.70 |
+| graine 11 (validation) | 0.884 → 0.892 | 0.66 → **0.84** |
+| graine 13 (validation) | 0.894 → 0.905 | 0.67 → 0.67 |
+
+Et surtout, la métrique produit : **experts 0.932 → 0.947, validation
+croisée 0.936 → 0.950** — le plus gros bond de la discrimination depuis
+le début des chantiers de forme. Sections exactes graine 13 : 9 → 11.
+
+Une pièce s'est effondrée au passage (verse_chorus_court de la graine 11,
+0.67 → 0.40) : 16 mesures, 9 candidats, pics à 0.002 sous le seuil après
+le léger rétrécissement cosinus qu'impose toute dimension ajoutée. Une
+lame de rasoir statistique de petite pièce, pas un défaut structurel —
+les court de la graine 13 sont à 1.00.
+
+**Garde.** Test end-to-end avec contre-épreuve : deux moitiés au chroma
+strictement identique (mêmes classes de hauteur, durées, vélocités,
+registre moyen) ne différant que par la taille des intervalles — sans les
+dims le test échoue (aucune feature ne les distingue), avec, la frontière
+tombe à sa place.
+
+**L'état ouvert.** Travers graine 13 inchangé à 0.67 (deux manquées où le
+geste ne bouge pas non plus), ternaire graine 7 à 0.56, et la fragilité
+de seuil des pièces de 16 mesures (9 candidats pour une statistique
+méd + MAD) documentée ci-dessus.
+
 ### 2. Autres priorités
 
 - Un second annotateur : **fait** (session 5b) — réplication indépendante,

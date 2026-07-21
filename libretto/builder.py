@@ -469,7 +469,33 @@ def build_score(md: MidiData) -> Score:
     max_den = max(density) or 1
     max_vel_bar = max((vel_sum[b] / vel_count[b] for b in range(n_bars) if vel_count[b]),
                       default=0.0)
+    # Geste mélodique par mesure : intervalle moyen de la surface (voix
+    # haute par instant d'attaque) et durée moyenne des notes. Le chroma
+    # moyenné est aveugle aux pièces qui changent d'harmonie à chaque
+    # mesure (travers-composé) : le contraste inter-sections s'y noie dans
+    # le contraste intra-section, alors que le passage de pas conjoints à
+    # grands sauts, ou de croches à blanches, saute à l'oreille.
+    notes_by_bar: list[list[MidiNote]] = [[] for _ in range(n_bars)]
+    for n in notes:
+        notes_by_bar[bar_of(n.start)].append(n)
+    interval_mean = [0.0] * n_bars
+    dur_mean = [0.0] * n_bars
+    for b in range(n_bars):
+        surface: dict[int, MidiNote] = {}
+        for n in notes_by_bar[b]:
+            if n.start not in surface or n.pitch > surface[n.start].pitch:
+                surface[n.start] = n
+        line = [surface[t].pitch for t in sorted(surface)]
+        if len(line) >= 2:
+            ivals = [abs(y - x) for x, y in zip(line, line[1:])]
+            interval_mean[b] = min(1.0, sum(ivals) / len(ivals) / 12.0)
+        if notes_by_bar[b]:
+            bar_len = (bar_starts[b + 1] - bar_starts[b]) if b + 1 < n_bars \
+                else max(1, md.end_tick - bar_starts[b])
+            mean_d = sum(n.end - n.start for n in notes_by_bar[b]) / len(notes_by_bar[b])
+            dur_mean[b] = min(1.0, mean_d / bar_len)
     ENERGY_W = 0.6
+    GESTURE_W = 0.3
     features = []
     for b in range(n_bars):
         norm = math.sqrt(sum(x * x for x in chroma[b])) or 1.0
@@ -482,6 +508,8 @@ def build_score(md: MidiData) -> Score:
         # du nombre de coups de batterie, un artefact d'orchestration.
         feat.append(ENERGY_W * (pitch_sum[b] / melodic_count[b] / 127.0
                                 if melodic_count[b] else 0.0))
+        feat.append(GESTURE_W * interval_mean[b])
+        feat.append(GESTURE_W * dur_mean[b])
         features.append(feat)
 
     marker_bars = sorted({bar_of(t) for t, _ in md.markers})
