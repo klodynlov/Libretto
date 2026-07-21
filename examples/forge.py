@@ -61,6 +61,8 @@ Usage
     python3 examples/forge.py sortie/ [n=24] [seed=1]
         [--min-confidence 0.55] [--min-score 0.0]
         [--keep-all] [--axes] [--shortlist K] [--reaper]
+        [--from-dir candidats/]   # noter des MIDI venus d'ailleurs
+                                  # (n et seed sont alors ignorés)
 
 Sortie : `sortie/forge_winner.mid` (le gagnant), `sortie/forge_report.json`
 (le classement complet), et un tableau lisible sur stdout. Avec `--axes`,
@@ -132,6 +134,53 @@ class Candidate:
         }
 
 
+def _label_signature(sections) -> str:
+    """Forme d'un MIDI externe, dérivée de ce que Libretto détecte : la suite
+    des initiales de sections (intro-verse-chorus-verse → « IVCV »). C'est la
+    forme JUGÉE, pas la forme voulue — pour un candidat venu d'un modèle
+    génératif, personne ne connaît la seconde. Sert de clé de diversité à
+    `diverse_shortlist`, exactement comme `style.form` côté make_corpus."""
+    return "".join((s.label[:1] or "?").upper() for s in sections)
+
+
+def judge_midi(path: Path, index: int, *, form: str | None = None,
+               mode: str | None = None, meter: str | None = None,
+               bpm: int | None = None) -> Candidate | None:
+    """Fait noter un fichier MIDI par Libretto et le constitue en Candidate.
+
+    Les métadonnées (forme, mode, métrique, bpm) sont fournies quand la
+    source les connaît (make_corpus a la vérité terrain) ; sinon elles sont
+    dérivées de l'analyse elle-même — c'est ce qui permet de brancher
+    N'IMPORTE QUELLE source de MIDI sur Forge. Renvoie None si le fichier
+    n'a aucune section analysable."""
+    score_obj = build_score(parse_midi(path))
+    if not score_obj.sections:
+        return None
+
+    sms = SenseOfMusicalStructure(score_obj)
+    sms.calculate()
+    return Candidate(
+        index=index,
+        path=path,
+        form=form if form is not None else _label_signature(score_obj.sections),
+        mode=mode if mode is not None else "—",
+        meter=meter if meter is not None else
+              f"{score_obj.time_signature_num}/{score_obj.time_signature_den}",
+        bpm=bpm if bpm is not None else int(score_obj.sections[0].tempo),
+        score=sms.get_score(),
+        confidence=sms.confidence(),
+        level=sms.confidence_level(),
+        interpretable=sms.is_interpretable(),
+        groups=sms.group_scores(),
+        axes=[{"id": a.id, "name": a.name,
+               "group": AXES_META[int(a.id[:2])][3],
+               "weight": a.weight,
+               "score": a.score,
+               "confidence": a.confidence}
+              for a in sms.axes],
+    )
+
+
 def generate_and_score(index: int, seed: int, out_dir: Path) -> Candidate | None:
     """Tire un candidat déterministe, l'écrit en MIDI, le fait noter par
     Libretto. Renvoie None si le candidat n'a produit aucune note exploitable
@@ -147,32 +196,11 @@ def generate_and_score(index: int, seed: int, out_dir: Path) -> Candidate | None
                time_sig=(num, den), markers=markers or None,
                tempo_changes=tempo_changes or None)
 
-    score_obj = build_score(parse_midi(path))
-    if not score_obj.sections:
+    cand = judge_midi(path, index, form=style.form, mode=style.mode,
+                      meter=f"{num}/{den}", bpm=int(style.bpm))
+    if cand is None:
         path.unlink(missing_ok=True)
-        return None
-
-    sms = SenseOfMusicalStructure(score_obj)
-    sms.calculate()
-    return Candidate(
-        index=index,
-        path=path,
-        form=style.form,
-        mode=style.mode,
-        meter=f"{num}/{den}",
-        bpm=int(style.bpm),
-        score=sms.get_score(),
-        confidence=sms.confidence(),
-        level=sms.confidence_level(),
-        interpretable=sms.is_interpretable(),
-        groups=sms.group_scores(),
-        axes=[{"id": a.id, "name": a.name,
-               "group": AXES_META[int(a.id[:2])][3],
-               "weight": a.weight,
-               "score": a.score,
-               "confidence": a.confidence}
-              for a in sms.axes],
-    )
+    return cand
 
 
 def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
@@ -203,6 +231,55 @@ def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
             continue
         candidates.append(cand)
 
+    return _select_and_report(
+        candidates, empties, out,
+        header={"n_requested": n, "seed": seed, "source": "make_corpus"},
+        min_confidence=min_confidence, min_score=min_score,
+        keep_all=keep_all, axes_report=axes_report, shortlist=shortlist)
+
+
+def forge_from_dir(candidates_dir: str | Path, out_dir: str | Path,
+                   min_confidence: float = SenseOfMusicalStructure.INTERPRETABLE_CONFIDENCE,
+                   min_score: float = 0.0, axes_report: bool = False,
+                   shortlist: int = 0) -> dict:
+    """Le même Forge, sur des candidats venus d'AILLEURS : un dossier de
+    fichiers MIDI — la sortie d'un modèle génératif, des transcriptions
+    (basic-pitch), n'importe quoi. C'est le point de branchement universel :
+    Forge ne parle que MIDI, la brique génératrice est libre.
+
+    Différences avec `forge()` : l'ordre des candidats est l'ordre trié des
+    noms de fichiers (déterministe), la « forme » est la signature de
+    sections jugée par Libretto (voir `_label_signature`), et les fichiers
+    source ne sont JAMAIS effacés — ils ne nous appartiennent pas. Le
+    gagnant et la shortlist restent copiés dans `out_dir`."""
+    src = Path(candidates_dir)
+    paths = sorted(p for p in src.iterdir()
+                   if p.suffix.lower() in (".mid", ".midi"))
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    candidates: list[Candidate] = []
+    empties = 0
+    for i, path in enumerate(paths):
+        cand = judge_midi(path, i)
+        if cand is None:
+            empties += 1
+            continue
+        candidates.append(cand)
+
+    return _select_and_report(
+        candidates, empties, out,
+        header={"n_requested": len(paths), "seed": None, "source": str(src)},
+        min_confidence=min_confidence, min_score=min_score,
+        keep_all=True, axes_report=axes_report, shortlist=shortlist)
+
+
+def _select_and_report(candidates: list[Candidate], empties: int, out: Path, *,
+                       header: dict, min_confidence: float, min_score: float,
+                       keep_all: bool, axes_report: bool, shortlist: int) -> dict:
+    """Le cœur de Forge, indépendant de la provenance des candidats : gate,
+    classement fiabilité-d'abord, copie du gagnant et de la shortlist,
+    rapport sérialisé."""
     # Gate fiabilité AVANT le classement : un score non interprétable ne
     # concourt pas, quelle que soit sa valeur.
     eligible = [c for c in candidates
@@ -240,10 +317,9 @@ def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
             c.path.unlink(missing_ok=True)
 
     report = {
-        "n_requested": n,
+        **header,
         "n_generated": len(candidates),
         "n_empty_skipped": empties,
-        "seed": seed,
         "gates": {"min_confidence": min_confidence, "min_score": min_score},
         "n_eligible": len(eligible),
         "n_rejected_confidence": len(rejected_conf),
@@ -399,8 +475,10 @@ def _diversity_report(all_c: list[Candidate], ranked: list[Candidate],
 
 
 def _print_report(report: dict) -> None:
+    origin = (f"graine {report['seed']}" if report.get("seed") is not None
+              else f"source {report.get('source', '?')}")
     print(f"Forge — {report['n_generated']} candidats notés "
-          f"(graine {report['seed']}, {report['n_empty_skipped']} vides écartés)")
+          f"({origin}, {report['n_empty_skipped']} vides écartés)")
     g = report["gates"]
     print(f"gates : fiabilité ≥ {g['min_confidence']:g}, score ≥ {g['min_score']:g}  "
           f"→ {report['n_eligible']} éligibles, "
@@ -543,14 +621,24 @@ def main(argv: list[str] | None = None) -> int:
                         help="sélectionner aussi K candidats sous contrainte de "
                              "diversité (round-robin par forme), copiés en "
                              "forge_short_XX.mid — coût en score affiché")
+    parser.add_argument("--from-dir", metavar="DIR",
+                        help="noter les MIDI de ce dossier au lieu de générer "
+                             "(sortie d'un modèle, transcriptions… — n et seed "
+                             "sont ignorés, les fichiers source jamais effacés)")
     parser.add_argument("--reaper", action="store_true",
                         help="pousser le gagnant dans REAPER via le pont Klody")
     args = parser.parse_args(argv)
 
-    report = forge(args.out_dir, n=args.n, seed=args.seed,
-                   min_confidence=args.min_confidence, min_score=args.min_score,
-                   keep_all=args.keep_all, axes_report=args.axes,
-                   shortlist=args.shortlist)
+    if args.from_dir:
+        report = forge_from_dir(args.from_dir, args.out_dir,
+                                min_confidence=args.min_confidence,
+                                min_score=args.min_score,
+                                axes_report=args.axes, shortlist=args.shortlist)
+    else:
+        report = forge(args.out_dir, n=args.n, seed=args.seed,
+                       min_confidence=args.min_confidence, min_score=args.min_score,
+                       keep_all=args.keep_all, axes_report=args.axes,
+                       shortlist=args.shortlist)
     _print_report(report)
     _print_shortlist(report)
     _print_axes_report(report)
