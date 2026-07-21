@@ -107,6 +107,10 @@ def main(argv: list[str] | None = None) -> int:
     p_cal.add_argument("--min-test-accuracy", type=float, default=None,
                        help="gate : exit 2 si l'accuracy de validation croisée "
                             "est inférieure")
+    p_cal.add_argument("--all-degradations", action="store_true",
+                       help="calibrer aussi contre les dégradations que l'écoute "
+                            "a réfutées (par défaut : seulement les quatre "
+                            "validées par l'oreille)")
 
     p_ann = sub.add_parser(
         "annotate",
@@ -182,7 +186,8 @@ def main(argv: list[str] | None = None) -> int:
             report = run_calibration(args.corpus, seed=args.seed,
                                      variants=args.variants, iters=args.iters,
                                      jobs=args.jobs, lam=args.lam,
-                                     folds=args.folds)
+                                     folds=args.folds,
+                                     audible_only=not args.all_degradations)
         except ValueError as exc:
             print(f"libretto: {exc}", file=sys.stderr)
             return 1

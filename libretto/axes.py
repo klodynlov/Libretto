@@ -156,6 +156,22 @@ class StructuralAxis:
 
 
 # id, nom, poids, groupe. Somme des poids = 1.0 (vérifiée par les tests).
+#
+# Pondération révisée après trois sessions d'écoute A/B en aveugle (voir
+# resultats_ecoute.md). Les deux négatifs dynamiques ont échoué au test de
+# perception sous DEUX rendus — volume seul, puis timbre+attaque+volume :
+# aplatir les vélocités est PRÉFÉRÉ à l'original (16 % puis 0 % de détection),
+# les permuter est indétectable (40 % sous les deux rendus). En conséquence :
+#   26_dynamic_range   0.030 -> 0.010  (axe purement vélocité : sa matière
+#                                       n'a aucun corrélat perceptif mesuré)
+#   28_emotional_arc   0.050 -> 0.030  (réduit, pas plancher : son énergie
+#                                       mêle tempo et densité à la vélocité,
+#                                       et il détecte shuffle_bars ~0.7)
+# La masse libérée (0.040) va aux axes les mieux validés par l'oreille :
+#   12_harmonic_rhythm 0.030 -> 0.040  (shuffle_bars détecté à 90 %)
+#   16_motivic_dev     0.050 -> 0.060  (scramble_melody détecté à 91 %)
+#   17_theme_recog     0.040 -> 0.050  (scramble_melody détecté à 91 %)
+#   20_syncopation     0.025 -> 0.035  (jitter_onsets détecté à 100 %)
 AXES_META: dict[int, tuple[str, str, float, str]] = {
     1:  ("01_section_count",              "Densité formelle",             0.030, "A"),
     2:  ("02_section_balance",            "Équilibre des durées",         0.040, "A"),
@@ -168,23 +184,23 @@ AXES_META: dict[int, tuple[str, str, float, str]] = {
     9:  ("09_progression_complexity",     "Complexité harmonique",        0.040, "B"),
     10: ("10_cadence_presence",           "Présence de cadences",         0.040, "B"),
     11: ("11_modulation_count",           "Modulations",                  0.030, "B"),
-    12: ("12_harmonic_rhythm",            "Rythme harmonique",            0.030, "B"),
+    12: ("12_harmonic_rhythm",            "Rythme harmonique",            0.040, "B"),
     13: ("13_tonal_contrast",             "Contraste tonal",              0.030, "B"),
     14: ("14_bass_melodic",               "Mélodisme de la basse",        0.020, "B"),
     15: ("15_melodic_contour",            "Contour mélodique",            0.040, "C"),
-    16: ("16_motivic_development",        "Développement motivique",      0.050, "C"),
-    17: ("17_theme_recognition",          "Reconnaissabilité des thèmes", 0.040, "C"),
+    16: ("16_motivic_development",        "Développement motivique",      0.060, "C"),
+    17: ("17_theme_recognition",          "Reconnaissabilité des thèmes", 0.050, "C"),
     18: ("18_melodic_range",              "Étendue mélodique",            0.025, "C"),
     19: ("19_intervallic_character",      "Caractère intervalique",       0.030, "C"),
-    20: ("20_melodic_rhythm_syncopation", "Syncopes mélodiques",          0.025, "C"),
+    20: ("20_melodic_rhythm_syncopation", "Syncopes mélodiques",          0.035, "C"),
     21: ("21_tempo_variation",            "Variations de tempo",          0.030, "D"),
     22: ("22_tempo_consistency",          "Cohérence du tempo",           0.025, "D"),
     23: ("23_rhythmic_complexity",        "Complexité rythmique",         0.030, "D"),
     24: ("24_hypermetric_regularity",     "Carrure hypermétrique",        0.025, "D"),
     25: ("25_texture_variety",            "Variété texturale",            0.040, "E"),
-    26: ("26_dynamic_range",              "Gamme dynamique",              0.030, "E"),
+    26: ("26_dynamic_range",              "Gamme dynamique",              0.010, "E"),
     27: ("27_voice_count",                "Polyphonie",                   0.030, "E"),
-    28: ("28_emotional_arc",              "Arc émotionnel",               0.050, "F"),
+    28: ("28_emotional_arc",              "Arc émotionnel",               0.030, "F"),
     29: ("29_global_cohesion",            "Cohésion globale",             0.050, "F"),
 }
 

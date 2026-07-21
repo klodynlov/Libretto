@@ -96,29 +96,18 @@ def degrade_flatten_dynamics(md: MidiData, rng: random.Random) -> MidiData:
     """Toutes les vélocités à la moyenne : arc énergétique, gamme dynamique
     et progression aplatis.
 
-    ⚠ NÉGATIF CONTESTÉ PAR L'ÉCOUTE. Sur 11 comparaisons A/B en aveugle
-    (`libretto agreement`), l'oreille a préféré la version **aplatie** dans
-    82 % des cas — taux de 0.18, IC95 [0.05, 0.48], donc significativement
-    inversé et non pas simplement nul. Les quatre autres dégradations sont
-    validées entre 90 et 100 % sur le même lot.
+    ⚠ NÉGATIF RÉFUTÉ PAR L'ÉCOUTE, sous les DEUX rendus. L'oreille préfère
+    la version aplatie : 16 % de détection en rendu volume (4/25, deux
+    sessions), et 0 % en rendu timbre+attaque (0/11, session 3, contrôles à
+    67 %). L'hypothèse de l'artefact de rendu est morte — donner un canal
+    timbral à la vélocité a rendu l'aplatissement PLUS préféré, pas moins.
 
-    L'explication tient probablement au rendu : en synthèse, la vélocité MIDI
-    ne module que le volume, là où un instrument réel change aussi de timbre.
-    Faire varier la vélocité s'entend donc comme un fader qui bouge, et
-    l'uniformité passe pour de la stabilité. Un écart mesuré de 7 à 8 dB
-    entre sections écarte l'hypothèse d'une section trop faible pour être
-    entendue.
-
-    Conséquence pratique : `26_dynamic_range` et `28_emotional_arc` tiraient
-    l'essentiel de leur pouvoir discriminant de cette dégradation (AUC 0.67 →
-    0.58 et 0.68 → 0.61 quand on la retire). Leur poids dans le score global
-    repose donc sur une prémisse que l'écoute ne confirme pas. Retirer la
-    dégradation ne coûte rien par ailleurs — la validation croisée passe de
-    0.924 à 0.929, les autres axes gagnant ce qu'elle leur ajoutait de bruit.
-
-    Elle est conservée en attendant une seconde session d'écoute : un seul
-    annotateur, onze paires, et des contrôles imparfaits ne suffisent pas à
-    trancher définitivement. Voir `resultats_ecoute.md`."""
+    Depuis la session 3, la calibration ne l'utilise plus par défaut
+    (`audible_only=True`) : optimiser des poids contre un négatif que
+    l'oreille contredit, c'est optimiser à contresens. Les poids experts des
+    axes 26 et 28, qui tiraient leur pouvoir discriminant de cette
+    dégradation, ont été réduits (voir AXES_META). Conservée pour diagnostic
+    via --all-degradations. Voir `resultats_ecoute.md`."""
     if not md.notes:
         return _clone(md, [])
     mean_vel = max(1, round(sum(n.velocity for n in md.notes) / len(md.notes)))
@@ -142,24 +131,21 @@ def degrade_scramble_dynamics(md: MidiData, rng: random.Random) -> MidiData:
     des percussions sur le piano et réciproquement, ce qui déséquilibre le
     mixage — un artefact d'orchestration, sans rapport avec la structure.
 
-    Proposée en remplacement de `flatten_dynamics`, puis **testée et écartée**.
-    Sur 10 comparaisons A/B (`jugements2.json`), l'oreille désigne l'original
-    dans 40 % des cas seulement — IC95 [0.17, 0.69], indistinguable du hasard,
-    avec même une pente vers l'inversion. L'hypothèse « l'incohérence
-    dynamique s'entend comme un défaut » n'est pas confirmée.
+    Proposée en remplacement de `flatten_dynamics`, puis **testée et
+    écartée deux fois** : 4/10 sous le rendu volume (session 2) et 4/10 sous
+    le rendu timbre+attaque (session 3) — exactement le même taux, deux lots
+    indépendants, deux rendus. IC95 [0.17, 0.69], et un taux au voisinage de
+    0.5 ne devient pas significatif en accumulant des jugements autour de
+    0.5. L'hypothèse « l'incohérence dynamique s'entend comme un défaut »
+    n'est pas confirmée, même quand la vélocité module le timbre.
 
-    Ce n'est pas un problème d'échantillon : un taux au voisinage de 0.5 ne
-    devient pas significatif en accumulant des données autour de 0.5 (à n=60,
-    l'IC resterait [0.29, 0.53]). Joint à l'inversion de `flatten_dynamics`,
-    le constat porte plus loin que ces deux dégradations : **la vélocité MIDI,
-    en rendu de synthèse, ne porte aucune structure perceptible** — ni son
-    amplitude, ni son organisation. Les axes 26 et 28 mesurent donc une
-    dimension réelle de la partition, mais que ce protocole d'écoute ne peut
-    pas valider. Il faudrait un rendu instrumental (où la vélocité change
-    aussi le timbre) pour la trancher. Voir `resultats_ecoute.md`.
+    Joint à l'inversion de `flatten_dynamics` sous les deux rendus, le
+    constat est ferme : **la dynamique MIDI ne porte pas de structure
+    perceptible dans ce banc d'essai**, ni en amplitude ni en organisation.
+    Voir `resultats_ecoute.md` pour la grille de lecture et ses suites.
 
-    Conservée dans le dictionnaire mais absente d'`AUDIBLE_DEGRADATIONS` :
-    utile comme négatif de cohérence interne, sans prétention perceptive."""
+    Conservée dans le dictionnaire mais hors calibration par défaut et hors
+    `AUDIBLE_DEGRADATIONS` : diagnostic seulement, via --all-degradations."""
     by_channel: dict[int, list[int]] = {}
     for i, n in enumerate(md.notes):
         by_channel.setdefault(n.channel, []).append(i)
@@ -205,8 +191,12 @@ DEGRADATIONS = {
 }
 
 # Dégradations validées par l'écoute (voir `resultats_ecoute.md`).
-# `flatten_dynamics` en est absente : l'oreille la préfère à l'original.
-# `scramble_dynamics` aussi, mais faute de test — elle attend sa session.
+# `flatten_dynamics` en est absente : PRÉFÉRÉE à l'original sous les deux
+# rendus (16 % puis 0 % de détection). `scramble_dynamics` aussi :
+# indétectable, 40 % sous les deux rendus — testée, pas seulement présumée.
+# Depuis la session 3, la calibration n'utilise par défaut QUE ces quatre :
+# optimiser des poids contre un négatif que l'oreille contredit, c'est
+# optimiser à contresens (--all-degradations pour l'ancien comportement).
 AUDIBLE_DEGRADATIONS = frozenset({
     "shuffle_bars", "transpose_segments", "jitter_onsets", "scramble_melody",
 })
@@ -256,7 +246,8 @@ def axis_vector_with_confidence(md: MidiData) -> tuple[list[float], list[float]]
     return [a.score for a in sms.axes], [a.confidence for a in sms.axes]
 
 
-def file_vectors(path: str | Path, seed: int, variants: int) -> tuple[list[float], list[tuple[str, list[float]]], int, list[float]] | None:
+def file_vectors(path: str | Path, seed: int, variants: int,
+                 names: frozenset[str] | None = None) -> tuple[list[float], list[tuple[str, list[float]]], int, list[float]] | None:
     """(vecteur positif, vecteurs négatifs, nb de no-ops exclus) pour un
     fichier, ou None si inexploitable. Un négatif est exclu quand la
     dégradation est inapplicable (pré-test) ou laisse le vecteur d'axes
@@ -273,7 +264,9 @@ def file_vectors(path: str | Path, seed: int, variants: int) -> tuple[list[float
     pos, pos_conf = got
     negs = []
     skipped = 0
-    for name, fn in sorted(DEGRADATIONS.items()):
+    selected = sorted(DEGRADATIONS.items()) if names is None else \
+        [(n, f) for n, f in sorted(DEGRADATIONS.items()) if n in names]
+    for name, fn in selected:
         if not _applicable(name, md):
             skipped += variants
             continue
@@ -293,17 +286,17 @@ def file_vectors(path: str | Path, seed: int, variants: int) -> tuple[list[float
     return pos, negs, skipped, pos_conf
 
 
-def _worker(job: tuple[str, int, int]):
-    path, seed, variants = job
-    return path, file_vectors(path, seed, variants)
+def _worker(job: tuple[str, int, int, frozenset | None]):
+    path, seed, variants, names = job
+    return path, file_vectors(path, seed, variants, names)
 
 
 def corpus_vectors(paths: list[Path], seed: int, variants: int,
-                   jobs: int = 1) -> dict[str, tuple]:
+                   jobs: int = 1, names: frozenset[str] | None = None) -> dict[str, tuple]:
     """Précalcule les vecteurs de tout le corpus. `jobs` > 1 parallélise via
     multiprocessing (l'analyse est CPU-bound ; la recherche de poids, elle,
     n'en a pas besoin : elle travaille sur ces vecteurs en cache)."""
-    jobs_args = [(str(p), seed, variants) for p in paths]
+    jobs_args = [(str(p), seed, variants, names) for p in paths]
     if jobs > 1 and len(paths) > 1:
         from multiprocessing import Pool
         with Pool(jobs) as pool:
@@ -536,7 +529,7 @@ MIN_FILES_TRUSTWORTHY = 20
 
 def run_calibration(corpus_dir: str | Path, seed: int = 42, variants: int = 2,
                     iters: int = 4000, jobs: int = 1, lam: float = 0.3,
-                    folds: int = 5) -> dict:
+                    folds: int = 5, audible_only: bool = True) -> dict:
     """Calibre les poids sur tous les .mid d'un dossier. Retourne un rapport
     sérialisable (poids proposés + validation croisée + diagnostic par axe).
 
@@ -545,7 +538,8 @@ def run_calibration(corpus_dir: str | Path, seed: int = 42, variants: int = 2,
     validation croisée `validation.test_accuracy_mean` — pas `after.accuracy`,
     qui est mesurée sur les données d'entraînement et monte toujours."""
     paths = sorted(p for p in Path(corpus_dir).rglob("*.mid*") if p.is_file())
-    corpus = corpus_vectors(paths, seed, variants, jobs)
+    names = frozenset(AUDIBLE_DEGRADATIONS) if audible_only else None
+    corpus = corpus_vectors(paths, seed, variants, jobs, names)
     pairs = _pairs(corpus)
     if not pairs:
         raise ValueError(f"aucune paire contrastive exploitable dans {corpus_dir}")
@@ -573,6 +567,7 @@ def run_calibration(corpus_dir: str | Path, seed: int = 42, variants: int = 2,
         "skipped_noop": sum(sk for _p, _n, sk, _c in corpus.values()),
         "seed": seed,
         "variants": variants,
+        "degradations": sorted(names) if names is not None else sorted(DEGRADATIONS),
         # Mesuré sur l'entraînement : à ne PAS citer comme performance.
         "before": {"accuracy": round(acc0, 4), "margin": round(mar0, 4)},
         "after": {"accuracy": round(acc1, 4), "margin": round(mar1, 4)},

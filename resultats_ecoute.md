@@ -159,7 +159,7 @@ Les deux dégradations dans le même lot, sur les mêmes morceaux : si
 la substitution est fondée. Sinon, c'est toute la dimension dynamique du
 moteur qu'il faut revoir — et les axes 26 et 28 avec elle.
 
-### Session 3 — rendu v2-timbre (en cours)
+### Session 3 — rendu v2-timbre : le verdict
 
 Les sessions 1-2 partageaient un défaut de banc d'essai : la vélocité n'y
 modulait **que le volume**. Sur un instrument réel, frapper fort rend aussi
@@ -180,16 +180,40 @@ deux rendus sont deux expériences, les mélanger rendrait le fichier
 ininterprétable. Les fichiers antérieurs valent `v1-volume`.
 
 Session ciblée identique à la session 2 (mêmes 27 morceaux, `flatten` +
-`scramble`, 8 contrôles), graine 3, `jugements3.json`. Lecture des issues :
+`scramble`, contrôles garantis), graine 3, `jugements3.json`. 30 jugements,
+contrôles excellents (67 % de « aucune différence » sur 6 paires
+identiques — la session la plus fiable des trois).
 
-- **les deux dégradations deviennent audibles** → les sessions 1-2
-  mesuraient un artefact de rendu ; les axes 26 et 28 sont réhabilités ;
-- **toujours rien** → la dynamique ne porte pas de structure perceptible
-  même quand le timbre la véhicule, et les axes 26/28 devraient perdre
-  leur poids dans le score ;
-- **`scramble` audible, `flatten` non** → l'uniformité est acceptée mais
-  l'incohérence s'entend : `scramble_dynamics` devient le négatif dynamique
-  légitime.
+**Résultat : la branche « toujours rien », la plus coûteuse.**
+
+| dégradation | v1-volume (s1+s2) | v2-timbre (s3) |
+|---|---|---|
+| `flatten_dynamics` | 4/25 = 16 % [0.06–0.35] | **0/11 = 0 %** [0.00–0.26] |
+| `scramble_dynamics` | 4/10 = 40 % [0.17–0.69] | 4/10 = 40 % [0.17–0.69] |
+
+L'hypothèse de l'artefact de rendu est **morte** : donner un canal timbral à
+la vélocité a rendu l'aplatissement *plus* préféré (0/11 — l'original n'a
+jamais été désigné), pas moins. Et `scramble` sort au même 40 % exactement
+sous les deux rendus : pas d'effet, reproduit.
+
+Conclusion ferme : **la dynamique MIDI ne porte pas de structure perceptible
+dans ce banc d'essai**, ni en amplitude, ni en organisation, ni en volume,
+ni en timbre. Reste ouverte la question d'un rendu pleinement instrumental
+(vrais échantillons, mixage) — mais deux modèles de rendu concordants
+suffisent pour agir.
+
+Conséquences appliquées :
+
+1. **Poids experts révisés** (voir `AXES_META`) : `26_dynamic_range`
+   0.030 → 0.010, `28_emotional_arc` 0.050 → 0.030 (réduit, pas plancher —
+   son énergie mêle tempo et densité à la vélocité, et il détecte
+   `shuffle_bars` vers 0.7). La masse va aux axes validés par l'oreille :
+   12 (+0.010), 16 (+0.010), 17 (+0.010), 20 (+0.010).
+2. **La calibration n'utilise plus que les quatre dégradations validées**
+   par défaut : optimiser contre un négatif que l'oreille contredit, c'est
+   optimiser à contresens. `--all-degradations` pour l'ancien comportement.
+3. Effet mesuré : accuracy experts 0.926, validation croisée 0.930 sur le
+   corpus de morceaux ; 0.873 sur le pack sloopy (contre 0.823).
 
 ### 2. Autres priorités
 

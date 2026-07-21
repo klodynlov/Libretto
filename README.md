@@ -227,12 +227,15 @@ Les deux façons de dégrader la dynamique échouent au test. La conclusion la
 plus économique n'est pas qu'elles sont mal conçues, mais que **la vélocité
 MIDI, en rendu de synthèse, ne porte pas de structure perceptible** : elle
 n'y module que le volume, là où un vrai instrument change aussi le timbre.
-Les axes `26_dynamic_range` et `28_emotional_arc` mesurent une dimension
-réelle de la partition, mais que ce banc d'essai ne pouvait pas valider. Le
-rendu `v2-timbre` lève cette limite — la vélocité y module brillance et
-attaque, comme sur un instrument — et une session 3 doit retester les deux
-dégradations dynamiques sous ce rendu. Détail, cumul et grille de lecture
-des issues dans [`resultats_ecoute.md`](resultats_ecoute.md).
+La session 3 a retesté les deux dégradations sous un rendu `v2-timbre` où
+la vélocité module brillance et attaque, comme sur un instrument. Verdict :
+`flatten` encore plus préférée (0/11), `scramble` au même 40 % — **la
+dynamique MIDI ne porte pas de structure perceptible, sous aucun des deux
+rendus**. Conséquences appliquées : poids de `26_dynamic_range` réduit à
+0.010 et `28_emotional_arc` à 0.030 au profit des axes validés par
+l'oreille, et la calibration n'optimise plus par défaut que contre les
+quatre dégradations audibles (`--all-degradations` sinon). Détail dans
+[`resultats_ecoute.md`](resultats_ecoute.md).
 
 ## Corpus de validation
 
