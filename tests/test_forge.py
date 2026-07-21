@@ -17,9 +17,71 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
 
-from forge import _print_axes_report, diverse_shortlist, forge  # noqa: E402
+from forge import (_print_axes_report, diverse_shortlist,  # noqa: E402
+                   forge, forge_from_dir)
 
 from libretto.axes import AXES_META  # noqa: E402
+
+EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
+
+
+class TestForgeFromDir(unittest.TestCase):
+    """Le point de branchement universel : Forge sur un dossier de MIDI
+    venus d'ailleurs. On le nourrit avec des candidats make_corpus (générés
+    via forge --keep-all) PLUS les deux morceaux réels du dépôt — la même
+    voie que prendrait la sortie d'un modèle génératif."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        root = Path(cls._tmp.name)
+        cls.src = root / "candidats"
+        cls.src.mkdir()
+        # Des candidats générés, gardés comme si un modèle les avait déposés.
+        forge(cls.src, n=4, seed=3, keep_all=True)
+        for aux in ("forge_winner.mid", "forge_report.json"):
+            (cls.src / aux).unlink(missing_ok=True)
+        # Et deux morceaux réels (assemblés depuis des packs de loops).
+        for real in ("morceau_sloopy.mid", "morceau_naija.mid"):
+            (cls.src / real).write_bytes((EXAMPLES / real).read_bytes())
+        cls.n_files = len(list(cls.src.glob("*.mid")))
+        cls.out = root / "sortie"
+        cls.report = forge_from_dir(cls.src, cls.out, shortlist=3)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def test_tous_les_fichiers_sont_notes(self):
+        self.assertEqual(self.report["n_requested"], self.n_files)
+        self.assertEqual(self.report["n_generated"]
+                         + self.report["n_empty_skipped"], self.n_files)
+        self.assertIsNone(self.report["seed"])
+        self.assertEqual(self.report["source"], str(self.src))
+
+    def test_les_sources_ne_sont_jamais_effacees(self):
+        # Contrat : les fichiers d'un modèle ne nous appartiennent pas.
+        self.assertEqual(len(list(self.src.glob("*.mid"))), self.n_files)
+
+    def test_gagnant_copie_et_rapport_ecrit(self):
+        self.assertIsNotNone(self.report["winner"])
+        self.assertTrue((self.out / "forge_winner.mid").exists())
+        on_disk = json.loads(
+            (self.out / "forge_report.json").read_text(encoding="utf-8"))
+        self.assertEqual(on_disk["winner"], self.report["winner"])
+
+    def test_forme_derivee_de_la_segmentation(self):
+        # Sans vérité terrain, la forme est la signature de sections jugée :
+        # une chaîne d'initiales majuscules, jamais vide.
+        for c in self.report["leaderboard"]:
+            self.assertRegex(c["form"], r"^[A-Z?]+$")
+
+    def test_shortlist_fonctionne_sur_sources_externes(self):
+        sl = self.report["shortlist"]
+        self.assertIsNotNone(sl)
+        self.assertTrue((self.out / "forge_short_01.mid").exists())
+        self.assertGreaterEqual(sl["distinct_forms"],
+                                sl["unconstrained_distinct_forms"])
 
 
 class TestDiverseShortlist(unittest.TestCase):

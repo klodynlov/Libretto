@@ -329,7 +329,27 @@ plus basse.
 
 Dans une vraie chaîne, la brique génératrice se remplace par une
 transcription (basic-pitch) d'un rendu audio ou la sortie MIDI d'un modèle —
-Forge ne parle que MIDI, le reste ne bouge pas. Le rapport signale aussi la
+Forge ne parle que MIDI, le reste ne bouge pas. Ce branchement existe, à
+deux niveaux :
+
+```bash
+# Niveau 1 — universel, zéro dépendance : noter les MIDI de n'importe quelle
+# source déposés dans un dossier (n et seed ignorés, sources jamais effacées).
+python3 examples/forge.py sortie/ --from-dir mes_candidats/ --axes --shortlist 5
+
+# Niveau 2 — un vrai modèle : MusicLang (transformer symbolique open source).
+# pip install musiclang-predict "numpy<2"   (hors contrat stdlib, pont optionnel)
+python3 examples/forge_musiclang.py sortie/ 8 1 --axes
+```
+
+Avec `--from-dir`, la « forme » de chaque candidat est la **signature de
+sections jugée par Libretto** (intro-verse-chorus-verse → `IVCV`) — personne
+ne connaît la forme voulue d'un MIDI venu d'un modèle — et c'est elle que
+`--shortlist` utilise comme clé de diversité. `forge_musiclang.py` assume
+l'honnêteté du banc d'essai : MusicLang produit des textures harmoniques
+cohérentes, pas des chansons à couplets/refrains — attendez-vous à des
+fiabilités plus basses et un gate plus sollicité que sur `make_corpus`.
+C'est le juge qui fait son travail, pas le branchement qui échoue. Le rapport signale aussi la
 **collapse de diversité** qu'induit toute sélection sur un score unique :
 optimiser le SMS resserre le peloton de tête sur l'esthétique inscrite dans
 les bandes de tolérance (cf. circularité, plus haut). C'est montré, pas caché
