@@ -883,6 +883,55 @@ Au passage, deux corpus frais (graines 17 et 19) ont rejoint le banc de
 réglage auxiliaire — leurs bases : F1 0.826 et 0.751. Ils serviront aux
 prochains chantiers sans jamais toucher les graines de validation.
 
+### Le travers, l'instruction finale — quatre voies, quatre acquittements
+
+Le dernier travers ouvert (graine 13, 0.67 : deux manquées à 0.060 et
+0.043 pour un seuil à 0.069, un extra de queue) a déclenché l'inventaire
+complet : les 12 pièces travers des corpus de réglage (7/17/19),
+disséquées pic par pic. Trois mécanismes, quantifiés :
+
+- **~12 manquées à un cheveu sous le seuil** — dont les deux de la pièce
+  nommée ;
+- **~7 pics au-dessus du seuil mais déplacés** de 2-3 mesures (famille
+  déjà instruite : le retrait du recalage a été mesuré et rejeté au
+  chantier des dims gestuelles) ;
+- **~7 extras de queue** (à n−4 : la décrue finale lue comme frontière)
+  et **21 extras de coutures** concentrés dans les deux pièces longues
+  (n=80, sections de 16, seuils microscopiques 0.014-0.016).
+
+**Voie 1 — rebalayer k.** Le seuil méd + k·MAD délire dans les deux sens
+sur travers (0.016 à 0.181 selon la pièce), et k = 1.5 n'avait jamais été
+rebalayé depuis sa pose alors que tout le paysage a changé (porte,
+éviction, plafond, dims gestuelles). Balayage k ∈ {1.0, 1.25, 1.5, 1.75,
+2.0} sur les trois corpus de réglage : bande plate (moyennes
+0.780-0.787), gains et pertes contradictoires d'un corpus à l'autre.
+k = 1.5 acquitté — le seuil n'est pas le levier.
+
+**Voie 2 — plancher d'échelle des nouveautés** (symétrique de la porte
+d'échelle : « la plus forte rupture de la pièce établit l'échelle des
+ruptures », seuil ≥ fraction du max). Mort-né : rigoureusement aucun
+effet à toutes les fractions balayées. La pièce longue dégénérée n'a
+**pas d'échelle à offrir** — son max de nouveauté est lui-même une
+ondulation (0.03), le plancher tombe sous le seuil déjà microscopique.
+Extras et vraies frontières y sont le même matériau statistique : toute
+coupe qui tue les uns tue les autres.
+
+**Voie 3 — les extras de queue.** Supprimer les frontières à n−4 sur
+décrue d'énergie punirait les outros réels de la musique réelle — le
+générateur n'en écrit pas, la musique en écrit. Ajustement au corpus,
+refusé sans mesure.
+
+**Voie 4 — les déplacés.** Déjà jugés : retrait du recalage mesuré au
+chantier précédent, validation plate, aval en recul, rejeté.
+
+**Le verdict.** Les gains de l'espace de features ont été pris par les
+dims gestuelles (travers graine 11 : 0.66 → 0.84). Ce qui reste — 0.70 /
+0.84 / 0.67 selon la graine — est à la limite de résolution de CET espace
+de features sur CE générateur : le travers y écrit des sections dont la
+frontière est une ondulation parmi les ondulations. Quatre voies
+instruites, chiffres consignés, aucune ne paie. Le front ferme en
+acquittement, pas en promesse.
+
 ### 2. Autres priorités
 
 - Un second annotateur : **fait** (session 5b) — réplication indépendante,
