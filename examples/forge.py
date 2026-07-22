@@ -56,13 +56,29 @@ est la réponse : une sélection round-robin par forme (voir
 `diverse_shortlist`) qui garantit min(K, formes distinctes) formes dans le
 peloton livré, avec le coût en score affiché sans fard.
 
+Commander, pas seulement tirer
+------------------------------
+Sans contrainte, chaque ébauche tire tonalité, mode, tempo, métrique et
+longueur au sort : la graine est la seule poignée, et elle ne dit rien. Les
+options `--tonic/--mode/--bpm/--meter/--bars` IMPOSENT ces champs — on
+demande « 16 mesures en fa mineur » au lieu d'espérer que ça sorte. Ce qui
+reste tiré (motifs, progressions, arc, effectif, forme quand `--bars` ne la
+dicte pas) reste l'espace de recherche : sans lui, N candidats seraient N
+clones et la sélection n'aurait plus d'objet.
+
+Le gate ne bouge pas pour autant : une commande contraignante peut ne
+produire aucun candidat fiable. C'est un résultat — la structure demandée
+n'est pas notable — pas une panne à contourner en baissant le seuil.
+
 Usage
 -----
     python3 examples/forge.py sortie/ [n=24] [seed=1]
         [--min-confidence 0.55] [--min-score 0.0]
         [--keep-all] [--axes] [--shortlist K] [--reaper]
         [--from-dir candidats/]   # noter des MIDI venus d'ailleurs
-                                  # (n et seed sont alors ignorés)
+                                  # (n, seed et contraintes sont alors ignorés)
+        [--tonic F] [--mode min] [--bpm 72] [--meter 4/4] [--bars 16]
+        [--swing|--no-swing] [--syncopation 0.45] [--drums|--no-drums]
 
 Sortie : `sortie/forge_winner.mid` (le gagnant), `sortie/forge_report.json`
 (le classement complet), et un tableau lisible sur stdout. Avec `--axes`,
@@ -76,8 +92,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -89,7 +106,15 @@ from libretto.midi import parse_midi, write_midi  # noqa: E402
 # make_corpus n'est pas un package : on l'importe comme module voisin, le
 # `sys.path` ci-dessus rend les deux imports (racine + examples/) possibles.
 import random as _random  # noqa: E402
-from make_corpus import Style, random_style, render  # noqa: E402
+from make_corpus import (  # noqa: E402
+    FORMS,
+    METERS,
+    SCALES,
+    Style,
+    random_style,
+    render,
+    total_bars,
+)
 
 # Ordre des tranches de fiabilité (haut = plus fiable). Sert de clé de tri
 # primaire : on préfère toujours une tranche plus sûre, et le score ne
@@ -98,15 +123,174 @@ from make_corpus import Style, random_style, render  # noqa: E402
 _TIER_RANK = {"élevée": 3, "moyenne": 2, "faible": 1, "insuffisante": 0}
 
 
+# --------------------------------------------------------------------------- #
+# Contraintes — commander le générateur au lieu de le laisser tirer au sort   #
+# --------------------------------------------------------------------------- #
+
+PITCH_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
+
+# Anglais ET français : la demande vient d'un humain ou d'un LLM (« Fa
+# mineur »), pas d'un fichier MIDI. Les altérations se lisent en suffixe.
+_LETTERS = {
+    "c": 0, "d": 2, "e": 4, "f": 5, "g": 7, "a": 9, "b": 11,
+    "do": 0, "re": 2, "ré": 2, "mi": 4, "fa": 5, "sol": 7, "la": 9, "si": 11,
+}
+_MODE_ALIASES = {
+    "maj": "maj", "major": "maj", "majeur": "maj", "ionien": "maj", "ionian": "maj",
+    "min": "min", "minor": "min", "mineur": "min", "aeolien": "min", "aeolian": "min",
+    "dorien": "dorien", "dorian": "dorien",
+    "mixolydien": "mixolydien", "mixolydian": "mixolydien",
+}
+
+# Borne du balayage `forms_matching_bars` : au-delà, une « section » de 32
+# mesures n'est plus une section.
+_MAX_BARS_PER_SECTION = 32
+
+
+def parse_tonic(value: str | int) -> int:
+    """Classe de hauteur 0-11 depuis « F », « Fa# », « Sib », « ré », ou 0-11."""
+    if isinstance(value, int) or str(value).strip().isdigit():
+        n = int(value)
+        if not 0 <= n <= 11:
+            raise ValueError(f"tonique hors bornes : {value} (attendu 0-11)")
+        return n
+    raw = str(value).strip().lower().replace("♯", "#").replace("♭", "b")
+    shift = 0
+    # « b » seul = si bécarre ; « bb » = si bémol. On ne retire une altération
+    # que si le reste est encore un nom de note — sinon on mange la note même.
+    while raw and raw not in _LETTERS and raw[-1] in "#b":
+        shift += 1 if raw[-1] == "#" else -1
+        raw = raw[:-1]
+    if raw not in _LETTERS:
+        raise ValueError(
+            f"tonique inconnue : {value!r} (attendu C..B, Do..Si, ou 0-11)")
+    return (_LETTERS[raw] + shift) % 12
+
+
+def parse_mode(value: str) -> str:
+    """Mode canonique de `SCALES` depuis « minor », « mineur », « min »…"""
+    key = str(value).strip().lower()
+    mode = _MODE_ALIASES.get(key, key)
+    if mode not in SCALES:
+        raise ValueError(
+            f"mode inconnu : {value!r} (attendu {', '.join(sorted(SCALES))})")
+    return mode
+
+
+def parse_meter(value: str) -> tuple[int, int, float, float]:
+    """Métrique de `METERS` depuis « 4/4 ». Refuse ce que le générateur ne
+    sait pas rendre plutôt que d'inventer une pulsation."""
+    try:
+        num, den = (int(p) for p in str(value).strip().split("/", 1))
+    except ValueError as exc:
+        raise ValueError(f"métrique illisible : {value!r} (attendu « 4/4 »)") from exc
+    for m in METERS:
+        if (m[0], m[1]) == (num, den):
+            return m
+    known = sorted({f"{m[0]}/{m[1]}" for m in METERS})
+    raise ValueError(f"métrique non gérée : {value!r} (connues : {', '.join(known)})")
+
+
+def forms_matching_bars(bars: int) -> list[tuple[str, int]]:
+    """Couples (forme, mesures par section) qui font EXACTEMENT `bars` mesures.
+
+    Passe par `total_bars`, donc l'écourtement des intros et outros est
+    compté : `bars_per_section` est une consigne, pas un décompte."""
+    return [(form, per)
+            for form in FORMS
+            for per in range(2, _MAX_BARS_PER_SECTION + 1)
+            if total_bars(form, per) == bars]
+
+
+def _achievable_bars(around: int, span: int = 8) -> list[int]:
+    """Longueurs atteignables au voisinage — pour que l'erreur soit utile."""
+    lo, hi = max(1, around - span), around + span
+    return sorted(b for b in range(lo, hi + 1) if forms_matching_bars(b))
+
+
+@dataclass(frozen=True)
+class Constraints:
+    """Ce qu'on IMPOSE au générateur ; `None` = laissé au tirage.
+
+    Contraindre RESTREINT l'espace de recherche sans l'annuler : motifs,
+    progressions, arc d'énergie, effectif, modulation et — tant que `bars` ne
+    la dicte pas — la forme restent tirés. N candidats diffèrent donc encore,
+    et la sélection garde un sens. Tout contraindre produirait N clones et
+    Forge n'aurait plus rien à choisir.
+    """
+    tonic: int | None = None
+    mode: str | None = None
+    bpm: float | None = None
+    meter: tuple[int, int, float, float] | None = None
+    bars: int | None = None
+    swing: bool | None = None
+    syncopation: float | None = None
+    drums: bool | None = None
+
+    def is_empty(self) -> bool:
+        return all(getattr(self, f.name) is None for f in fields(self))
+
+    def as_dict(self) -> dict:
+        """Ce qui a été imposé, lisible — le rapport doit permettre de vérifier
+        la commande, pas seulement de constater le résultat."""
+        out: dict[str, Any] = {}
+        if self.tonic is not None:
+            out["tonic"] = self.tonic
+            out["tonic_name"] = PITCH_NAMES[self.tonic]
+        for name in ("mode", "bpm", "bars", "swing", "syncopation", "drums"):
+            value = getattr(self, name)
+            if value is not None:
+                out[name] = value
+        if self.meter is not None:
+            out["meter"] = f"{self.meter[0]}/{self.meter[1]}"
+        return out
+
+
+def apply_constraints(style: Style, cons: Constraints,
+                      rng: _random.Random) -> Style:
+    """Écrase les champs imposés du style tiré. Lève ValueError si `bars` est
+    inatteignable — mieux vaut refuser que rendre 15 mesures pour 16."""
+    changes: dict[str, Any] = {}
+    for field, attr in (("tonic", "tonic"), ("mode", "mode"), ("meter", "meter"),
+                        ("swing", "swing"), ("syncopation", "syncopation"),
+                        ("drums", "with_drums")):
+        value = getattr(cons, field)
+        if value is not None:
+            changes[attr] = value
+    if cons.bpm is not None:
+        # Un tempo imposé interdit la dérive : sinon la contrainte ne tient
+        # qu'au premier temps et le pont part ailleurs.
+        changes["bpm"] = float(cons.bpm)
+        changes["tempo_drift"] = False
+    if cons.bars is not None:
+        options = forms_matching_bars(cons.bars)
+        if not options:
+            near = _achievable_bars(cons.bars)
+            raise ValueError(
+                f"aucune forme ne fait exactement {cons.bars} mesures "
+                f"(intros et outros comptées de moitié). Atteignables au "
+                f"voisinage : {near}")
+        # Tiré parmi les couples valides : la contrainte fixe la LONGUEUR,
+        # pas la forme — le peloton garde de la variété structurelle.
+        form, per = options[rng.randrange(len(options))]
+        changes["form"] = form
+        changes["bars_per_section"] = per
+    return replace(style, **changes)
+
+
 @dataclass
 class Candidate:
     """Un candidat noté : le fichier, son style, et le verdict de Libretto."""
     index: int
     path: Path
     form: str
+    # None pour un MIDI venu d'ailleurs : sa tonique et sa longueur voulue
+    # ne sont connues de personne (cf. `judge_midi`).
+    tonic: int | None
     mode: str
     meter: str
     bpm: int
+    bars: int | None
     score: float
     confidence: float
     level: str
@@ -123,9 +307,16 @@ class Candidate:
             "index": self.index,
             "file": self.path.name,
             "form": self.form,
+            # La tonalité et la longueur SORTENT du rapport : sans elles, un
+            # appelant ne peut ni vérifier une contrainte ni filtrer après
+            # coup — il ne lui reste que la graine, qui ne dit rien.
+            "tonic": self.tonic,
+            "key": (f"{PITCH_NAMES[self.tonic]} {self.mode}"
+                    if self.tonic is not None else "—"),
             "mode": self.mode,
             "meter": self.meter,
             "bpm": self.bpm,
+            "bars": self.bars,
             "score": round(self.score, 4),
             "confidence": round(self.confidence, 4),
             "level": self.level,
@@ -145,14 +336,19 @@ def _label_signature(sections) -> str:
 
 def judge_midi(path: Path, index: int, *, form: str | None = None,
                mode: str | None = None, meter: str | None = None,
-               bpm: int | None = None) -> Candidate | None:
+               bpm: int | None = None, tonic: int | None = None,
+               bars: int | None = None) -> Candidate | None:
     """Fait noter un fichier MIDI par Libretto et le constitue en Candidate.
 
     Les métadonnées (forme, mode, métrique, bpm) sont fournies quand la
     source les connaît (make_corpus a la vérité terrain) ; sinon elles sont
     dérivées de l'analyse elle-même — c'est ce qui permet de brancher
     N'IMPORTE QUELLE source de MIDI sur Forge. Renvoie None si le fichier
-    n'a aucune section analysable."""
+    n'a aucune section analysable.
+
+    `tonic` et `bars` restent à None pour un MIDI venu d'ailleurs : personne
+    n'en connaît la tonique, et l'inventer serait pire que l'avouer (même
+    convention que `mode="—"`)."""
     score_obj = build_score(parse_midi(path))
     if not score_obj.sections:
         return None
@@ -163,6 +359,8 @@ def judge_midi(path: Path, index: int, *, form: str | None = None,
         index=index,
         path=path,
         form=form if form is not None else _label_signature(score_obj.sections),
+        tonic=tonic,
+        bars=bars,
         mode=mode if mode is not None else "—",
         meter=meter if meter is not None else
               f"{score_obj.time_signature_num}/{score_obj.time_signature_den}",
@@ -181,14 +379,17 @@ def judge_midi(path: Path, index: int, *, form: str | None = None,
     )
 
 
-def generate_and_score(index: int, seed: int, out_dir: Path) -> Candidate | None:
+def generate_and_score(index: int, seed: int, out_dir: Path,
+                       constraints: Constraints | None = None) -> Candidate | None:
     """Tire un candidat déterministe, l'écrit en MIDI, le fait noter par
     Libretto. Renvoie None si le candidat n'a produit aucune note exploitable
     (le générateur peut, sur certaines graines, sortir une pièce vide de
     sections analysables — on l'écarte plutôt que de le classer)."""
     rng = _random.Random(f"forge:{seed}:{index}")
     style: Style = random_style(rng)
-    tracks, markers, tempo_changes, _bars, _truth, _roles = render(style, rng)
+    if constraints is not None and not constraints.is_empty():
+        style = apply_constraints(style, constraints, rng)
+    tracks, markers, tempo_changes, bars, _truth, _roles = render(style, rng)
     num, den, _bar_beats, _pulse = style.meter
 
     path = out_dir / f"candidate_{index:03d}.mid"
@@ -196,8 +397,11 @@ def generate_and_score(index: int, seed: int, out_dir: Path) -> Candidate | None
                time_sig=(num, den), markers=markers or None,
                tempo_changes=tempo_changes or None)
 
+    # `make_corpus` connaît la vérité terrain : on la transmet plutôt que de
+    # la laisser deviner par l'analyse (tonique et longueur comprises).
     cand = judge_midi(path, index, form=style.form, mode=style.mode,
-                      meter=f"{num}/{den}", bpm=int(style.bpm))
+                      meter=f"{num}/{den}", bpm=int(style.bpm),
+                      tonic=style.tonic, bars=bars)
     if cand is None:
         path.unlink(missing_ok=True)
     return cand
@@ -206,9 +410,15 @@ def generate_and_score(index: int, seed: int, out_dir: Path) -> Candidate | None
 def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
           min_confidence: float = SenseOfMusicalStructure.INTERPRETABLE_CONFIDENCE,
           min_score: float = 0.0, keep_all: bool = False,
-          axes_report: bool = False, shortlist: int = 0) -> dict:
+          axes_report: bool = False, shortlist: int = 0,
+          constraints: Constraints | None = None) -> dict:
     """Génère n candidats, les note, sélectionne le meilleur — fiabilité
     d'abord (tranche puis score), après le gate `min_confidence`.
+
+    `constraints` impose tonalité, mode, tempo, métrique ou longueur : la
+    sélection porte alors sur ce qui reste libre (matériau, forme, arc). Le
+    gate ne bouge pas — une commande contraignante peut très bien ne produire
+    aucun candidat fiable, et c'est un résultat, pas une panne.
 
     Renvoie un rapport sérialisable. Le gagnant est copié en
     `forge_winner.mid`. Sans `keep_all`, les candidats non retenus sont
@@ -225,7 +435,7 @@ def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
     candidates: list[Candidate] = []
     empties = 0
     for i in range(n):
-        cand = generate_and_score(i, seed, out)
+        cand = generate_and_score(i, seed, out, constraints)
         if cand is None:
             empties += 1
             continue
@@ -233,7 +443,10 @@ def forge(out_dir: str | Path, n: int = 24, seed: int = 1,
 
     return _select_and_report(
         candidates, empties, out,
-        header={"n_requested": n, "seed": seed, "source": "make_corpus"},
+        header={"n_requested": n, "seed": seed, "source": "make_corpus",
+                "constraints": (constraints.as_dict()
+                                if constraints and not constraints.is_empty()
+                                else None)},
         min_confidence=min_confidence, min_score=min_score,
         keep_all=keep_all, axes_report=axes_report, shortlist=shortlist)
 
@@ -279,7 +492,10 @@ def forge_from_dir(candidates_dir: str | Path, out_dir: str | Path,
 
     return _select_and_report(
         candidates, empties, out,
-        header={"n_requested": len(paths), "seed": None, "source": str(src)},
+        # Pas de contraintes ici : on NOTE des MIDI existants, on ne les
+        # génère pas — rien à imposer à un fichier déjà écrit.
+        header={"n_requested": len(paths), "seed": None, "source": str(src),
+                "constraints": None},
         min_confidence=min_confidence, min_score=min_score,
         keep_all=True, axes_report=axes_report, shortlist=shortlist)
 
@@ -489,6 +705,10 @@ def _print_report(report: dict) -> None:
               else f"source {report.get('source', '?')}")
     print(f"Forge — {report['n_generated']} candidats notés "
           f"({origin}, {report['n_empty_skipped']} vides écartés)")
+    cons = report.get("constraints")
+    if cons:
+        shown = ", ".join(f"{k}={v}" for k, v in cons.items() if k != "tonic")
+        print(f"contraintes imposées : {shown}")
     g = report["gates"]
     print(f"gates : fiabilité ≥ {g['min_confidence']:g}, score ≥ {g['min_score']:g}  "
           f"→ {report['n_eligible']} éligibles, "
@@ -503,17 +723,22 @@ def _print_report(report: dict) -> None:
         return
 
     print(f"\n🏆 GAGNANT → {report['winner_file']}")
-    print(f"   {win['form']} · {win['mode']} · {win['meter']} · {win['bpm']} bpm")
+    # `bars` est None pour un MIDI venu d'ailleurs : on n'affiche pas
+    # « None mes. », on se tait sur ce qu'on ne sait pas.
+    longueur = f" · {win['bars']} mes." if win.get("bars") else ""
+    print(f"   {win['form']} · {win['key']} · {win['meter']} · "
+          f"{win['bpm']} bpm{longueur}")
     print(f"   score {win['score']:.3f}  ·  fiabilité {win['confidence']:.3f} "
           f"({win['level']})")
 
     print("\nClassement (éligibles — tranche de fiabilité d'abord, puis score) :")
     print(f"  {'#':>2}  {'tranche':<11} {'score':>6}  {'fiab.':>6}  "
-          f"{'forme':<18} {'mode':<11} {'métr.':>5}")
+          f"{'forme':<18} {'tonalité':<15} {'métr.':>5} {'mes.':>5}")
     for rank, c in enumerate(report["leaderboard"][:10], 1):
         flag = "  ←" if c["file"] == report["winner_file"] else ""
         print(f"  {rank:>2}  {c['level']:<11} {c['score']:>6.3f}  {c['confidence']:>6.3f}  "
-              f"{c['form']:<18} {c['mode']:<11} {c['meter']:>5}{flag}")
+              f"{c['form']:<18} {c['key']:<15} {c['meter']:>5} "
+              f"{(c['bars'] if c['bars'] else '—'):>5}{flag}")
 
     d = report["diversity"]
     print(f"\nDiversité des formes : {d['distinct_forms_overall']} sur l'ensemble, "
@@ -637,9 +862,60 @@ def main(argv: list[str] | None = None) -> int:
                              "sont ignorés, les fichiers source jamais effacés)")
     parser.add_argument("--reaper", action="store_true",
                         help="pousser le gagnant dans REAPER via le pont Klody")
+
+    grp = parser.add_argument_group(
+        "contraintes",
+        "imposer au générateur au lieu de tirer au sort ; non fourni = tiré")
+    grp.add_argument("--tonic", help="tonique : « F », « Fa# », « Sib », ou 0-11")
+    grp.add_argument("--mode", help=f"mode : {', '.join(sorted(SCALES))} "
+                                    "(alias « minor »/« mineur » acceptés)")
+    grp.add_argument("--bpm", type=float, help="tempo imposé (désactive la dérive)")
+    grp.add_argument("--meter", help="métrique, ex. « 4/4 »")
+    grp.add_argument("--bars", type=int,
+                     help="longueur totale EXACTE en mesures (forme choisie parmi "
+                          "celles qui tombent juste)")
+    grp.add_argument("--swing", dest="swing", action="store_true", default=None,
+                     help="attaques décalées sur les temps faibles")
+    grp.add_argument("--no-swing", dest="swing", action="store_false",
+                     help="interdire le swing")
+    grp.add_argument("--syncopation", type=float,
+                     help="proportion de temps forts omis (0.0 à 1.0)")
+    grp.add_argument("--drums", dest="drums", action="store_true", default=None,
+                     help="forcer une piste de batterie")
+    grp.add_argument("--no-drums", dest="drums", action="store_false",
+                     help="interdire la batterie")
     args = parser.parse_args(argv)
 
+    # Les contraintes sont validées AVANT de générer quoi que ce soit : une
+    # commande impossible doit coûter un message, pas N rendus MIDI.
+    try:
+        constraints = Constraints(
+            tonic=parse_tonic(args.tonic) if args.tonic is not None else None,
+            mode=parse_mode(args.mode) if args.mode is not None else None,
+            bpm=args.bpm,
+            meter=parse_meter(args.meter) if args.meter is not None else None,
+            bars=args.bars,
+            swing=args.swing,
+            syncopation=args.syncopation,
+            drums=args.drums,
+        )
+        if constraints.bars is not None and not forms_matching_bars(constraints.bars):
+            raise ValueError(
+                f"aucune forme ne fait exactement {constraints.bars} mesures "
+                f"(intros et outros comptées de moitié). Atteignables au "
+                f"voisinage : {_achievable_bars(constraints.bars)}")
+    except ValueError as exc:
+        parser.error(str(exc))
+
     if args.from_dir:
+        # `--from-dir` NOTE des MIDI déjà écrits : contraindre un générateur
+        # qui ne tourne pas n'aurait aucun sens. On refuse au lieu d'ignorer
+        # en silence — une contrainte muette est pire qu'une contrainte
+        # impossible.
+        if not constraints.is_empty():
+            parser.error("--from-dir note des MIDI existants : les contraintes "
+                         "(--tonic/--mode/--bpm/--meter/--bars/…) ne s'appliquent "
+                         "qu'à la génération.")
         report = forge_from_dir(args.from_dir, args.out_dir,
                                 min_confidence=args.min_confidence,
                                 min_score=args.min_score,
@@ -648,7 +924,7 @@ def main(argv: list[str] | None = None) -> int:
         report = forge(args.out_dir, n=args.n, seed=args.seed,
                        min_confidence=args.min_confidence, min_score=args.min_score,
                        keep_all=args.keep_all, axes_report=args.axes,
-                       shortlist=args.shortlist)
+                       shortlist=args.shortlist, constraints=constraints)
     _print_report(report)
     _print_shortlist(report)
     _print_axes_report(report)
