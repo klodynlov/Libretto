@@ -374,7 +374,29 @@ python3 examples/audio2midi.py prises/ midi/    # Demucs par stems → basic-pit
 python3 examples/forge.py sortie/ --from-dir midi/ --axes --shortlist 5
 # ou d'un trait (raccourci) :
 python3 examples/forge_acestep.py prises/ sortie/    # --shortlist 5 par défaut
-``` Le rapport signale aussi la
+```
+
+Enfin, si vous partez d'**une** séquence à vous (un export Gadget, une
+maquette) et voulez l'**embellir** plutôt que trier des candidats,
+`examples/forge_embellish.py` en tire N variantes par transformations
+symboliques (humanisation vélocité/timing, arc dynamique, doublages
+d'octave, arpèges), les fait juger, et garde la mieux construite — 100 %
+stdlib, déterministe :
+
+```bash
+python3 examples/forge_embellish.py ma_sequence.mid sortie/ 12 1 --axes
+```
+
+Trois partis pris d'honnêteté : **l'original concourt** (variante 000
+intacte) — s'il gagne, votre séquence est déjà solide, c'est un résultat ;
+les retouches touchent la **structure** que Libretto mesure (arc, dynamique,
+texture), pas le son ni le groove, donc un gain de score est un gain de
+charpente *à confirmer à l'oreille* ; et comme c'est du MIDI natif (pas du
+transcrit), la fiabilité se lit. Le verdict le dit sans détour : « la
+variante *arc+octaves* bat l'original de +0.03 » ou « l'original gagne, vos
+retouches n'ont pas amélioré la structure ».
+
+Le rapport signale aussi la
 **collapse de diversité** qu'induit toute sélection sur un score unique :
 optimiser le SMS resserre le peloton de tête sur l'esthétique inscrite dans
 les bandes de tolérance (cf. circularité, plus haut). C'est montré, pas caché
