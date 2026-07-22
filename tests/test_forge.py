@@ -1,4 +1,4 @@
-"""Tests de Forge — le mode rapport axe par axe (`--axes`).
+"""Tests de Forge — le mode rapport axe par axe (`--axes`) et les contraintes.
 
 Ce qu'on vérifie n'est pas cosmétique : la promesse du mode est que la
 décomposition est COMPLÈTE — la somme des leviers (écart × poids) vaut
@@ -8,6 +8,7 @@ Si un axe manquait ou qu'un poids était faux, ce test le verrait.
 
 import io
 import json
+import random
 import sys
 import tempfile
 import unittest
@@ -17,8 +18,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
 
-from forge import (_print_axes_report, diverse_shortlist,  # noqa: E402
-                   forge, forge_from_dir)
+from forge import (Constraints, _print_axes_report,  # noqa: E402
+                   apply_constraints, diverse_shortlist, forge, forge_from_dir,
+                   forms_matching_bars, parse_meter, parse_mode, parse_tonic)
+from make_corpus import FORMS, random_style, total_bars  # noqa: E402
 
 from libretto.axes import AXES_META  # noqa: E402
 
@@ -362,6 +365,159 @@ class TestForgeAxesReport(unittest.TestCase):
             with redirect_stdout(buf):
                 _print_axes_report(report)
             self.assertEqual(buf.getvalue(), "")
+
+# --------------------------------------------------------------------------- #
+# Contraintes — commander le générateur au lieu de le subir                   #
+#                                                                             #
+# Ce qui est vérifié tient en une phrase : ce qu'on impose sort tel quel, ce   #
+# qu'on n'impose pas continue de varier. Le second point compte autant que le  #
+# premier — un générateur entièrement contraint rendrait N clones et la        #
+# sélection de Forge n'aurait plus d'objet.                                    #
+# --------------------------------------------------------------------------- #
+
+
+class TestParsers(unittest.TestCase):
+    """Les noms arrivent d'un humain ou d'un LLM, pas d'un fichier MIDI."""
+
+    def test_tonique_anglais_francais_alterations(self):
+        for value, expected in [("F", 5), ("Fa", 5), ("fa#", 6), ("F#", 6),
+                                ("Sib", 10), ("Bb", 10), ("B", 11), ("ré", 2),
+                                ("do", 0), (7, 7), ("11", 11)]:
+            with self.subTest(value=value):
+                self.assertEqual(parse_tonic(value), expected)
+
+    def test_tonique_b_seul_est_si_becarre(self):
+        """Le piège : « b » est une note ET le signe bémol."""
+        self.assertEqual(parse_tonic("b"), 11)
+        self.assertEqual(parse_tonic("bb"), 10)
+
+    def test_tonique_refusee(self):
+        for bad in ("H", "", "12", "zz"):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                parse_tonic(bad)
+
+    def test_mode_alias(self):
+        for value in ("min", "minor", "mineur", "MINEUR", "aeolian"):
+            with self.subTest(value=value):
+                self.assertEqual(parse_mode(value), "min")
+        self.assertEqual(parse_mode("dorian"), "dorien")
+        with self.assertRaises(ValueError):
+            parse_mode("phrygien")
+
+    def test_metrique_refuse_ce_que_le_generateur_ignore(self):
+        self.assertEqual(parse_meter("4/4"), (4, 4, 4.0, 1.0))
+        self.assertEqual(parse_meter("6/8"), (6, 8, 3.0, 1.5))
+        with self.assertRaises(ValueError):
+            parse_meter("7/8")          # absente de METERS : refus, pas invention
+        with self.assertRaises(ValueError):
+            parse_meter("quatre")
+
+
+class TestLongueur(unittest.TestCase):
+    """`bars_per_section` est une consigne ; `total_bars` est le décompte."""
+
+    def test_intro_et_outro_comptent_de_moitie(self):
+        # verse_chorus = 8 sections dont intro + outro écourtées.
+        self.assertEqual(total_bars("verse_chorus", 2), 6 * 2 + 2 * 2)
+        self.assertEqual(total_bars("verse_chorus", 8), 6 * 8 + 2 * 4)
+        # Sans intro ni outro, le produit simple s'applique.
+        self.assertEqual(total_bars("binaire", 4), 16)
+
+    def test_couples_pour_16_mesures(self):
+        couples = forms_matching_bars(16)
+        self.assertIn(("binaire", 4), couples)
+        self.assertIn(("verse_chorus", 2), couples)
+        for form, per in couples:
+            self.assertEqual(total_bars(form, per), 16)
+
+    def test_longueur_inatteignable(self):
+        self.assertEqual(forms_matching_bars(17), [])
+        rng = random.Random(0)
+        with self.assertRaises(ValueError) as ctx:
+            apply_constraints(random_style(rng), Constraints(bars=17), rng)
+        # L'erreur doit ORIENTER, pas seulement refuser.
+        self.assertIn("16", str(ctx.exception))
+
+
+class TestApplication(unittest.TestCase):
+
+    def test_impose_ce_qui_est_demande(self):
+        rng = random.Random(1)
+        cons = Constraints(tonic=5, mode="min", bpm=72.0,
+                           meter=(4, 4, 4.0, 1.0), bars=16,
+                           swing=True, syncopation=0.45, drums=True)
+        for i in range(20):
+            style = apply_constraints(random_style(random.Random(i)), cons, rng)
+            with self.subTest(i=i):
+                self.assertEqual(style.tonic, 5)
+                self.assertEqual(style.mode, "min")
+                self.assertEqual(style.bpm, 72.0)
+                self.assertEqual(style.meter, (4, 4, 4.0, 1.0))
+                self.assertTrue(style.swing)
+                self.assertTrue(style.with_drums)
+                self.assertEqual(total_bars(style.form, style.bars_per_section), 16)
+
+    def test_tempo_impose_interdit_la_derive(self):
+        """Sinon la contrainte ne tient qu'au premier temps."""
+        rng = random.Random(2)
+        # Une graine qui active la dérive, pour que le test morde.
+        drifting = next(s for s in (random_style(random.Random(i)) for i in range(60))
+                        if s.tempo_drift)
+        style = apply_constraints(drifting, Constraints(bpm=90.0), rng)
+        self.assertEqual(style.bpm, 90.0)
+        self.assertFalse(style.tempo_drift)
+
+    def test_sans_contrainte_le_style_est_intact(self):
+        rng = random.Random(3)
+        original = random_style(random.Random(9))
+        self.assertEqual(apply_constraints(original, Constraints(), rng), original)
+
+    def test_ce_qui_n_est_pas_impose_varie_encore(self):
+        """Le point qui fait que Forge a encore quelque chose à choisir."""
+        rng = random.Random(4)
+        cons = Constraints(tonic=5, mode="min", bpm=72.0, bars=16)
+        styles = [apply_constraints(random_style(random.Random(i)), cons, rng)
+                  for i in range(30)]
+        self.assertGreater(len({s.form for s in styles}), 1)
+        self.assertGreater(len({s.arc for s in styles}), 1)
+        self.assertGreater(len({s.n_voices for s in styles}), 1)
+
+    def test_bars_ne_fige_pas_la_forme(self):
+        """La contrainte porte sur la LONGUEUR ; plusieurs formes y répondent."""
+        rng = random.Random(5)
+        forms = {apply_constraints(random_style(random.Random(i)),
+                                   Constraints(bars=16), rng).form
+                 for i in range(40)}
+        self.assertGreater(len(forms), 1)
+        self.assertTrue(forms <= set(FORMS))
+
+
+class TestForgeContraint(unittest.TestCase):
+
+    def test_forge_bout_en_bout(self):
+        """Le rapport doit permettre de VÉRIFIER la commande, pas seulement de
+        constater un résultat : tonalité et longueur y figurent."""
+        cons = Constraints(tonic=5, mode="min", bpm=72.0,
+                           meter=(4, 4, 4.0, 1.0), bars=16)
+        with tempfile.TemporaryDirectory() as tmp:
+            report = forge(tmp, n=6, seed=1, constraints=cons)
+
+            self.assertEqual(report["constraints"]["tonic_name"], "F")
+            self.assertEqual(report["constraints"]["bars"], 16)
+            self.assertTrue(report["leaderboard"], "aucun candidat éligible")
+            for c in report["leaderboard"]:
+                self.assertEqual(c["key"], "F min")
+                self.assertEqual(c["bpm"], 72)
+                self.assertEqual(c["meter"], "4/4")
+                self.assertEqual(c["bars"], 16)
+            if report["winner"]:
+                self.assertTrue((Path(tmp) / report["winner_file"]).is_file())
+
+    def test_rapport_sans_contrainte(self):
+        """Rétrocompatible : `constraints` vaut None quand rien n'est imposé."""
+        with tempfile.TemporaryDirectory() as tmp:
+            report = forge(tmp, n=2, seed=1)
+        self.assertIsNone(report["constraints"])
 
 
 if __name__ == "__main__":

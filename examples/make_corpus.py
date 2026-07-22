@@ -198,6 +198,22 @@ def random_style(rng: random.Random) -> Style:
     )
 
 
+def section_bars(role: str, bars_per_section: int) -> int:
+    """Mesures RÉELLES d'une section : intro et outro sont écourtées de moitié.
+
+    Publique parce qu'elle est la seule vérité sur la longueur d'un morceau :
+    `bars_per_section` est une consigne, pas un décompte. Qui veut prédire la
+    durée sans rendre le MIDI passe par ici (cf. `total_bars`)."""
+    if role in ("intro", "outro"):
+        return max(2, bars_per_section // 2)
+    return bars_per_section
+
+
+def total_bars(form: str, bars_per_section: int) -> int:
+    """Longueur totale d'un morceau, en mesures, écourtements compris."""
+    return sum(section_bars(r, bars_per_section) for r in FORMS[form])
+
+
 def _arc_scale(arc: str, i: int, n: int) -> float:
     """Facteur de vélocité de la section i sur n, selon l'arc voulu."""
     if n <= 1:
@@ -263,9 +279,7 @@ def render(style: Style, rng: random.Random) -> tuple[list[list], list, list, in
     for i, role in enumerate(roles):
         vel_scale = _arc_scale(style.arc, i, n_sections) * ROLE_ENERGY.get(role, 0.8)
         vel = max(28, min(120, round(96 * vel_scale)))
-        bars = style.bars_per_section
-        if role in ("intro", "outro"):
-            bars = max(2, bars // 2)
+        bars = section_bars(role, style.bars_per_section)
         truth_bars.append(bar_cursor)
         bar_cursor += bars
         if style.with_markers:
