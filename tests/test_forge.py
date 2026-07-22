@@ -33,11 +33,132 @@ class TestPontsOptionnels(unittest.TestCase):
     def test_importables_sans_dependances(self):
         import audio2midi
         import forge_acestep
+        import forge_embellish
         import forge_musiclang
         import transcription_roundtrip
-        for mod in (audio2midi, forge_acestep, forge_musiclang,
-                    transcription_roundtrip):
+        for mod in (audio2midi, forge_acestep, forge_embellish,
+                    forge_musiclang, transcription_roundtrip):
             self.assertTrue(callable(mod.main), mod.__name__)
+
+
+class TestEmbellishMoves(unittest.TestCase):
+    """Les retouches doivent rester BORNÉES et déterministes : un embellisseur
+    qui sort un pitch à 130 ou une durée négative produit un MIDI illégal, et
+    Forge jugerait du bruit. On les teste sur des notes synthétiques (les
+    invariants ne dépendent pas d'un vrai morceau)."""
+
+    @staticmethod
+    def _notes():
+        from libretto.midi import MidiNote
+        # Un accord tenu (3 notes simultanées) + une percussion + une note grave.
+        return [
+            MidiNote(0, 480, 60, 80, 0, 1),
+            MidiNote(0, 480, 64, 70, 0, 1),
+            MidiNote(0, 480, 67, 75, 0, 1),
+            MidiNote(480, 960, 36, 100, 9, 2),   # percussion (canal 9)
+            MidiNote(480, 960, 40, 60, 2, 3),    # basse
+        ]
+
+    def _assert_legal(self, notes):
+        for n in notes:
+            self.assertGreaterEqual(n.pitch, 0)
+            self.assertLessEqual(n.pitch, 127)
+            self.assertGreaterEqual(n.velocity, 1)
+            self.assertLessEqual(n.velocity, 127)
+            self.assertGreaterEqual(n.start, 0)
+            self.assertGreater(n.end, n.start)   # durée ≥ 1 tick
+
+    def test_humanize_borne_et_preserve_le_compte(self):
+        import random
+        from forge_embellish import humanize
+        out = humanize(self._notes(), 480, random.Random("t"))
+        self._assert_legal(out)
+        self.assertEqual(len(out), 5)
+
+    def test_arc_borne_et_preserve_le_compte(self):
+        import random
+        from forge_embellish import shape_dynamics
+        out = shape_dynamics(self._notes(), 960, random.Random("t"))
+        self._assert_legal(out)
+        self.assertEqual(len(out), 5)
+
+    def test_octaves_ajoute_sans_toucher_les_percussions(self):
+        import random
+        from forge_embellish import double_octaves
+        src = self._notes()
+        out = double_octaves(src, random.Random("t"))
+        self._assert_legal(out)
+        self.assertGreaterEqual(len(out), len(src))  # doublages = notes en plus
+        # Aucune note ajoutée sur le canal 9 (percussions non transposées).
+        drums_before = sum(1 for n in src if n.channel == 9)
+        drums_after = sum(1 for n in out if n.channel == 9)
+        self.assertEqual(drums_before, drums_after)
+
+    def test_arpege_borne_et_decale_l_accord(self):
+        import random
+        from forge_embellish import arpeggiate
+        out = arpeggiate(self._notes(), 480, random.Random("t"))
+        self._assert_legal(out)
+        self.assertEqual(len(out), 5)
+        # Les 3 notes de l'accord (canal 0) n'attaquent plus toutes à 0.
+        starts = sorted(n.start for n in out if n.channel == 0)
+        self.assertGreater(starts[-1], 0)
+
+    def test_deterministe(self):
+        import random
+        from forge_embellish import build_variation
+        from libretto.midi import MidiData
+        md = MidiData(ppq=480, notes=self._notes(), end_tick=960)
+        moves = ("humanize", "arc", "octaves", "arp")
+        a = build_variation(md, moves, random.Random("s:1"))
+        b = build_variation(md, moves, random.Random("s:1"))
+        self.assertEqual([(n.start, n.end, n.pitch, n.velocity) for n in a.notes],
+                         [(n.start, n.end, n.pitch, n.velocity) for n in b.notes])
+
+
+class TestEmbellishIntegration(unittest.TestCase):
+    """L'original concourt (variante 000), le verdict compare gagnant vs
+    original, et tout est rejouable — on part d'un morceau généré dont la
+    structure est riche."""
+
+    @classmethod
+    def setUpClass(cls):
+        from forge_embellish import embellish
+        cls._tmp = tempfile.TemporaryDirectory()
+        root = Path(cls._tmp.name)
+        cls.src = root / "source.mid"
+        # Un morceau généré comme séquence de départ (make_corpus via forge).
+        forge(root / "g", n=1, seed=5, keep_all=True)
+        (cls.src).write_bytes((root / "g" / "candidate_000.mid").read_bytes())
+        cls.report = embellish(cls.src, root / "out", n=12, seed=1, shortlist=3)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def test_original_concourt_et_recettes_mappees(self):
+        emb = self.report["embellish"]
+        self.assertEqual(emb["recipes"]["variation_000.mid"], "original")
+        # Chaque entrée du classement porte sa recette.
+        for c in self.report["leaderboard"]:
+            self.assertIn("recipe", c)
+
+    def test_verdict_coherent(self):
+        v = self.report["embellish"]["verdict"]
+        self.assertIsNotNone(v)
+        if v["original_eligible"] and not v["original_won"]:
+            # L'amélioration est bien la différence gagnant − original.
+            self.assertAlmostEqual(
+                v["improvement"],
+                v["winner_score"] - v["original_score"], delta=1e-3)
+            self.assertGreater(v["improvement"], 0)
+
+    def test_variantes_ecrites_et_jugees(self):
+        cand = Path(self._tmp.name) / "out" / "candidates"
+        mids = sorted(cand.glob("variation_*.mid"))
+        self.assertEqual(len(mids), 12)
+        # Le gagnant copié existe, le rapport JSON aussi.
+        self.assertTrue((Path(self._tmp.name) / "out" / "forge_winner.mid").exists())
 
 
 class TestForgeFromDir(unittest.TestCase):
