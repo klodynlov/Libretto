@@ -327,6 +327,33 @@ garanti, et son premier élu reste le gagnant. Les K fichiers sont livrés
 même être négatif, quand la contrainte repêche un score élevé d'une tranche
 plus basse.
 
+**Commander plutôt que tirer.** Sans contrainte, chaque ébauche tire
+tonalité, mode, tempo, métrique et longueur au sort : la graine est la seule
+poignée, et elle ne dit rien de ce qui sortira. Les options
+`--tonic/--mode/--bpm/--meter/--bars` imposent ces champs.
+
+```bash
+python3 examples/forge.py sortie/ 10 1 \
+    --tonic F --mode min --bars 16 --bpm 72 --meter 4/4 --swing
+# → verse_chorus_court · F min · 4/4 · 72 bpm · 16 mes.  (score 0.783, fiab. 0.923)
+```
+
+Contraindre **restreint** l'espace de recherche sans l'annuler : motifs,
+progressions, arc d'énergie, effectif et — tant que `--bars` ne la dicte pas
+— la forme restent tirés. Sans cet espace résiduel, N candidats seraient N
+clones et la sélection n'aurait plus d'objet. `--bars` impose la longueur
+**totale exacte** (intros et outros comptent pour moitié : `total_bars` est
+la seule vérité sur ce décompte) et la forme est tirée parmi celles qui
+tombent juste ; une longueur inatteignable est refusée **avant** tout rendu,
+avec les valeurs voisines. Un tempo imposé désactive la dérive, sinon la
+contrainte ne tient qu'au premier temps.
+
+Le gate, lui, ne bouge pas : une commande contraignante peut ne produire
+aucun candidat fiable. C'est un résultat — la structure demandée n'est pas
+notable — pas une panne à contourner en baissant le seuil. Les contraintes ne
+valent que pour la génération : `--from-dir` note des MIDI déjà écrits, et les
+refuse plutôt que de les ignorer en silence.
+
 Dans une vraie chaîne, la brique génératrice se remplace par une
 transcription (basic-pitch) d'un rendu audio ou la sortie MIDI d'un modèle —
 Forge ne parle que MIDI, le reste ne bouge pas. Ce branchement existe, à
