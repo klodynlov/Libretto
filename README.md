@@ -265,6 +265,81 @@ rejoué le lot à l'identique (session 5b, `agreement A.json B.json`) :
 [0.60–0.84]), et κ ≈ 0 signant la décorrélation des erreurs — deux
 oreilles, un même verdict, aucun artefact partagé.
 
+## Tonalité : l'estimateur confronté à une étiquette qu'il n'a pas écrite
+
+Krumhansl-Kessler (`libretto.axes.estimate_key`) alimente sept axes du
+groupe B et n'avait jamais été vérifié contre une tonalité connue — sur un
+corpus synthétique, retrouver la tonalité revient à retrouver ce qu'on vient
+d'y écrire. Deux vérités terrain existent pourtant, et elles ne disent pas la
+même chose : le corpus généré, où la tonalité est écrite **par construction**
+(contrôle positif, `annotations.json` porte désormais `tonic`/`mode`), et les
+packs de loops du commerce, qui l'annoncent dans le nom des fichiers et des
+dossiers — une étiquette **humaine, indépendante du moteur**.
+
+```bash
+python3 examples/make_corpus.py /tmp/ctrl 240 11
+python3 scripts/mesure_tonalite.py ~/Desktop/SAMPLES/MIDI --controle /tmp/ctrl
+```
+
+Deux histogrammes sont mesurés côte à côte : `pipeline`, celui que le moteur
+construit vraiment (`_pc_hist` — fondamentales d'accords ×2, notes d'accord
+×0.5, mélodie ×1), et `brut`, les notes non percussives pondérées par leur
+durée.
+
+| tonique juste | contrôle généré (157) | packs de loops (433) |
+|---|---|---|
+| `brut` | **0.783** | 0.400 |
+| `pipeline` | 0.567 | 0.370 |
+| `brut`, tonique **+ mode** | **0.898** (108 maj/min) | 0.334 (317) |
+
+Trois enseignements, dans l'ordre où ils comptent.
+
+**Le mécanisme est sain, c'est le répertoire qui résiste.** Sur le contrôle,
+`brut` trouve **57/57** des pièces en majeur. La faiblesse est ailleurs, et
+elle est nette :
+
+| mode écrit | tonique juste (`brut`) |
+|---|---|
+| majeur | 57/57 |
+| dorien | 23/27 |
+| mineur | 40/51 |
+| **mixolydien** | **3/22** |
+
+KK n'a que deux profils. Une pièce en sol mixolydien emprunte les hauteurs
+de do majeur : l'estimateur répond do — d'où les 23 erreurs de
+**sous-dominante**, qui sont *toute* l'erreur mixolydienne. Ce n'est pas un
+réglage à corriger, c'est un profil qui manque.
+
+**L'histogramme du moteur est moins bon que les notes brutes** — 0.567 contre
+0.783 sur le contrôle, même sens sur les packs. Pondérer par les accords
+détectés et la voix supérieure *retire* de l'information tonale au lieu d'en
+ajouter : les axes 8, 11, 13 et 14 construisent sur le plus faible des deux.
+Le corriger touche sept axes et toute la calibration — c'est un chantier à
+part, pas une retouche.
+
+**Sur une boucle isolée, l'estimation ne vaut rien** : 0.400, et rien ne la
+sauve. Mettre en commun les boucles d'un même kit ne la remonte pas (0.36) ;
+la marge KK, qui est un vrai indicateur sur des morceaux (0.783 → 0.886 à
+56 % de couverture), s'aplatit sur des loops (0.400 → 0.474 à 71 %). Une
+boucle de quatre mesures sur un vamp modal n'a simplement pas de quoi
+trancher entre une tonalité et sa voisine — les désaccords se répartissent
+sur la dominante, la sous-dominante, la relative et le bVII, c'est-à-dire
+sur le voisinage diatonique, pas au hasard. Conséquence pratique pour
+indexer un pack : **croire l'étiquette du pack**, et ne recourir à
+l'estimateur que pour ce qui n'en a pas, en sachant que c'est un pari.
+
+Réserves inscrites dans la sortie du script plutôt qu'en note de bas de page :
+l'étiquette vaut pour le **kit** et non pour le fichier (les 160 fichiers
+percussifs sont écartés — un snare étiqueté `G_m` n'a pas de hauteur à
+juger) ; les fichiers d'un même kit ne sont pas des tirages indépendants,
+d'où l'exactitude macro par kit à côté de la micro ; et 15 fichiers nomment
+leur **fondamentale locale** plutôt que la tonalité du kit
+(`KIT_1_PAD_Eb_100BPM.mid` dans `KIT_1_Gmin_100BPM/` est le VI d'un sol
+mineur), cas que le parseur tranche en faveur de l'étiquette porteuse d'un
+mode. Le parseur lui-même est testé (`tests/test_mesure_tonalite.py`) :
+une règle trop large et le chiffre ne mesure plus le moteur mais le bruit
+qu'on lui a servi.
+
 ## Corpus de validation
 
 Valider demande des morceaux, et les packs du commerce n'en contiennent pas.
@@ -524,6 +599,11 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
 - Détection d'accords par gabarits diatoniques : un accord par mesure au
   maximum, renversements fusionnés, rien au-delà des 7èmes. L'axe 12 est
   plafonné par cette résolution.
+- **Deux profils tonaux seulement.** Krumhansl-Kessler ne connaît que majeur
+  et mineur : une pièce mixolydienne est lue à la sous-dominante (3/22 sur le
+  contrôle), et l'histogramme sur lequel le moteur l'appuie est moins bon que
+  les notes brutes (0.567 contre 0.783). Voir *Tonalité* — mesuré,
+  rejouable, non corrigé.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
   d'arpèges d'accompagnement, et le balayage est quadratique (lent sur les
   MIDI orchestraux denses).
