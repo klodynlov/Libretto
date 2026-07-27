@@ -371,6 +371,61 @@ sur le voisinage diatonique, pas au hasard. Conséquence pratique pour
 indexer un pack : **croire l'étiquette du pack**, et ne recourir à
 l'estimateur que pour ce qui n'en a pas, en sachant que c'est un pari.
 
+### Les profils modaux : mesurés, gagnants, pas branchés
+
+Le trou est identifié — il manque des profils. `libretto.axes` en propose
+deux, construits et non mesurés sur des auditeurs comme l'ont été ceux de
+Krumhansl et Kessler : chaque mode est **son parent dont le degré
+caractéristique est échangé** avec son voisin chromatique (le dorien est un
+mineur qui monte sa sixte, le mixolydien un majeur qui descend sa septième),
+le reste du profil parent laissé intact. Dorien et mixolydien seulement :
+ce sont les deux modes dont `make_corpus` écrit la vérité terrain, donc les
+deux qu'on sait valider — en livrer d'autres reproduirait le défaut qu'on
+reproche à KK.
+
+`estimate_key(hist, MODAL_PROFILES)` les utilise ; **le défaut ne bouge
+pas**. Validé sur deux graines de contrôle fraîches (23 et 31, 311 morceaux
+non modulants), à histogramme rigoureusement identique :
+
+| tonique juste | graine 23 | graine 31 |
+|---|---|---|
+| `brut` | 0.743 | 0.667 |
+| `brut+modes` | **0.809** | **0.730** |
+
+Le détail par mode dit exactement ce qui a été acheté et à quel prix
+(cumul des deux graines) :
+
+| mode écrit | `brut` | `brut+modes` |
+|---|---|---|
+| dorien | 45/58 | **58/58** |
+| mixolydien | 9/54 | **21/54** |
+| mineur | 69/102 | 69/102 |
+| majeur | 96/97 | 91/97 |
+
+Le dorien est réglé, le mixolydien seulement à moitié, et cinq pièces en
+majeur sur 97 passent à la trappe — le vocabulaire élargi leur vole la
+réponse. Le solde reste franchement positif (+6.5 points de tonique), et le
+mode suit la tonique : sur `brut+modes`, **toute erreur de mode est déjà une
+erreur de tonique**, jamais l'inverse.
+
+Deux résultats nuls, du même lot : sur les **loops** isolés, les profils
+modaux ne changent rien (0.400 avant, 0.400 après — une boucle de quatre
+mesures ne contient pas de quoi trancher, un meilleur profil n'y peut rien) ;
+et sur l'histogramme du moteur, le gain existe mais reste inutile (`pipeline`
+0.566 → 0.605), parce que c'est l'histogramme qui plafonne, pas le
+vocabulaire.
+
+**Pourquoi ce n'est pas branché.** Le mode retourné traverse sept axes, dont
+deux en déduisent une gamme, et les poids publiés ont été calibrés avec
+l'estimateur actuel. La bascule a été essayée pour en mesurer le coût —
+défaut modal + `PARENT_MODE` dans les axes 9 et 14 — et le verdict du propre
+gate du dépôt est qu'elle ne casse rien : `scripts/check.sh` → CHECK OK, un
+seul axe bouge de plus de 0.02 et c'est vers le haut (11_modulation_count
+0.604 → 0.650), l'axe 8 gagne 0.012, la validation croisée passe de 0.944 à
+0.938 (dans le bruit, ± 0.10). La bascule est donc **documentée et
+défendable, pas faite** : elle demande sa propre PR, avec les poids
+recalibrés et les chiffres du README repris derrière.
+
 Réserves inscrites dans la sortie du script plutôt qu'en note de bas de page :
 l'étiquette vaut pour le **kit** et non pour le fichier (les 160 fichiers
 percussifs sont écartés — un snare étiqueté `G_m` n'a pas de hauteur à
@@ -724,11 +779,13 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
 - Détection d'accords par gabarits diatoniques : un accord par mesure au
   maximum, renversements fusionnés, rien au-delà des 7èmes. L'axe 12 est
   plafonné par cette résolution.
-- **Deux profils tonaux seulement.** Krumhansl-Kessler ne connaît que majeur
-  et mineur : une pièce mixolydienne est lue à la sous-dominante (3/22 sur le
-  contrôle), et l'histogramme sur lequel le moteur l'appuie est moins bon que
-  les notes brutes (0.567 contre 0.783). Voir *Tonalité* — mesuré,
-  rejouable, non corrigé.
+- **Deux profils tonaux seulement, par défaut.** Krumhansl-Kessler ne connaît
+  que majeur et mineur : une pièce mixolydienne est lue à la sous-dominante
+  (3/22 sur le contrôle). Des profils dorien et mixolydien existent et sont
+  validés (+6.5 points de tonique, dorien réglé à 58/58), mais restent
+  optionnels — les brancher touche sept axes et les poids publiés. Reste
+  entier : l'histogramme sur lequel le moteur appuie sa tonalité est moins
+  bon que les notes brutes (0.567 contre 0.783). Voir *Tonalité*.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
   d'arpèges d'accompagnement, et le balayage est quadratique (lent sur les
   MIDI orchestraux denses).

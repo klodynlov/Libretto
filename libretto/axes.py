@@ -101,17 +101,65 @@ def _entropy_norm(counts: Counter, max_classes: int) -> float:
 KK_MAJOR = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
 KK_MINOR = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
 
+
+def _swap(profile: list[float], a: int, b: int) -> list[float]:
+    out = list(profile)
+    out[a], out[b] = out[b], out[a]
+    return out
+
+
+# Profils modaux, construits — non mesurés sur un corpus d'écoute comme
+# l'ont été ceux de Krumhansl et Kessler. Chaque mode est son parent dont le
+# **degré caractéristique** est échangé avec son voisin chromatique : le
+# dorien est un mineur qui monte sa sixte, le mixolydien un majeur qui
+# descend sa septième. Le reste du profil parent est laissé intact, faute de
+# quoi on inventerait des poids que rien n'étaye.
+#
+# Ils existent parce que KK, qui ne connaît que deux profils, lit une pièce
+# mixolydienne à la sous-dominante — 3/22 sur le corpus de contrôle, et
+# l'erreur est à chaque fois la même (voir README, *Tonalité*). Ce sont des
+# candidats à valider, pas un correctif : `estimate_key` ne les utilise que
+# si on les lui passe.
+KK_DORIAN = _swap(KK_MINOR, 8, 9)        # ♭6 ↔ ♮6
+KK_MIXOLYDIAN = _swap(KK_MAJOR, 10, 11)  # ♭7 ↔ ♮7
+
+# Vocabulaire par défaut : celui de Krumhansl-Kessler, inchangé.
+KEY_PROFILES = {"maj": KK_MAJOR, "min": KK_MINOR}
+# Vocabulaire élargi, réservé à qui le demande explicitement. Dorien et
+# mixolydien seulement : ce sont les deux modes dont `make_corpus` écrit la
+# vérité terrain, donc les deux qu'on sait valider. En ajouter d'autres
+# reviendrait à livrer non mesuré ce que ce module reproche à KK.
+MODAL_PROFILES = {**KEY_PROFILES, "dorien": KK_DORIAN, "mixolydien": KK_MIXOLYDIAN}
+
+# Mode -> parent majeur/mineur, pour les consommateurs qui raisonnent en
+# gammes (axes 9 et 14) et pour les étiquettes de packs, qui ne distinguent
+# qu'entre « m » et le reste.
+PARENT_MODE = {"maj": "maj", "min": "min", "dorien": "min", "mixolydien": "maj"}
+
 MAJOR_SCALE = {0, 2, 4, 5, 7, 9, 11}
 MINOR_SCALE = {0, 2, 3, 5, 7, 8, 10, 11}  # mineur naturel + sensible
 
 
-def estimate_key(hist: list[float]) -> tuple[int, str, float, float]:
-    """(classe de hauteur de la tonique, 'maj'|'min', corrélation, marge sur
-    la 2e tonique candidate). hist = poids par classe de hauteur (12)."""
+def estimate_key(hist: list[float],
+                 profiles: dict[str, list[float]] | None = None
+                 ) -> tuple[int, str, float, float]:
+    """(classe de hauteur de la tonique, mode, corrélation, marge sur la 2e
+    tonique candidate). hist = poids par classe de hauteur (12).
+
+    `profiles` fixe le vocabulaire de modes ; par défaut `KEY_PROFILES`,
+    c'est-à-dire les deux profils de Krumhansl-Kessler. Passer
+    `MODAL_PROFILES` élargit au dorien et au mixolydien — mesuré, et pas
+    branché par défaut : le mode retourné traverse sept axes, et deux
+    d'entre eux en déduisent une gamme.
+
+    L'ordre du dictionnaire départage les ex aequo (tri stable) : le
+    résultat reste déterministe, mais dépend de cet ordre.
+    """
+    profiles = profiles or KEY_PROFILES
     if sum(hist) <= 0:
-        return 0, "maj", 0.0, 0.0
+        return 0, next(iter(profiles)), 0.0, 0.0
     results = []
-    for mode, profile in (("maj", KK_MAJOR), ("min", KK_MINOR)):
+    for mode, profile in profiles.items():
         for root in range(12):
             rotated = [profile[(pc - root) % 12] for pc in range(12)]
             results.append((pearson(rotated, hist), root, mode))
