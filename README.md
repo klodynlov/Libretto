@@ -400,19 +400,36 @@ part (11), vérification sur deux autres (23, 31) :
 Chaque cuillerée d'accords dégrade le résultat, sur les trois graines. Le
 réglage optimal était de ne rien mélanger.
 
-**Ce que ça coûte, et ce n'est pas nul.** Trois graines de corpus généré,
-calibration complète des deux côtés : la validation croisée contrastive perd
-**0.012** en moyenne (0.938 → 0.925, 0.925 → 0.909, 0.934 → 0.925 — les trois
-dans le même sens), et la perte se concentre sur un axe, `13_tonal_contrast`,
-qui recule de **0.030** d'AUC en moyenne et descend à 0.49 sur une graine. Il
-reste au-dessus du plancher du gate (0.42) et `check.sh` passe, mais il
-rejoint la liste des axes sous 0.5.
+**Ce que ça a coûté, et ce que le coût a appris.** Trois graines de corpus
+généré, calibration complète des deux côtés : la validation croisée
+contrastive perdait **0.012** en moyenne (les trois dans le même sens), et la
+perte se concentrait sur un seul axe — `13_tonal_contrast`, −0.030 d'AUC,
+0.49 sur une graine. Un axe que le dépôt avait réparé de 0.36 à 0.56 : pas
+une décimale à cacher.
 
-L'explication la plus économique est un effet de plafond : l'ancrage de
-l'axe 13 sature dès que la moitié des sections partagent la tonique, et avec
-une estimation plus nette l'original comme sa version dégradée y arrivent
-plus souvent. Ce serait aux bandes de l'axe d'être resserrées — mesuré sur
-une graine, validé sur d'autres. Constaté, pas corrigé.
+Le diagnostic était un effet de plafond. L'ancrage de l'axe 13 créditait
+pleinement dès que **la moitié** des sections partageaient la tonique — une
+bande réglée quand la tonalité était estimée sur les accords détectés, donc
+bruitée. Avec une estimation nette, l'original comme sa version dégradée
+atteignent ce seuil, saturent tous les deux, et l'axe cesse de les
+distinguer. Le crédit plein n'est plus donné qu'à une pièce dont **toutes**
+les sections partagent la tonique : `band(ancrage, 0.35, 1.0, 1.01, 1.01)`,
+plus de plateau.
+
+Réglé sur une graine tenue à part (11 : 0.567 → 0.619, plateau stable sur
+tout l'intervalle 0.30-0.45, d'où le 0.35 choisi au milieu et non au
+maximum), vérifié sur trois graines jamais consultées pour choisir :
+
+| AUC `13_tonal_contrast` | graine 7 | graine 23 | graine 31 | moyenne |
+|---|---|---|---|---|
+| accords (avant tout) | 0.559 | 0.567 | 0.509 | 0.545 |
+| notes brutes, bande d'origine | 0.488 | 0.536 | 0.522 | 0.515 |
+| notes brutes, bande resserrée | **0.584** | **0.696** | **0.584** | **0.621** |
+
+L'axe ne se contente pas de récupérer : il dépasse de 0.076 ce qu'il valait
+avant qu'on touche à l'histogramme, et quitte la liste des axes sous 0.5. La
+validation croisée regagne 0.005 et s'établit à 0.007 sous son niveau
+d'origine — ce qui reste dû à l'histogramme, pas à l'axe.
 
 Deux conséquences visibles ailleurs : les poids publiés sont recalibrés
 (`weights_songs.json` accuracy calibrée 1.000 sur 3 fichiers — surappris et
@@ -849,10 +866,6 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
   mixolydien (21/54, contre 9/54 sans lui) — le second reste le trou. Les
   modes plus rares (phrygien, lydien) sont absents faute de vérité terrain
   pour les valider. Voir *Tonalité*.
-- **L'axe 13 a payé le passage aux notes brutes** : 0.030 d'AUC en moyenne,
-  jusqu'à 0.49 sur une graine — au-dessus du plancher du gate, mais dans la
-  liste des axes sous 0.5. Ses bandes d'ancrage saturent trop tôt pour une
-  estimation tonale devenue nette. Mesuré, non corrigé.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
   d'arpèges d'accompagnement, et le balayage est quadratique (lent sur les
   MIDI orchestraux denses).

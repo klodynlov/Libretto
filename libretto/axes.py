@@ -870,7 +870,16 @@ class SenseOfMusicalStructure:
         dists = [fifths_distance(r, home) / 6.0 for r in roots]
         anchor_ratio = sum(1 for d in dists if d <= 1e-9) / len(dists)
         excursion = max(dists)
-        anchor = band(anchor_ratio, 0.15, 0.5, 1.01, 1.01)
+        # v4 : plus de plateau. La bande montait jusqu'à 0.5 puis créditait
+        # pleinement — réglage fait quand la tonalité était estimée sur les
+        # accords détectés, donc bruitée. Depuis qu'elle est estimée sur les
+        # notes, l'original comme sa version dégradée atteignent la moitié
+        # des sections ancrées, tous deux saturent, et l'axe cesse de les
+        # distinguer (AUC 0.56 → 0.49). Le crédit plein n'est plus donné
+        # qu'à une pièce dont TOUTES les sections partagent la tonique.
+        # Réglé sur une graine (11 : 0.567 → 0.619 sur le plateau 0.30-0.45),
+        # vérifié sur trois autres jamais consultées pour choisir.
+        anchor = band(anchor_ratio, 0.35, 1.0, 1.01, 1.01)
         reach = band(excursion, -0.05, 0.15, 0.55, 0.9)
         # Multiplicatif, pas additif : une somme laissait une pièce sans
         # centre tonal encaisser tout le terme d'excursion, si bien que des
