@@ -180,12 +180,62 @@ def build_tasks(corpus_dir: str | Path, seed: int = 1, per_file: int = 2,
     return tasks
 
 
+def build_duel_tasks(duels_path: str | Path, seed: int = 1) -> list[dict]:
+    """Lot de **duels** : deux morceaux DIFFÉRENTS, pas un morceau et sa
+    version dégradée.
+
+    Le protocole d'écoute a été construit pour valider les dégradations ;
+    il vaut tel quel pour une autre question, plus directe — *le classement
+    de Libretto est-il celui de l'oreille ?* On oppose deux candidats que le
+    moteur sépare, et le côté « original » devient celui qu'il place devant.
+    Tout le reste est inchangé et c'est le but : ordre tiré au sort, position
+    équilibrée, paires de contrôle, « aucune différence » toujours possible.
+
+    Le fichier attendu (voir `examples/forge_duels.py`) :
+    `{"duels": [{"prefere": chemin, "autre": chemin, "etiquette": nom,
+                 "nom": libellé, "ecart": 0.12}, …]}` — `etiquette` sert de
+    clé de dépouillement, exactement comme un nom de dégradation : la
+    séparer par tranche d'écart répond à « à partir de quel écart de score
+    l'oreille suit-elle ? », qui est la vraie question.
+    """
+    data = json.loads(Path(duels_path).read_text(encoding="utf-8"))
+    rng = random.Random(seed)
+    tasks: list[dict] = []
+    pool: list[str] = []
+    for d in data["duels"]:
+        if not (Path(d["prefere"]).exists() and Path(d["autre"]).exists()):
+            continue
+        tasks.append({"file": d.get("nom", Path(d["prefere"]).name),
+                      "path": d["prefere"], "path_autre": d["autre"],
+                      "degradation": d.get("etiquette", "duel"),
+                      "ecart": d.get("ecart")})
+        pool.append(d["prefere"])
+    if not tasks:
+        return []
+    # Mêmes contrôles que pour les dégradations : sans eux, un taux de
+    # détection élevé peut n'être qu'un biais de réponse.
+    n_control = max(4, round(CONTROL_RATIO * len(tasks)))
+    for i in range(n_control):
+        path = pool[(i * 7 + 3) % len(pool)]
+        tasks.append({"file": Path(path).name, "path": path,
+                      "degradation": "__control__"})
+    rng.shuffle(tasks)
+    slots = ["A", "B"] * ((len(tasks) + 1) // 2)
+    rng.shuffle(slots)
+    for i, task in enumerate(tasks):
+        task["id"] = i
+        task["original_slot"] = slots[i]
+    return tasks
+
+
 def midi_pair(task: dict, seed: int = 1):
     """(MidiData du côté A, MidiData du côté B) — la position de l'original
     est déjà résolue, l'appelant n'a aucun moyen de la connaître."""
     md = parse_midi(task["path"])
     if task["degradation"] == "__control__":
         other = md
+    elif task.get("path_autre"):
+        other = parse_midi(task["path_autre"])
     else:
         rng = random.Random(f"{seed}:{task['file']}:{task['degradation']}")
         other = DEGRADATIONS[task["degradation"]](md, rng)
@@ -487,13 +537,18 @@ def _handler(store: _Judgements, seed: int, renderer: str = RENDERER,
 def main(corpus_dir: str, out: str, host: str = "127.0.0.1",
          port: int | None = None, seed: int = 1, per_file: int = 2,
          only: list[str] | None = None, render: str = "synth") -> int:
+    duels = Path(corpus_dir).suffix.lower() == ".json"
+    if only and duels:
+        print("libretto: --only ne s'applique qu'aux dégradations, pas aux duels")
+        return 1
     if only:
         inconnues = sorted(set(only) - set(DEGRADATIONS))
         if inconnues:
             print(f"libretto: dégradation(s) inconnue(s) : {', '.join(inconnues)}")
             print(f"          disponibles : {', '.join(sorted(DEGRADATIONS))}")
             return 1
-    tasks = build_tasks(corpus_dir, seed=seed, per_file=per_file, only=only)
+    tasks = (build_duel_tasks(corpus_dir, seed=seed) if duels
+             else build_tasks(corpus_dir, seed=seed, per_file=per_file, only=only))
     if not tasks:
         print(f"libretto: aucun MIDI exploitable dans {corpus_dir}")
         return 1

@@ -265,6 +265,30 @@ rejoué le lot à l'identique (session 5b, `agreement A.json B.json`) :
 [0.60–0.84]), et κ ≈ 0 signant la décorrélation des erreurs — deux
 oreilles, un même verdict, aucun artefact partagé.
 
+**Et le classement ?** Tout ce qui précède valide des *dégradations* : un
+morceau contre sa version abîmée. Rien n'y valide un *classement* — un
+morceau contre un autre — qui est pourtant l'hypothèse sur laquelle Forge
+repose tout entier. Le protocole s'y prête sans rien changer : le côté
+« original » devient le candidat que le moteur place devant.
+
+```bash
+python3 examples/forge_loops.py /tmp/index.json sortie/ 48 3 --keep-all
+python3 examples/forge_duels.py sortie/ --out duels.json
+python3 -m libretto.cli annotate duels.json --out jugements_duels.json --render instrument
+python3 -m libretto.cli agreement jugements_duels.json   # sans --corpus : pas de dégradation à rejouer
+```
+
+Première session (14 duels, 4 contrôles) : **non concluante** — 50 % (IC95
+0.27–0.73), 43 % sur les écarts forts (≥ 0.10), 57 % sur les faibles. Et le
+verdict qui compte est méthodologique : **le lot ne pouvait pas conclure**.
+Sur n = 7 par tranche, le seul résultat significatif possible était 7/7, et
+la puissance pour une vraie détection de 0.80 était de 21 %. Il faut 20, 30,
+49 ou 90 jugements tranchés par tranche pour détecter respectivement 0.80,
+0.75, 0.70 ou 0.65. Détail et pistes dans
+[`resultats_ecoute.md`](resultats_ecoute.md) — d'ici là, le n°1 de Forge est
+le mieux construit *au sens des 29 axes*, et personne ne l'a encore entendu
+dire par une oreille.
+
 ## Tonalité : l'estimateur confronté à une étiquette qu'il n'a pas écrite
 
 Krumhansl-Kessler (`libretto.axes.estimate_key`) alimente sept axes du

@@ -932,6 +932,65 @@ frontière est une ondulation parmi les ondulations. Quatre voies
 instruites, chiffres consignés, aucune ne paie. Le front ferme en
 acquittement, pas en promesse.
 
+### Session 6 — le classement de Forge devant une oreille : non concluant, et sous-dimensionné par construction
+
+Toutes les sessions précédentes ont testé des **dégradations** : un morceau
+contre sa version abîmée. Aucune n'a testé un **classement** : un morceau
+contre un autre morceau. C'est pourtant l'hypothèse sur laquelle repose tout
+ce que Forge affirme — que le candidat qu'il place devant est réellement le
+mieux construit.
+
+Le protocole d'écoute s'y prête sans rien changer : le côté « original »
+devient celui que le moteur préfère (`build_duel_tasks`,
+`examples/forge_duels.py`). Lot : 48 candidats `forge_loops` (pack de loops,
+graine 3), 14 duels répartis en deux tranches d'écart de score, 4 paires de
+contrôle, rendu v3-instrument, position équilibrée 9/9.
+
+| tranche | écart SMS | l'oreille suit le moteur | IC95 |
+|---|---|---|---|
+| `duel_ecart_fort` | 0.102 – 0.199 | 43 % (3/7) | 0.16 – 0.75 |
+| `duel_ecart_faible` | 0.004 – 0.026 | 57 % (4/7) | 0.25 – 0.84 |
+| **ensemble** | | **50 % (7/14)** | **0.27 – 0.73** |
+
+Contrôles : 2 « aucune différence » sur 4 — les deux autres ont été tranchés
+sur des extraits identiques. Bruit de réponse réel, mais 4 contrôles ne
+l'estiment qu'à la louche.
+
+**Le vrai enseignement est méthodologique, et il est à charge.** Ce lot ne
+pouvait pas conclure. Test binomial bilatéral contre 0.5, α = 0.05 : sur
+n = 7, le seul résultat significatif possible est **7/7** — 6/7 donne déjà
+p = 0.125. La puissance de la tranche pour une vraie détection de 0.80 est
+de **21 %**. Autrement dit, quatre sessions sur cinq auraient rendu « non
+concluant » même si le classement était excellent. Le dimensionnement doit
+précéder la session, pas la commenter :
+
+| vraie détection | jugements tranchés nécessaires par tranche (puissance 80 %) |
+|---|---|
+| 0.80 | 20 |
+| 0.75 | 30 |
+| 0.70 | 49 |
+| 0.65 | 90 |
+
+**Ce que le lot n'autorise pas** : conclure que le classement ne vaut rien.
+50 % sur 14 jugements est compatible avec à peu près n'importe quoi entre
+« aveugle » et « bon ». **Ce qu'il n'autorise pas non plus** : continuer à
+présenter le n°1 de Forge comme le mieux construit sans préciser que
+personne ne l'a jamais vérifié à l'oreille.
+
+Deux observations à traiter comme des pistes, pas comme des résultats (n = 2
+chacune) : `candidate_000`, le plus bas score du lot (0.567), a gagné ses
+**deux** duels contre des candidats mieux notés ; `candidate_032` (score
+0.813 mais fiabilité 0.64) a perdu les **deux** siens. Si quelque chose se
+confirme là, ce serait que la fiabilité pèse davantage que le score dans ce
+que l'oreille entend — ce qui est déjà la règle de classement de Forge
+(tranche de fiabilité d'abord), mais pas au point de départager deux
+candidats de la même tranche.
+
+Suite : une session dimensionnée (≥ 30 jugements tranchés par tranche, deux
+annotateurs pour la décorrélation des erreurs, comme en session 5b). Les
+jugements de celle-ci sont dans `jugements_duels.json` ; le lot est
+reprenable et cumulable.
+
 ### 2. Autres priorités
 
 - Un second annotateur : **fait** (session 5b) — réplication indépendante,
