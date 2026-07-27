@@ -525,6 +525,81 @@ diversité est bon marché : la shortlist round-robin (k=5) **retient 5.0
 formes sur 5, pour un coût en score moyen de 0.008** (max 0.020) — une forme
 entière regagnée coûte moins d'un centième de score.
 
+## Forge sur un pack de loops
+
+Il manquait à Forge la source la plus banale d'un studio : **un pack de
+loops**. Les progressions et les riffs y sont écrits par des humains, ce que
+le générateur de `make_corpus` ne sait pas inventer et qu'une transcription
+audio dégrade (−0.18). Ce qu'un pack n'a pas, en revanche, c'est une
+**forme** : il livre huit boucles de quatre mesures, pas une chanson. C'est
+exactement la division du travail que Forge permet — la matière vient du
+pack, la charpente est cherchée.
+
+```bash
+python3 examples/loop_index.py ~/Desktop/SAMPLES/MIDI --out /tmp/index.json
+python3 examples/forge_loops.py /tmp/index.json sortie/ 48 3 --axes --shortlist 5
+python3 examples/forge_loops.py /tmp/index.json sortie/ 48 3 --famille "Naija Waves"
+```
+
+`loop_index.py` lit ce que les noms de fichiers et de dossiers annoncent
+(tonalité, tempo, instrument) et mesure ce qu'ils taisent (longueur,
+polyphonie, tessiture). **La tonalité vient de l'étiquette, pas de
+l'estimateur** — sur une boucle isolée, celui-ci tombe juste 4 fois sur 10
+(voir *Tonalité*) ; il n'est appelé que pour les fichiers non étiquetés, et
+l'index dit toujours d'où vient l'information. Le rôle est lu dans le nom
+quand il s'y trouve, tranché par le contenu sinon (polyphonie ≥ 1.8 =
+accompagnement ; monodie grave = basse). Une **famille** — un dossier, une
+tonalité, un tempo — est ce qui s'arrange ensemble sans transposer ; elle
+sépare toute seule `Bonfire_Dm_100` de `Moody_90_Bm` dans le même dossier.
+Sur 820 fichiers : 800 indexés, 76 familles arrangeables.
+
+Chaque candidat tire un plan (forme, longueur des sections, effectif par
+section, courbe d'énergie, parfois une modulation ou une mélodie empruntée à
+une autre famille du même pack, transposée à mode égal), tuile les boucles
+dessus et écrit les marqueurs. Seule la batterie se prête d'une famille à
+l'autre : elle n'a pas de tonalité.
+
+**Ce que ça vaut.** Le seul comparatif qui isole l'apport de la recherche est
+à matière égale — le même pack Naija Waves, plan écrit à la main contre plan
+cherché :
+
+| Naija Waves | score SMS | fiabilité |
+|---|---|---|
+| `assemble_naija.py` (PLAN écrit à la main) | 0.760 | 0.97 |
+| `forge_loops.py` (48 plans cherchés, graine 3) | **0.839** | 0.93 |
+
+Contre le générateur synthétique, à budget égal (48 candidats, graines 1-2-3)
+le match est nul, et il faut le dire ainsi plutôt que de choisir la ligne qui
+arrange :
+
+| médiane sur 3 graines | gagnant | meilleur score | médiane du peloton |
+|---|---|---|---|
+| `forge.py` (synthétique) | **0.863** | 0.884 | **0.786** |
+| `forge_loops.py` (pack) | 0.849 | **0.893** | 0.757 |
+
+Le plafond est un peu plus haut sur les loops, le peloton un peu plus bas :
+la matière humaine est plus inégale que celle d'un générateur réglé sur les
+mêmes hypothèses que les axes.
+
+**Où ça se joue**, par groupe d'axes (médianes, 48 candidats) : la forme
+monte (A 0.846 contre 0.766) et la cohérence globale aussi (F 0.649 contre
+0.500) — c'est l'apport de la recherche de plan. La mélodie s'effondre
+(**C 0.597 contre 0.834**), et l'axe 15 (contour mélodique) porte presque
+tout l'écart : 0.471 contre 0.956. Deux corrections ont été essayées et
+**réfutées**, chiffres à l'appui : pousser tout l'accompagnement sous la note
+la plus grave de la mélodie, pour que la voix supérieure lue par Libretto
+soit bien la mélodie — groupe C inchangé (0.597), meilleur score 0.908 →
+0.899 ; et faire entrer la mélodie beaucoup plus souvent — groupe C 0.597 →
+0.574. Ce qui reste est l'explication la plus économique : les lignes d'un
+pack ne satisfont pas les bandes de tolérance des axes 15 et 19 comme le font
+celles de `make_corpus`, **écrites sous les mêmes hypothèses que les axes**.
+C'est la circularité vue d'un autre angle — le générateur maison a un
+avantage de naissance sur le juge maison, et il ne se voyait pas tant qu'on
+ne lui opposait pas de la matière étrangère.
+
+Rien du pack n'entre dans le dépôt : l'index ne contient que des chemins, et
+le dossier reste où il est.
+
 ## Interface web locale
 
 ```bash

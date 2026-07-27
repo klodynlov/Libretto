@@ -13,9 +13,10 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
 
-from scripts.mesure_tonalite import (error_kind, label_for,  # noqa: E402
-                                     parse_key_label, role_of)
+from loop_index import label_for, parse_key_label, role_of  # noqa: E402
+from scripts.mesure_tonalite import error_kind  # noqa: E402
 
 
 class TestParseEtiquette(unittest.TestCase):
