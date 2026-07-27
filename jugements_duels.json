@@ -1,0 +1,169 @@
+{
+ "seed": 1,
+ "n_tasks": 18,
+ "renderer": "v3-instrument:MuseScore_General.sf3",
+ "judgements": [
+  {
+   "task_id": 0,
+   "file": "candidate_032_vs_candidate_015",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 112.2
+  },
+  {
+   "task_id": 1,
+   "file": "candidate_010_vs_candidate_037",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 50.0
+  },
+  {
+   "task_id": 2,
+   "file": "candidate_010.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 72.3
+  },
+  {
+   "task_id": 3,
+   "file": "candidate_032.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 82.6
+  },
+  {
+   "task_id": 4,
+   "file": "candidate_011_vs_candidate_018",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 60.6
+  },
+  {
+   "task_id": 5,
+   "file": "candidate_009_vs_candidate_000",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 34.8
+  },
+  {
+   "task_id": 6,
+   "file": "candidate_032.mid",
+   "degradation": "__control__",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 83.4
+  },
+  {
+   "task_id": 7,
+   "file": "candidate_010.mid",
+   "degradation": "__control__",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 46.6
+  },
+  {
+   "task_id": 8,
+   "file": "candidate_010_vs_candidate_014",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 32.1
+  },
+  {
+   "task_id": 9,
+   "file": "candidate_045_vs_candidate_003",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 40.4
+  },
+  {
+   "task_id": 10,
+   "file": "candidate_014_vs_candidate_042",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 26.3
+  },
+  {
+   "task_id": 11,
+   "file": "candidate_035_vs_candidate_037",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 38.1
+  },
+  {
+   "task_id": 12,
+   "file": "candidate_022_vs_candidate_027",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 45.9
+  },
+  {
+   "task_id": 13,
+   "file": "candidate_009_vs_candidate_036",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 83.4
+  },
+  {
+   "task_id": 14,
+   "file": "candidate_011_vs_candidate_000",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 32.0
+  },
+  {
+   "task_id": 15,
+   "file": "candidate_009_vs_candidate_037",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 20.0
+  },
+  {
+   "task_id": 16,
+   "file": "candidate_032_vs_candidate_003",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 16.5
+  },
+  {
+   "task_id": 17,
+   "file": "candidate_032_vs_candidate_042",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 14.4
+  }
+ ]
+}

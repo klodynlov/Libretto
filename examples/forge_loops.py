@@ -59,9 +59,12 @@ from loop_index import BEATS_PER_BAR, Loop, ensure_index, familles  # noqa: E402
 from make_corpus import FORMS, MARKER_NAMES, ROLE_ENERGY  # noqa: E402
 
 # Canaux MIDI : 9 est réservé aux percussions (Libretto les exclut du chroma
-# et de la mélodie), les autres vont aux pupitres tonaux.
+# et de la mélodie). Les pupitres tonaux ont chacun les leurs, ceux que
+# `libretto/render.py::GM_PROGRAMS` associe à l'instrument correspondant —
+# l'analyse ne lit que « canal 9 ou pas », mais une écoute rendue à
+# FluidSynth joue une basse comme une basse et non comme un piano grave.
 DRUMS_CHANNEL = 9
-TONAL_CHANNELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15]
+CANAUX = {"harmonie": [0, 3, 5, 6], "basse": [1, 7], "melodie": [2, 4, 8]}
 
 # Vélocité : bornes serrées à dessein. L'axe 26 pénalise une gamme dynamique
 # au-delà de 45, et une boucle poussée à 127 s'entend comme une saturation.
@@ -305,12 +308,12 @@ def _effectif(plan: Plan, energie: float, rng: _random.Random) -> list[tuple[Loo
     qui rend la courbe lisible d'un bout à l'autre.
     """
     choix: list[tuple[Loop, int]] = []
-    canaux = iter(TONAL_CHANNELS)
 
     def prendre(pupitre: str, n: int) -> None:
         dispo = plan.pupitres.get(pupitre) or []
-        for lp in dispo[:n]:
-            choix.append((lp, next(canaux, 15)))
+        canaux = CANAUX[pupitre]
+        for i, lp in enumerate(dispo[:n]):
+            choix.append((lp, canaux[i % len(canaux)]))
 
     prendre("harmonie", 2 if energie >= 0.9 else 1)
     if energie >= 0.68:

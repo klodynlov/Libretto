@@ -19,7 +19,9 @@ from pathlib import Path
 from libretto.agreement import CONTROL, analyse, format_report
 from libretto.annotate import (
     RENDERER,
+    build_duel_tasks,
     build_tasks,
+    midi_pair,
     notes_in_seconds,
     render_task,
     _Judgements,
@@ -169,6 +171,69 @@ class TestTaskPreparation(unittest.TestCase):
             notes = notes_in_seconds(parse_midi(corpus / "p0.mid"))
         self.assertTrue(any(n[4] == 1 for n in notes), "percussions non marquées")
         self.assertTrue(any(n[4] == 0 for n in notes))
+
+
+class TestDuels(unittest.TestCase):
+    """Mode duel : deux morceaux DIFFÉRENTS, le « original » étant celui que
+    le moteur place devant. Les garanties du protocole doivent tenir à
+    l'identique — sans elles, le taux mesuré ne dit rien."""
+
+    def _duels(self, tmp: Path, n: int = 6) -> Path:
+        corpus = _corpus(tmp, n=n)
+        fichiers = sorted(corpus.glob("*.mid"))
+        duels = [{"prefere": str(fichiers[i]), "autre": str(fichiers[i + 1]),
+                  "etiquette": "duel_ecart_fort" if i % 2 else "duel_ecart_faible",
+                  "nom": f"{fichiers[i].stem}_vs_{fichiers[i + 1].stem}",
+                  "ecart": 0.1}
+                 for i in range(len(fichiers) - 1)]
+        path = tmp / "duels.json"
+        path.write_text(json.dumps({"duels": duels}), encoding="utf-8")
+        return path
+
+    def test_tache_oppose_deux_fichiers_distincts(self):
+        with tempfile.TemporaryDirectory() as d:
+            tasks = build_duel_tasks(self._duels(Path(d)), seed=1)
+            duel = next(t for t in tasks if t["degradation"] != CONTROL)
+            self.assertNotEqual(duel["path"], duel["path_autre"])
+            a, b = midi_pair(duel, seed=1)
+            self.assertNotEqual([n.pitch for n in a.notes], [n.pitch for n in b.notes])
+
+    def test_controles_presents_et_identiques(self):
+        with tempfile.TemporaryDirectory() as d:
+            tasks = build_duel_tasks(self._duels(Path(d)), seed=1)
+            controles = [t for t in tasks if t["degradation"] == CONTROL]
+            self.assertGreaterEqual(len(controles), 4)
+            a, b = midi_pair(controles[0], seed=1)
+            self.assertEqual([n.pitch for n in a.notes], [n.pitch for n in b.notes])
+
+    def test_position_equilibree_et_deterministe(self):
+        with tempfile.TemporaryDirectory() as d:
+            duels = self._duels(Path(d), n=20)
+            tasks = build_duel_tasks(duels, seed=4)
+            part_a = sum(1 for t in tasks if t["original_slot"] == "A") / len(tasks)
+            self.assertGreater(part_a, 0.3)
+            self.assertLess(part_a, 0.7)
+            self.assertEqual([(t["file"], t["original_slot"]) for t in tasks],
+                             [(t["file"], t["original_slot"])
+                              for t in build_duel_tasks(duels, seed=4)])
+
+    def test_le_client_ignore_qui_est_prefere(self):
+        with tempfile.TemporaryDirectory() as d:
+            tasks = build_duel_tasks(self._duels(Path(d)), seed=1)
+            paquet = render_task(tasks[0], seed=1)
+            self.assertEqual(set(paquet), {"id", "n_total", "A", "B"})
+
+    def test_fichier_manquant_ignore_sans_planter(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            path = self._duels(tmp)
+            data = json.loads(path.read_text(encoding="utf-8"))
+            data["duels"].append({"prefere": str(tmp / "absent.mid"),
+                                  "autre": str(tmp / "p0.mid"),
+                                  "etiquette": "duel_ecart_fort"})
+            path.write_text(json.dumps(data), encoding="utf-8")
+            tasks = build_duel_tasks(path, seed=1)
+            self.assertTrue(all(Path(t["path"]).exists() for t in tasks))
 
 
 class TestRendererVersioning(unittest.TestCase):
