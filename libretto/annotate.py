@@ -249,6 +249,36 @@ def render_task(task: dict, seed: int = 1) -> dict:
             "A": notes_in_seconds(side_a), "B": notes_in_seconds(side_b)}
 
 
+def task_key(task: dict, rang: int = 0) -> str:
+    """Identité **stable** d'une comparaison, indépendante de sa position.
+
+    La reprise s'est longtemps faite sur `task_id`, c'est-à-dire sur le rang
+    dans le lot. Tant qu'on rejoue le même lot, les deux coïncident ; dès
+    qu'on l'agrandit — passer de 14 à 60 duels pour obtenir la puissance
+    qui manquait — tous les rangs glissent, et les jugements déjà rendus se
+    retrouvent collés à d'autres comparaisons. Silencieusement : rien ne
+    plante, le fichier reste valide, les chiffres sont faux.
+
+    La clé nomme donc la comparaison elle-même. `rang` ne sert qu'aux
+    contrôles, qui répètent le même fichier plusieurs fois dans un lot.
+    """
+    if task["degradation"] == "__control__":
+        return f"{task['file']}|__control__|{rang}"
+    # Hors contrôle, (fichier, dégradation) est unique dans un lot — et pour
+    # un duel, `file` est le nom de la paire, donc la paire elle-même.
+    return f"{task['file']}|{task['degradation']}"
+
+
+def _stamp_keys(tasks: list[dict]) -> None:
+    """Pose `cle` sur chaque tâche, en numérotant les contrôles répétés."""
+    vus: dict[str, int] = {}
+    for task in tasks:
+        base = task_key(task)
+        rang = vus.get(base, 0)
+        vus[base] = rang + 1
+        task["cle"] = task_key(task, rang)
+
+
 class _Judgements:
     def __init__(self, out_path: Path, tasks: list[dict], seed: int,
                  renderer: str = RENDERER):
@@ -271,14 +301,35 @@ class _Judgements:
                     f"le rendu actuel est « {renderer} ». Les mélanger rendrait la "
                     "session ininterprétable — reprenez avec un nouveau --out.")
             self.records = data.get("judgements", [])
+        _stamp_keys(self.tasks)
+        # Fichiers d'avant les clés : on la reconstruit du contenu du
+        # jugement, dans l'ordre où les contrôles apparaissent — c'est
+        # exactement ce que `_stamp_keys` vient de faire sur les tâches.
+        vus: dict[str, int] = {}
+        for r in sorted(self.records, key=lambda r: r["task_id"]):
+            if "cle" in r:
+                continue
+            base = task_key(r)
+            rang = vus.get(base, 0)
+            vus[base] = rang + 1
+            r["cle"] = task_key(r, rang)
+        # Un jugement repris garde sa clé mais reçoit le rang qu'il occupe
+        # dans CE lot : un fichier où `task_id` désigne autre chose que la
+        # comparaison jugée est un piège pour le prochain lecteur. Ceux qui
+        # ne concernent aucune tâche du lot courant sont conservés tels
+        # quels — ils restent des jugements valides, cumulables.
+        rangs = {t["cle"]: t["id"] for t in self.tasks}
+        for r in self.records:
+            if r["cle"] in rangs:
+                r["task_id"] = rangs[r["cle"]]
 
-    def done_ids(self) -> set[int]:
-        return {r["task_id"] for r in self.records}
+    def done_keys(self) -> set[str]:
+        return {r["cle"] for r in self.records}
 
     def next_task(self) -> dict | None:
-        done = self.done_ids()
+        done = self.done_keys()
         for task in self.tasks:
-            if task["id"] not in done:
+            if task["cle"] not in done:
                 return task
         return None
 
@@ -287,9 +338,10 @@ class _Judgements:
         if task is None:
             raise ValueError(f"tâche inconnue : {task_id}")
         with self.lock:
-            self.records = [r for r in self.records if r["task_id"] != task_id]
+            self.records = [r for r in self.records if r["cle"] != task["cle"]]
             self.records.append({
                 "task_id": task_id,
+                "cle": task["cle"],
                 "file": task["file"],
                 "degradation": task["degradation"],
                 "original_slot": task["original_slot"],
@@ -305,7 +357,7 @@ class _Judgements:
     def _flush(self) -> None:
         payload = {"seed": self.seed, "n_tasks": len(self.tasks),
                    "renderer": self.renderer,
-                   "judgements": sorted(self.records, key=lambda r: r["task_id"])}
+                   "judgements": sorted(self.records, key=lambda r: (r["task_id"], r["cle"]))}
         self.out_path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
 
@@ -504,7 +556,7 @@ def _handler(store: _Judgements, seed: int, renderer: str = RENDERER,
                 else:
                     payload = render_task(task, seed)
                 payload["n_total"] = len(store.tasks)
-                payload["n_done"] = len(store.done_ids())
+                payload["n_done"] = len(store.done_keys())
                 self._json(200, payload)
             elif self.path.startswith("/api/audio/") and wav_cache is not None:
                 try:
@@ -529,7 +581,7 @@ def _handler(store: _Judgements, seed: int, renderer: str = RENDERER,
             except (ValueError, KeyError, TypeError) as exc:
                 self._json(400, {"error": str(exc)})
                 return
-            self._json(200, {"ok": True, "n_done": len(store.done_ids())})
+            self._json(200, {"ok": True, "n_done": len(store.done_keys())})
 
     return Handler
 
@@ -584,7 +636,7 @@ def main(corpus_dir: str, out: str, host: str = "127.0.0.1",
     n_control = sum(1 for t in tasks if t["degradation"] == "__control__")
     print(f"{len(tasks)} comparaisons ({n_control} paires de contrôle identiques), "
           f"rendu {renderer}")
-    print(f"déjà jugées : {len(store.done_ids())}   →  jugements dans {out}")
+    print(f"déjà jugées : {len(store.done_keys())}   →  jugements dans {out}")
     print(f"écoute comparée : http://{host}:{real}   (Ctrl-C pour arrêter)")
     try:
         httpd.serve_forever()

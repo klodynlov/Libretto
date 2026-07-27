@@ -988,8 +988,18 @@ candidats de la même tranche.
 
 Suite : une session dimensionnée (≥ 30 jugements tranchés par tranche, deux
 annotateurs pour la décorrélation des erreurs, comme en session 5b). Les
-jugements de celle-ci sont dans `jugements_duels.json` ; le lot est
-reprenable et cumulable.
+jugements de celle-ci sont dans `jugements_duels.json`.
+
+**Le lot est cumulable — il ne l'était pas.** La reprise se faisait sur
+`task_id`, c'est-à-dire sur le rang dans le lot : agrandir le lot décale
+tous les rangs, et les 14 jugements rendus se seraient recollés à d'autres
+comparaisons. Sans rien casser — fichier valide, chiffres faux. La reprise
+suit désormais l'identité de la comparaison (`task_key`), les jugements
+repris sont re-rattachés à leur tâche dans le nouveau lot, et ceux qui n'y
+figurent plus sont conservés tels quels. Le lot de la session 7 (30 duels
+par tranche, tiré de 96 candidats) reprend donc les 14 duels et les
+contrôles déjà jugés : 53 comparaisons neuves à écouter, un seul
+dépouillement à la fin.
 
 ### 2. Autres priorités
 
