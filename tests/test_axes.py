@@ -1,8 +1,82 @@
 import unittest
 
-from libretto.axes import SenseOfMusicalStructure
+from libretto.axes import (KEY_PROFILES, KK_MAJOR, KK_MINOR, MODAL_PROFILES,
+                           PARENT_MODE, SenseOfMusicalStructure, estimate_key)
 from libretto.demo import demo_score
 from libretto.model import Chord, NoteType, Pitch, Score, Section
+
+
+def _hist(pcs: dict[int, float]) -> list[float]:
+    h = [0.0] * 12
+    for pc, poids in pcs.items():
+        h[pc] = poids
+    return h
+
+
+# gamme complète, tonique appuyée : la matière minimale pour que KK tranche
+SOL_MIXOLYDIEN = _hist({7: 3.0, 9: 1.0, 11: 1.0, 0: 1.5, 2: 1.5, 4: 1.0, 5: 1.5})
+RE_DORIEN = _hist({2: 3.0, 4: 1.0, 5: 1.5, 7: 1.5, 9: 1.5, 11: 1.0, 0: 1.0})
+DO_MAJEUR = _hist({0: 3.0, 2: 1.0, 4: 1.5, 5: 1.0, 7: 2.0, 9: 1.0, 11: 1.0})
+
+
+class TestProfilsModaux(unittest.TestCase):
+    """Les profils modaux sont **optionnels et validés à part** : KK ne
+    connaît que majeur et mineur, et lit une pièce mixolydienne à la
+    sous-dominante. Ce que ces tests garantissent, c'est le contrat —
+    le défaut ne bouge pas, et le vocabulaire élargi trouve bien la tonique
+    que le vocabulaire réduit manque."""
+
+    def test_defaut_inchange(self):
+        # sept axes lisent ce mode : le vocabulaire par défaut reste celui de
+        # Krumhansl-Kessler tant que la bascule n'est pas décidée
+        self.assertEqual(set(KEY_PROFILES), {"maj", "min"})
+        for hist in (DO_MAJEUR, RE_DORIEN, SOL_MIXOLYDIEN):
+            self.assertIn(estimate_key(hist)[1], ("maj", "min"))
+
+    def test_dorien_reconnu(self):
+        # sans le profil, ré dorien se lit en ré mineur (tonique juste) ;
+        # avec, le mode l'est aussi
+        self.assertEqual(estimate_key(RE_DORIEN, MODAL_PROFILES)[:2], (2, "dorien"))
+
+    def test_mixolydien_reconnu(self):
+        self.assertEqual(estimate_key(SOL_MIXOLYDIEN, MODAL_PROFILES)[:2],
+                         (7, "mixolydien"))
+
+    def test_le_profil_juste_correle_mieux(self):
+        """Sur un histogramme d'école, KK trouve déjà la bonne tonique et se
+        trompe seulement de mode — la confusion de sous-dominante mesurée sur
+        le corpus (mixolydien 4/26) vient de pièces où la tonique n'est pas
+        aussi appuyée. Ce qui se vérifie ici est en amont : le profil modal
+        colle mieux à sa propre gamme que le profil parent, condition
+        nécessaire pour qu'il gagne quand la matière est ambiguë."""
+        for hist, mode in ((RE_DORIEN, "dorien"), (SOL_MIXOLYDIEN, "mixolydien")):
+            sans = estimate_key(hist)
+            avec = estimate_key(hist, MODAL_PROFILES)
+            self.assertEqual(sans[0], avec[0])          # même tonique
+            self.assertNotEqual(sans[1], avec[1])       # mode corrigé
+            self.assertEqual(avec[1], mode)
+            self.assertGreater(avec[2], sans[2])        # et corrélation plus haute
+
+    def test_majeur_franc_reste_majeur(self):
+        # le vocabulaire élargi ne doit pas voler les pièces qu'on lisait bien
+        self.assertEqual(estimate_key(DO_MAJEUR, MODAL_PROFILES)[:2], (0, "maj"))
+
+    def test_profils_derives_de_leur_parent(self):
+        # construction assumée : un seul degré échangé, le reste intact
+        dorien, mixo = MODAL_PROFILES["dorien"], MODAL_PROFILES["mixolydien"]
+        self.assertEqual(sorted(dorien), sorted(KK_MINOR))
+        self.assertEqual([i for i in range(12) if dorien[i] != KK_MINOR[i]], [8, 9])
+        self.assertEqual(sorted(mixo), sorted(KK_MAJOR))
+        self.assertEqual([i for i in range(12) if mixo[i] != KK_MAJOR[i]], [10, 11])
+
+    def test_parent_de_chaque_mode(self):
+        # les axes 9 et 14 déduisent une gamme du mode : chaque mode doit
+        # savoir de quel parent il relève
+        self.assertEqual(set(PARENT_MODE), set(MODAL_PROFILES))
+        self.assertTrue(set(PARENT_MODE.values()) <= {"maj", "min"})
+
+    def test_histogramme_vide(self):
+        self.assertEqual(estimate_key([0.0] * 12, MODAL_PROFILES), (0, "maj", 0.0, 0.0))
 
 
 def _chord(note: NoteType, quality: str = "maj") -> Chord:

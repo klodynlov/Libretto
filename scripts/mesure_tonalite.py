@@ -47,7 +47,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
 
-from libretto.axes import PC_NAMES, SenseOfMusicalStructure, estimate_key  # noqa: E402
+from libretto.axes import (KEY_PROFILES, MODAL_PROFILES,  # noqa: E402
+                           PARENT_MODE, PC_NAMES, SenseOfMusicalStructure,
+                           estimate_key)
 from libretto.builder import build_score  # noqa: E402
 from libretto.midi import parse_midi  # noqa: E402
 
@@ -64,6 +66,39 @@ def hist_pipeline(md) -> list[float]:
     score = build_score(md)
     sms = SenseOfMusicalStructure(score)
     return sms._pc_hist(score.sections)
+
+
+# (nom, source de l'histogramme, vocabulaire de modes). Les variantes
+# « +modes » ajoutent dorien et mixolydien : c'est ce qu'on cherche à
+# valider, à histogramme rigoureusement identique.
+ESTIMATEURS = (
+    ("brut", "brut", KEY_PROFILES),
+    ("brut+modes", "brut", MODAL_PROFILES),
+    ("pipeline", "pipeline", KEY_PROFILES),
+    ("pipeline+modes", "pipeline", MODAL_PROFILES),
+)
+
+
+def mode_comparable(predit: str, vrai: str | None, vocab: set[str],
+                    source: str) -> tuple[str, str | None]:
+    """(mode prédit, mode vrai) rendus comparables, ou (predit, None).
+
+    Deux asymétries à neutraliser, sinon le mode se mesure de travers :
+
+      · un estimateur sans dorien ne peut pas tomber juste sur une pièce
+        dorienne — comparer son mode reviendrait à lui reprocher de ne pas
+        connaître un mot qu'on ne lui a pas appris. Hors vocabulaire, le
+        mode n'est pas noté (seule la tonique l'est) ;
+      · une étiquette de pack ne dit que « m » ou rien. Répondre « dorien »
+        sur un loop étiqueté `Dm` n'est pas une erreur — c'est peut-être la
+        bonne réponse, plus précise que l'étiquette. Face à une étiquette
+        humaine, on compare donc les modes **parents**.
+    """
+    if vrai is None:
+        return predit, None
+    if source == "annotations":
+        return predit, (vrai if vrai in vocab else None)
+    return PARENT_MODE.get(predit, predit), PARENT_MODE.get(vrai, vrai)
 
 
 # ──────────────────────────────────────────────
@@ -148,12 +183,13 @@ def collect_control(root: Path) -> tuple[list[dict], dict]:
         if t.get("modulate_at"):
             stats["modulants"] += 1
             continue
-        # KK ne connaît que maj/min : sur un mode ecclésiastique, seule la
-        # tonique est comparable.
-        mode = t["mode"] if t["mode"] in ("maj", "min") else None
+        # Le mode écrit est conservé tel quel, y compris dorien et
+        # mixolydien : c'est `mode_comparable` qui décide, estimateur par
+        # estimateur, si le mode est notable — un estimateur qui ne connaît
+        # pas le dorien n'est jugé que sur la tonique.
         specs.append({"path": root / name, "fichier": name, "kit": t["form"],
                       "role": t["mode"], "source": "annotations",
-                      "vrai_pc": t["tonic"], "vrai_mode": mode})
+                      "vrai_pc": t["tonic"], "vrai_mode": t["mode"]})
     return specs, stats
 
 
@@ -179,17 +215,21 @@ def measure(specs: list[dict], stats: Counter) -> list[dict]:
         true_pc, true_mode = spec["vrai_pc"], spec["vrai_mode"]
         row = {k: v for k, v in spec.items() if k != "path"}
         row["vrai"] = f"{PC_NAMES[true_pc]}{' ' + true_mode if true_mode else ''}"
-        brut = hist_brut(md)
-        row["n_pc"] = sum(1 for x in brut if x > 0)
-        for nom, hist in (("brut", brut), ("pipeline", hist_pipeline(md))):
-            pc, mode, corr, margin = estimate_key(hist)
+        histogrammes = {"brut": hist_brut(md), "pipeline": hist_pipeline(md)}
+        row["n_pc"] = sum(1 for x in histogrammes["brut"] if x > 0)
+        for nom, source_hist, profils in ESTIMATEURS:
+            hist = histogrammes[source_hist]
+            pc, mode, corr, margin = estimate_key(hist, profils)
+            pred_cmp, vrai_cmp = mode_comparable(mode, true_mode, set(profils),
+                                                 spec["source"])
             row[nom] = {
                 "predit": f"{PC_NAMES[pc]} {mode}",
                 "pc": pc,
                 "mode": mode,
+                "mode_note": vrai_cmp is not None,
                 "correlation": round(corr, 3),
                 "marge": round(margin, 3),
-                "erreur": error_kind(pc, mode, true_pc, true_mode),
+                "erreur": error_kind(pc, pred_cmp, true_pc, vrai_cmp),
                 "hist": [round(x / sum(hist), 4) if sum(hist) else 0.0 for x in hist],
             }
         rows.append(row)
@@ -199,6 +239,7 @@ def measure(specs: list[dict], stats: Counter) -> list[dict]:
 def report(rows: list[dict], stats: Counter, titre: str, pool: bool = True) -> None:
     n = len(rows)
     with_mode = [r for r in rows if r["vrai_mode"]]
+    noms = [e[0] for e in ESTIMATEURS]
 
     print(f"\nCORPUS  {titre}")
     print(f"  {stats['total']} fichiers · {stats['sans_etiquette']} sans étiquette"
@@ -213,10 +254,13 @@ def report(rows: list[dict], stats: Counter, titre: str, pool: bool = True) -> N
         print(f"  {stats['conflits']} fichiers portent une fondamentale locale différente"
               f" de la tonalité du kit (nommage par accord, pas par tonalité)")
 
-    for est in ("brut", "pipeline"):
+    for est in noms:
         kinds = Counter(r[est]["erreur"] for r in rows)
         exact_root = sum(1 for r in rows if r[est]["pc"] == r["vrai_pc"])
-        exact_full = sum(1 for r in with_mode if r[est]["erreur"] == "exact")
+        # Le mode ne se note que là où il est comparable — le périmètre
+        # change d'un estimateur à l'autre, il est donc affiché à chaque fois.
+        notables = [r for r in rows if r[est]["mode_note"]]
+        exact_full = sum(1 for r in notables if r[est]["erreur"] == "exact")
         # macro : un kit = une voix, les fichiers d'un kit ne sont pas indépendants
         par_kit: dict[str, list[bool]] = defaultdict(list)
         for r in rows:
@@ -225,8 +269,8 @@ def report(rows: list[dict], stats: Counter, titre: str, pool: bool = True) -> N
 
         print(f"\nESTIMATEUR « {est} »")
         print(f"  tonique juste          {pct(exact_root, n)}  ({exact_root}/{n})")
-        print(f"  tonique+mode justes    {pct(exact_full, len(with_mode))}"
-              f"  ({exact_full}/{len(with_mode)})")
+        print(f"  tonique+mode justes    {pct(exact_full, len(notables))}"
+              f"  ({exact_full}/{len(notables)})")
         print(f"  macro par kit          {macro:.3f}  ({len(par_kit)} kits)")
         print("  nature des désaccords  " + " · ".join(
             f"{k} {v}" for k, v in kinds.most_common()))
