@@ -212,7 +212,18 @@ class TestRepairedAxes(unittest.TestCase):
     def test_axis13_needs_an_anchor(self):
         """Le contraste tonal est une excursion DEPUIS un centre. Sans
         ancrage, des sections dispersées au hasard obtenaient le score
-        maximal (AUC 0.36)."""
+        maximal (AUC 0.36).
+
+        Chaque accord est doublé d'une **basse** à sa fondamentale. Ce n'était
+        pas le cas avant que l'estimation tonale passe aux notes brutes, et
+        c'est une conséquence directe : quatre triades plaquées sans basse ne
+        désignent pas leur fondamentale — do-mi-sol et mi-sol-si partagent
+        assez de matière pour qu'un histogramme de hauteurs lise le relatif
+        mineur, et l'ancien histogramme ne s'en sortait que parce qu'il
+        passait par une détection d'accords qui, elle, nomme la fondamentale.
+        La basse est ce qui manquait au fixture, pas à l'axe : elle est là
+        dans toute musique, et dans les autres fixtures de ce fichier.
+        """
         # Ancré : tout en Do, une section s'écarte vers Sol.
         anchored, drifting = [], []
         for sec, root in enumerate([60, 60, 67, 60]):
@@ -220,12 +231,14 @@ class TestRepairedAxes(unittest.TestCase):
                 b = (sec * 4 + bar) * 4.0
                 for iv in (0, 4, 7):
                     anchored.append((b, 3.8, root + iv, 80, 0))
+                anchored.append((b, 3.8, root - 24, 90, 0))
         # Errant : chaque section dans une tonalité éloignée, aucun centre.
         for sec, root in enumerate([60, 66, 61, 68]):
             for bar in range(4):
                 b = (sec * 4 + bar) * 4.0
                 for iv in (0, 4, 7):
                     drifting.append((b, 3.8, root + iv, 80, 0))
+                drifting.append((b, 3.8, root - 24, 90, 0))
         a1 = {a.id: a for a in SenseOfMusicalStructure(self._score(anchored)).calculate()}
         a2 = {a.id: a for a in SenseOfMusicalStructure(self._score(drifting)).calculate()}
         self.assertGreater(a1["13_tonal_contrast"].score, a2["13_tonal_contrast"].score)

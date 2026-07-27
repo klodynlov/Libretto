@@ -603,6 +603,11 @@ def build_score(md: MidiData) -> Score:
             onset_beats=onset_beats,
             onset_phases=[round((b / pulse_beats) % 1.0, 4) for b in onset_beats],
             poly_by_bar=poly_by_bar[b0:b1],
+            # `chroma` est déjà pondéré durée × vélocité et exclut les
+            # percussions : c'est exactement l'histogramme dont l'estimation
+            # tonale a besoin, il ne restait qu'à le conserver.
+            pc_weights=[round(sum(chroma[b][pc] for b in range(b0, b1)), 4)
+                        for pc in range(12)],
         )
         sections.append(section)
         feats = [features[b] for b in range(b0, b1)]

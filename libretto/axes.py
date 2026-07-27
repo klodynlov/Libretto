@@ -356,7 +356,26 @@ class SenseOfMusicalStructure:
         return self.score.all_chords
 
     def _pc_hist(self, sections: list[Section]) -> list[float]:
+        """Poids des classes de hauteur, pour l'estimation tonale.
+
+        Les **notes brutes** (durée × vélocité, percussions exclues) quand le
+        builder les a conservées, la reconstruction accords + voix supérieure
+        sinon — un Score écrit à la main n'a pas de notes.
+
+        Cette préférence n'est pas un raffinement : l'histogramme reconstruit
+        pondère la fondamentale de chaque accord détecté ×2 et ses notes ×0.5,
+        c'est-à-dire qu'il fait passer par une détection d'accords à un accord
+        par mesure une information que les notes portaient déjà. Confronté à
+        une tonalité connue, il trouve la tonique dans 57 % des cas contre
+        78 % pour les notes brutes (README, *Tonalité*). Il ajoutait de
+        l'interprétation là où il ne fallait que compter.
+        """
         h = [0.0] * 12
+        if any(s.pc_weights for s in sections):
+            for s in sections:
+                for pc, poids in enumerate(s.pc_weights):
+                    h[pc] += poids
+            return h
         for s in sections:
             for c in s.harmony:
                 h[c.root_pc] += 2.0
@@ -851,7 +870,16 @@ class SenseOfMusicalStructure:
         dists = [fifths_distance(r, home) / 6.0 for r in roots]
         anchor_ratio = sum(1 for d in dists if d <= 1e-9) / len(dists)
         excursion = max(dists)
-        anchor = band(anchor_ratio, 0.15, 0.5, 1.01, 1.01)
+        # v4 : plus de plateau. La bande montait jusqu'à 0.5 puis créditait
+        # pleinement — réglage fait quand la tonalité était estimée sur les
+        # accords détectés, donc bruitée. Depuis qu'elle est estimée sur les
+        # notes, l'original comme sa version dégradée atteignent la moitié
+        # des sections ancrées, tous deux saturent, et l'axe cesse de les
+        # distinguer (AUC 0.56 → 0.49). Le crédit plein n'est plus donné
+        # qu'à une pièce dont TOUTES les sections partagent la tonique.
+        # Réglé sur une graine (11 : 0.567 → 0.619 sur le plateau 0.30-0.45),
+        # vérifié sur trois autres jamais consultées pour choisir.
+        anchor = band(anchor_ratio, 0.35, 1.0, 1.01, 1.01)
         reach = band(excursion, -0.05, 0.15, 0.55, 0.9)
         # Multiplicatif, pas additif : une somme laissait une pièce sans
         # centre tonal encaisser tout le terme d'excursion, si bien que des
