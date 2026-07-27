@@ -1,0 +1,717 @@
+{
+ "seed": 1,
+ "n_tasks": 69,
+ "renderer": "v3-instrument:MuseScore_General.sf3",
+ "judgements": [
+  {
+   "task_id": 0,
+   "cle": "candidate_036_vs_candidate_026|duel_ecart_fort",
+   "file": "candidate_036_vs_candidate_026",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 58.9
+  },
+  {
+   "task_id": 1,
+   "cle": "candidate_095_vs_candidate_036|duel_ecart_fort",
+   "file": "candidate_095_vs_candidate_036",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 56.1
+  },
+  {
+   "task_id": 2,
+   "file": "candidate_010.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 72.3,
+   "cle": "candidate_010.mid|__control__|0"
+  },
+  {
+   "task_id": 2,
+   "cle": "candidate_015_vs_candidate_018|duel_ecart_fort",
+   "file": "candidate_015_vs_candidate_018",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 37.0
+  },
+  {
+   "task_id": 3,
+   "cle": "candidate_093_vs_candidate_056|duel_ecart_fort",
+   "file": "candidate_093_vs_candidate_056",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 65.7
+  },
+  {
+   "task_id": 4,
+   "cle": "candidate_068_vs_candidate_081|duel_ecart_fort",
+   "file": "candidate_068_vs_candidate_081",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 0.0
+  },
+  {
+   "task_id": 5,
+   "cle": "candidate_002.mid|__control__|0",
+   "file": "candidate_002.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 130.1
+  },
+  {
+   "task_id": 6,
+   "file": "candidate_032_vs_candidate_003",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 16.5,
+   "cle": "candidate_032_vs_candidate_003|duel_ecart_fort"
+  },
+  {
+   "task_id": 7,
+   "file": "candidate_010.mid",
+   "degradation": "__control__",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 46.6,
+   "cle": "candidate_010.mid|__control__|1"
+  },
+  {
+   "task_id": 7,
+   "cle": "candidate_093_vs_candidate_018|duel_ecart_fort",
+   "file": "candidate_093_vs_candidate_018",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 63.6
+  },
+  {
+   "task_id": 8,
+   "cle": "candidate_042_vs_candidate_058|duel_ecart_faible",
+   "file": "candidate_042_vs_candidate_058",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 23.4
+  },
+  {
+   "task_id": 9,
+   "cle": "candidate_024.mid|__control__|0",
+   "file": "candidate_024.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 47.4
+  },
+  {
+   "task_id": 10,
+   "cle": "candidate_055_vs_candidate_003|duel_ecart_faible",
+   "file": "candidate_055_vs_candidate_003",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 62.1
+  },
+  {
+   "task_id": 11,
+   "cle": "candidate_081.mid|__control__|0",
+   "file": "candidate_081.mid",
+   "degradation": "__control__",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 53.0
+  },
+  {
+   "task_id": 12,
+   "file": "candidate_010_vs_candidate_037",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 50.0,
+   "cle": "candidate_010_vs_candidate_037|duel_ecart_fort"
+  },
+  {
+   "task_id": 13,
+   "cle": "candidate_053_vs_candidate_076|duel_ecart_fort",
+   "file": "candidate_053_vs_candidate_076",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 65.5
+  },
+  {
+   "task_id": 14,
+   "cle": "candidate_002_vs_candidate_016|duel_ecart_fort",
+   "file": "candidate_002_vs_candidate_016",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 61.3
+  },
+  {
+   "task_id": 15,
+   "file": "candidate_009_vs_candidate_000",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 34.8,
+   "cle": "candidate_009_vs_candidate_000|duel_ecart_fort"
+  },
+  {
+   "task_id": 16,
+   "file": "candidate_032_vs_candidate_042",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 14.4,
+   "cle": "candidate_032_vs_candidate_042|duel_ecart_fort"
+  },
+  {
+   "task_id": 17,
+   "file": "candidate_011_vs_candidate_018",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 60.6,
+   "cle": "candidate_011_vs_candidate_018|duel_ecart_faible"
+  },
+  {
+   "task_id": 18,
+   "cle": "candidate_045_vs_candidate_068|duel_ecart_faible",
+   "file": "candidate_045_vs_candidate_068",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 26.0
+  },
+  {
+   "task_id": 19,
+   "file": "candidate_014_vs_candidate_042",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 26.3,
+   "cle": "candidate_014_vs_candidate_042|duel_ecart_faible"
+  },
+  {
+   "task_id": 20,
+   "cle": "candidate_045_vs_candidate_011|duel_ecart_fort",
+   "file": "candidate_045_vs_candidate_011",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 17.1
+  },
+  {
+   "task_id": 21,
+   "cle": "candidate_092_vs_candidate_086|duel_ecart_fort",
+   "file": "candidate_092_vs_candidate_086",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 60.2
+  },
+  {
+   "task_id": 22,
+   "cle": "candidate_068.mid|__control__|0",
+   "file": "candidate_068.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 28.2
+  },
+  {
+   "task_id": 23,
+   "cle": "candidate_053_vs_candidate_086|duel_ecart_fort",
+   "file": "candidate_053_vs_candidate_086",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 19.7
+  },
+  {
+   "task_id": 24,
+   "cle": "candidate_091_vs_candidate_083|duel_ecart_fort",
+   "file": "candidate_091_vs_candidate_083",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 80.1
+  },
+  {
+   "task_id": 25,
+   "cle": "candidate_001_vs_candidate_042|duel_ecart_fort",
+   "file": "candidate_001_vs_candidate_042",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 26.0
+  },
+  {
+   "task_id": 26,
+   "cle": "candidate_065_vs_candidate_026|duel_ecart_fort",
+   "file": "candidate_065_vs_candidate_026",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 70.2
+  },
+  {
+   "task_id": 27,
+   "cle": "candidate_081_vs_candidate_084|duel_ecart_faible",
+   "file": "candidate_081_vs_candidate_084",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 32.9
+  },
+  {
+   "task_id": 28,
+   "cle": "candidate_076.mid|__control__|0",
+   "file": "candidate_076.mid",
+   "degradation": "__control__",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 130.2
+  },
+  {
+   "task_id": 29,
+   "cle": "candidate_024_vs_candidate_016|duel_ecart_faible",
+   "file": "candidate_024_vs_candidate_016",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 40.4
+  },
+  {
+   "task_id": 30,
+   "file": "candidate_022_vs_candidate_027",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 45.9,
+   "cle": "candidate_022_vs_candidate_027|duel_ecart_faible"
+  },
+  {
+   "task_id": 31,
+   "cle": "candidate_016_vs_candidate_021|duel_ecart_faible",
+   "file": "candidate_016_vs_candidate_021",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 30.9
+  },
+  {
+   "task_id": 32,
+   "cle": "candidate_093_vs_candidate_052|duel_ecart_faible",
+   "file": "candidate_093_vs_candidate_052",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 69.9
+  },
+  {
+   "task_id": 33,
+   "cle": "candidate_024_vs_candidate_063|duel_ecart_faible",
+   "file": "candidate_024_vs_candidate_063",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 29.6
+  },
+  {
+   "task_id": 34,
+   "cle": "candidate_033_vs_candidate_086|duel_ecart_faible",
+   "file": "candidate_033_vs_candidate_086",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 73.4
+  },
+  {
+   "task_id": 35,
+   "cle": "candidate_002_vs_candidate_045|duel_ecart_faible",
+   "file": "candidate_002_vs_candidate_045",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 20.0
+  },
+  {
+   "task_id": 36,
+   "cle": "candidate_020_vs_candidate_073|duel_ecart_faible",
+   "file": "candidate_020_vs_candidate_073",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 40.1
+  },
+  {
+   "task_id": 37,
+   "file": "candidate_009_vs_candidate_037",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 20.0,
+   "cle": "candidate_009_vs_candidate_037|duel_ecart_faible"
+  },
+  {
+   "task_id": 38,
+   "cle": "candidate_040_vs_candidate_071|duel_ecart_faible",
+   "file": "candidate_040_vs_candidate_071",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 15.9
+  },
+  {
+   "task_id": 39,
+   "cle": "candidate_061_vs_candidate_075|duel_ecart_faible",
+   "file": "candidate_061_vs_candidate_075",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 13.7
+  },
+  {
+   "task_id": 40,
+   "cle": "candidate_068_vs_candidate_085|duel_ecart_faible",
+   "file": "candidate_068_vs_candidate_085",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 17.5
+  },
+  {
+   "task_id": 41,
+   "cle": "candidate_085_vs_candidate_081|duel_ecart_fort",
+   "file": "candidate_085_vs_candidate_081",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 43.8
+  },
+  {
+   "task_id": 42,
+   "file": "candidate_032.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 82.6,
+   "cle": "candidate_032.mid|__control__|0"
+  },
+  {
+   "task_id": 43,
+   "cle": "candidate_071_vs_candidate_061|duel_ecart_faible",
+   "file": "candidate_071_vs_candidate_061",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 24.7
+  },
+  {
+   "task_id": 44,
+   "cle": "candidate_095_vs_candidate_076|duel_ecart_fort",
+   "file": "candidate_095_vs_candidate_076",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 90.3
+  },
+  {
+   "task_id": 45,
+   "cle": "candidate_020.mid|__control__|0",
+   "file": "candidate_020.mid",
+   "degradation": "__control__",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 129.8
+  },
+  {
+   "task_id": 46,
+   "cle": "candidate_067_vs_candidate_055|duel_ecart_fort",
+   "file": "candidate_067_vs_candidate_055",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 12.6
+  },
+  {
+   "task_id": 47,
+   "cle": "candidate_067_vs_candidate_092|duel_ecart_faible",
+   "file": "candidate_067_vs_candidate_092",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 23.1
+  },
+  {
+   "task_id": 48,
+   "file": "candidate_011_vs_candidate_000",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 32.0,
+   "cle": "candidate_011_vs_candidate_000|duel_ecart_fort"
+  },
+  {
+   "task_id": 49,
+   "cle": "candidate_038_vs_candidate_083|duel_ecart_faible",
+   "file": "candidate_038_vs_candidate_083",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 18.8
+  },
+  {
+   "task_id": 50,
+   "cle": "candidate_015_vs_candidate_022|duel_ecart_faible",
+   "file": "candidate_015_vs_candidate_022",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 62.1
+  },
+  {
+   "task_id": 51,
+   "cle": "candidate_076_vs_candidate_003|duel_ecart_faible",
+   "file": "candidate_076_vs_candidate_003",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 24.2
+  },
+  {
+   "task_id": 52,
+   "cle": "candidate_040_vs_candidate_056|duel_ecart_fort",
+   "file": "candidate_040_vs_candidate_056",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 38.2
+  },
+  {
+   "task_id": 53,
+   "file": "candidate_032.mid",
+   "degradation": "__control__",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 83.4,
+   "cle": "candidate_032.mid|__control__|1"
+  },
+  {
+   "task_id": 54,
+   "cle": "candidate_055_vs_candidate_086|duel_ecart_faible",
+   "file": "candidate_055_vs_candidate_086",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 75.9
+  },
+  {
+   "task_id": 55,
+   "file": "candidate_045_vs_candidate_003",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 40.4,
+   "cle": "candidate_045_vs_candidate_003|duel_ecart_fort"
+  },
+  {
+   "task_id": 56,
+   "file": "candidate_032_vs_candidate_015",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 112.2,
+   "cle": "candidate_032_vs_candidate_015|duel_ecart_faible"
+  },
+  {
+   "task_id": 57,
+   "file": "candidate_010_vs_candidate_014",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 32.1,
+   "cle": "candidate_010_vs_candidate_014|duel_ecart_fort"
+  },
+  {
+   "task_id": 58,
+   "cle": "candidate_091_vs_candidate_084|duel_ecart_fort",
+   "file": "candidate_091_vs_candidate_084",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 33.0
+  },
+  {
+   "task_id": 59,
+   "cle": "candidate_052_vs_candidate_027|duel_ecart_faible",
+   "file": "candidate_052_vs_candidate_027",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 23.7
+  },
+  {
+   "task_id": 60,
+   "cle": "candidate_067_vs_candidate_063|duel_ecart_fort",
+   "file": "candidate_067_vs_candidate_063",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 40.4
+  },
+  {
+   "task_id": 61,
+   "cle": "candidate_005_vs_candidate_063|duel_ecart_faible",
+   "file": "candidate_005_vs_candidate_063",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 23.7
+  },
+  {
+   "task_id": 62,
+   "file": "candidate_035_vs_candidate_037",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "A",
+   "picked_original": true,
+   "listened_seconds": 38.1,
+   "cle": "candidate_035_vs_candidate_037|duel_ecart_faible"
+  },
+  {
+   "task_id": 63,
+   "cle": "candidate_033_vs_candidate_084|duel_ecart_faible",
+   "file": "candidate_033_vs_candidate_084",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "A",
+   "choice": "B",
+   "picked_original": false,
+   "listened_seconds": 13.0
+  },
+  {
+   "task_id": 64,
+   "cle": "candidate_067.mid|__control__|0",
+   "file": "candidate_067.mid",
+   "degradation": "__control__",
+   "original_slot": "A",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 66.9
+  },
+  {
+   "task_id": 65,
+   "cle": "candidate_092_vs_candidate_035|duel_ecart_fort",
+   "file": "candidate_092_vs_candidate_035",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "same",
+   "picked_original": null,
+   "listened_seconds": 0.0
+  },
+  {
+   "task_id": 66,
+   "file": "candidate_009_vs_candidate_036",
+   "degradation": "duel_ecart_faible",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 83.4,
+   "cle": "candidate_009_vs_candidate_036|duel_ecart_faible"
+  },
+  {
+   "task_id": 67,
+   "cle": "candidate_085_vs_candidate_037|duel_ecart_fort",
+   "file": "candidate_085_vs_candidate_037",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "B",
+   "picked_original": true,
+   "listened_seconds": 41.1
+  },
+  {
+   "task_id": 68,
+   "cle": "candidate_068_vs_candidate_033|duel_ecart_fort",
+   "file": "candidate_068_vs_candidate_033",
+   "degradation": "duel_ecart_fort",
+   "original_slot": "B",
+   "choice": "A",
+   "picked_original": false,
+   "listened_seconds": 21.5
+  }
+ ]
+}

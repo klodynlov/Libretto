@@ -180,12 +180,62 @@ def build_tasks(corpus_dir: str | Path, seed: int = 1, per_file: int = 2,
     return tasks
 
 
+def build_duel_tasks(duels_path: str | Path, seed: int = 1) -> list[dict]:
+    """Lot de **duels** : deux morceaux DIFFÉRENTS, pas un morceau et sa
+    version dégradée.
+
+    Le protocole d'écoute a été construit pour valider les dégradations ;
+    il vaut tel quel pour une autre question, plus directe — *le classement
+    de Libretto est-il celui de l'oreille ?* On oppose deux candidats que le
+    moteur sépare, et le côté « original » devient celui qu'il place devant.
+    Tout le reste est inchangé et c'est le but : ordre tiré au sort, position
+    équilibrée, paires de contrôle, « aucune différence » toujours possible.
+
+    Le fichier attendu (voir `examples/forge_duels.py`) :
+    `{"duels": [{"prefere": chemin, "autre": chemin, "etiquette": nom,
+                 "nom": libellé, "ecart": 0.12}, …]}` — `etiquette` sert de
+    clé de dépouillement, exactement comme un nom de dégradation : la
+    séparer par tranche d'écart répond à « à partir de quel écart de score
+    l'oreille suit-elle ? », qui est la vraie question.
+    """
+    data = json.loads(Path(duels_path).read_text(encoding="utf-8"))
+    rng = random.Random(seed)
+    tasks: list[dict] = []
+    pool: list[str] = []
+    for d in data["duels"]:
+        if not (Path(d["prefere"]).exists() and Path(d["autre"]).exists()):
+            continue
+        tasks.append({"file": d.get("nom", Path(d["prefere"]).name),
+                      "path": d["prefere"], "path_autre": d["autre"],
+                      "degradation": d.get("etiquette", "duel"),
+                      "ecart": d.get("ecart")})
+        pool.append(d["prefere"])
+    if not tasks:
+        return []
+    # Mêmes contrôles que pour les dégradations : sans eux, un taux de
+    # détection élevé peut n'être qu'un biais de réponse.
+    n_control = max(4, round(CONTROL_RATIO * len(tasks)))
+    for i in range(n_control):
+        path = pool[(i * 7 + 3) % len(pool)]
+        tasks.append({"file": Path(path).name, "path": path,
+                      "degradation": "__control__"})
+    rng.shuffle(tasks)
+    slots = ["A", "B"] * ((len(tasks) + 1) // 2)
+    rng.shuffle(slots)
+    for i, task in enumerate(tasks):
+        task["id"] = i
+        task["original_slot"] = slots[i]
+    return tasks
+
+
 def midi_pair(task: dict, seed: int = 1):
     """(MidiData du côté A, MidiData du côté B) — la position de l'original
     est déjà résolue, l'appelant n'a aucun moyen de la connaître."""
     md = parse_midi(task["path"])
     if task["degradation"] == "__control__":
         other = md
+    elif task.get("path_autre"):
+        other = parse_midi(task["path_autre"])
     else:
         rng = random.Random(f"{seed}:{task['file']}:{task['degradation']}")
         other = DEGRADATIONS[task["degradation"]](md, rng)
@@ -197,6 +247,36 @@ def render_task(task: dict, seed: int = 1) -> dict:
     side_a, side_b = midi_pair(task, seed)
     return {"id": task["id"], "n_total": task.get("n_total", 0),
             "A": notes_in_seconds(side_a), "B": notes_in_seconds(side_b)}
+
+
+def task_key(task: dict, rang: int = 0) -> str:
+    """Identité **stable** d'une comparaison, indépendante de sa position.
+
+    La reprise s'est longtemps faite sur `task_id`, c'est-à-dire sur le rang
+    dans le lot. Tant qu'on rejoue le même lot, les deux coïncident ; dès
+    qu'on l'agrandit — passer de 14 à 60 duels pour obtenir la puissance
+    qui manquait — tous les rangs glissent, et les jugements déjà rendus se
+    retrouvent collés à d'autres comparaisons. Silencieusement : rien ne
+    plante, le fichier reste valide, les chiffres sont faux.
+
+    La clé nomme donc la comparaison elle-même. `rang` ne sert qu'aux
+    contrôles, qui répètent le même fichier plusieurs fois dans un lot.
+    """
+    if task["degradation"] == "__control__":
+        return f"{task['file']}|__control__|{rang}"
+    # Hors contrôle, (fichier, dégradation) est unique dans un lot — et pour
+    # un duel, `file` est le nom de la paire, donc la paire elle-même.
+    return f"{task['file']}|{task['degradation']}"
+
+
+def _stamp_keys(tasks: list[dict]) -> None:
+    """Pose `cle` sur chaque tâche, en numérotant les contrôles répétés."""
+    vus: dict[str, int] = {}
+    for task in tasks:
+        base = task_key(task)
+        rang = vus.get(base, 0)
+        vus[base] = rang + 1
+        task["cle"] = task_key(task, rang)
 
 
 class _Judgements:
@@ -221,14 +301,35 @@ class _Judgements:
                     f"le rendu actuel est « {renderer} ». Les mélanger rendrait la "
                     "session ininterprétable — reprenez avec un nouveau --out.")
             self.records = data.get("judgements", [])
+        _stamp_keys(self.tasks)
+        # Fichiers d'avant les clés : on la reconstruit du contenu du
+        # jugement, dans l'ordre où les contrôles apparaissent — c'est
+        # exactement ce que `_stamp_keys` vient de faire sur les tâches.
+        vus: dict[str, int] = {}
+        for r in sorted(self.records, key=lambda r: r["task_id"]):
+            if "cle" in r:
+                continue
+            base = task_key(r)
+            rang = vus.get(base, 0)
+            vus[base] = rang + 1
+            r["cle"] = task_key(r, rang)
+        # Un jugement repris garde sa clé mais reçoit le rang qu'il occupe
+        # dans CE lot : un fichier où `task_id` désigne autre chose que la
+        # comparaison jugée est un piège pour le prochain lecteur. Ceux qui
+        # ne concernent aucune tâche du lot courant sont conservés tels
+        # quels — ils restent des jugements valides, cumulables.
+        rangs = {t["cle"]: t["id"] for t in self.tasks}
+        for r in self.records:
+            if r["cle"] in rangs:
+                r["task_id"] = rangs[r["cle"]]
 
-    def done_ids(self) -> set[int]:
-        return {r["task_id"] for r in self.records}
+    def done_keys(self) -> set[str]:
+        return {r["cle"] for r in self.records}
 
     def next_task(self) -> dict | None:
-        done = self.done_ids()
+        done = self.done_keys()
         for task in self.tasks:
-            if task["id"] not in done:
+            if task["cle"] not in done:
                 return task
         return None
 
@@ -237,9 +338,10 @@ class _Judgements:
         if task is None:
             raise ValueError(f"tâche inconnue : {task_id}")
         with self.lock:
-            self.records = [r for r in self.records if r["task_id"] != task_id]
+            self.records = [r for r in self.records if r["cle"] != task["cle"]]
             self.records.append({
                 "task_id": task_id,
+                "cle": task["cle"],
                 "file": task["file"],
                 "degradation": task["degradation"],
                 "original_slot": task["original_slot"],
@@ -255,7 +357,7 @@ class _Judgements:
     def _flush(self) -> None:
         payload = {"seed": self.seed, "n_tasks": len(self.tasks),
                    "renderer": self.renderer,
-                   "judgements": sorted(self.records, key=lambda r: r["task_id"])}
+                   "judgements": sorted(self.records, key=lambda r: (r["task_id"], r["cle"]))}
         self.out_path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
 
@@ -454,7 +556,7 @@ def _handler(store: _Judgements, seed: int, renderer: str = RENDERER,
                 else:
                     payload = render_task(task, seed)
                 payload["n_total"] = len(store.tasks)
-                payload["n_done"] = len(store.done_ids())
+                payload["n_done"] = len(store.done_keys())
                 self._json(200, payload)
             elif self.path.startswith("/api/audio/") and wav_cache is not None:
                 try:
@@ -479,7 +581,7 @@ def _handler(store: _Judgements, seed: int, renderer: str = RENDERER,
             except (ValueError, KeyError, TypeError) as exc:
                 self._json(400, {"error": str(exc)})
                 return
-            self._json(200, {"ok": True, "n_done": len(store.done_ids())})
+            self._json(200, {"ok": True, "n_done": len(store.done_keys())})
 
     return Handler
 
@@ -487,13 +589,18 @@ def _handler(store: _Judgements, seed: int, renderer: str = RENDERER,
 def main(corpus_dir: str, out: str, host: str = "127.0.0.1",
          port: int | None = None, seed: int = 1, per_file: int = 2,
          only: list[str] | None = None, render: str = "synth") -> int:
+    duels = Path(corpus_dir).suffix.lower() == ".json"
+    if only and duels:
+        print("libretto: --only ne s'applique qu'aux dégradations, pas aux duels")
+        return 1
     if only:
         inconnues = sorted(set(only) - set(DEGRADATIONS))
         if inconnues:
             print(f"libretto: dégradation(s) inconnue(s) : {', '.join(inconnues)}")
             print(f"          disponibles : {', '.join(sorted(DEGRADATIONS))}")
             return 1
-    tasks = build_tasks(corpus_dir, seed=seed, per_file=per_file, only=only)
+    tasks = (build_duel_tasks(corpus_dir, seed=seed) if duels
+             else build_tasks(corpus_dir, seed=seed, per_file=per_file, only=only))
     if not tasks:
         print(f"libretto: aucun MIDI exploitable dans {corpus_dir}")
         return 1
@@ -529,7 +636,7 @@ def main(corpus_dir: str, out: str, host: str = "127.0.0.1",
     n_control = sum(1 for t in tasks if t["degradation"] == "__control__")
     print(f"{len(tasks)} comparaisons ({n_control} paires de contrôle identiques), "
           f"rendu {renderer}")
-    print(f"déjà jugées : {len(store.done_ids())}   →  jugements dans {out}")
+    print(f"déjà jugées : {len(store.done_keys())}   →  jugements dans {out}")
     print(f"écoute comparée : http://{host}:{real}   (Ctrl-C pour arrêter)")
     try:
         httpd.serve_forever()

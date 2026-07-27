@@ -932,6 +932,134 @@ frontière est une ondulation parmi les ondulations. Quatre voies
 instruites, chiffres consignés, aucune ne paie. Le front ferme en
 acquittement, pas en promesse.
 
+### Session 6 — le classement de Forge devant une oreille : non concluant, et sous-dimensionné par construction
+
+Toutes les sessions précédentes ont testé des **dégradations** : un morceau
+contre sa version abîmée. Aucune n'a testé un **classement** : un morceau
+contre un autre morceau. C'est pourtant l'hypothèse sur laquelle repose tout
+ce que Forge affirme — que le candidat qu'il place devant est réellement le
+mieux construit.
+
+Le protocole d'écoute s'y prête sans rien changer : le côté « original »
+devient celui que le moteur préfère (`build_duel_tasks`,
+`examples/forge_duels.py`). Lot : 48 candidats `forge_loops` (pack de loops,
+graine 3), 14 duels répartis en deux tranches d'écart de score, 4 paires de
+contrôle, rendu v3-instrument, position équilibrée 9/9.
+
+| tranche | écart SMS | l'oreille suit le moteur | IC95 |
+|---|---|---|---|
+| `duel_ecart_fort` | 0.102 – 0.199 | 43 % (3/7) | 0.16 – 0.75 |
+| `duel_ecart_faible` | 0.004 – 0.026 | 57 % (4/7) | 0.25 – 0.84 |
+| **ensemble** | | **50 % (7/14)** | **0.27 – 0.73** |
+
+Contrôles : 2 « aucune différence » sur 4 — les deux autres ont été tranchés
+sur des extraits identiques. Bruit de réponse réel, mais 4 contrôles ne
+l'estiment qu'à la louche.
+
+**Le vrai enseignement est méthodologique, et il est à charge.** Ce lot ne
+pouvait pas conclure. Test binomial bilatéral contre 0.5, α = 0.05 : sur
+n = 7, le seul résultat significatif possible est **7/7** — 6/7 donne déjà
+p = 0.125. La puissance de la tranche pour une vraie détection de 0.80 est
+de **21 %**. Autrement dit, quatre sessions sur cinq auraient rendu « non
+concluant » même si le classement était excellent. Le dimensionnement doit
+précéder la session, pas la commenter :
+
+| vraie détection | jugements tranchés nécessaires par tranche (puissance 80 %) |
+|---|---|
+| 0.80 | 20 |
+| 0.75 | 30 |
+| 0.70 | 49 |
+| 0.65 | 90 |
+
+**Ce que le lot n'autorise pas** : conclure que le classement ne vaut rien.
+50 % sur 14 jugements est compatible avec à peu près n'importe quoi entre
+« aveugle » et « bon ». **Ce qu'il n'autorise pas non plus** : continuer à
+présenter le n°1 de Forge comme le mieux construit sans préciser que
+personne ne l'a jamais vérifié à l'oreille.
+
+Deux observations à traiter comme des pistes, pas comme des résultats (n = 2
+chacune) : `candidate_000`, le plus bas score du lot (0.567), a gagné ses
+**deux** duels contre des candidats mieux notés ; `candidate_032` (score
+0.813 mais fiabilité 0.64) a perdu les **deux** siens. Si quelque chose se
+confirme là, ce serait que la fiabilité pèse davantage que le score dans ce
+que l'oreille entend — ce qui est déjà la règle de classement de Forge
+(tranche de fiabilité d'abord), mais pas au point de départager deux
+candidats de la même tranche.
+
+Suite : une session dimensionnée (≥ 30 jugements tranchés par tranche, deux
+annotateurs pour la décorrélation des erreurs, comme en session 5b). Les
+jugements de celle-ci sont dans `jugements_duels.json`.
+
+**Le lot est cumulable — il ne l'était pas.** La reprise se faisait sur
+`task_id`, c'est-à-dire sur le rang dans le lot : agrandir le lot décale
+tous les rangs, et les 14 jugements rendus se seraient recollés à d'autres
+comparaisons. Sans rien casser — fichier valide, chiffres faux. La reprise
+suit désormais l'identité de la comparaison (`task_key`), les jugements
+repris sont re-rattachés à leur tâche dans le nouveau lot, et ceux qui n'y
+figurent plus sont conservés tels quels. Le lot de la session 7 (30 duels
+par tranche, tiré de 96 candidats) reprend donc les 14 duels et les
+contrôles déjà jugés : 53 comparaisons neuves à écouter, un seul
+dépouillement à la fin.
+
+### Session 7 — le lot dimensionné : un signal sur les gros écarts, rien sur les petits
+
+Session 6 refaite à la taille qu'elle aurait dû avoir : 96 candidats
+`forge_loops` (graine 3), **30 duels par tranche**, 11 contrôles, les 18
+jugements de la session 6 repris et cumulés — 71 jugements en tout, un seul
+dépouillement, même annotateur, même rendu v3-instrument. 54 minutes
+d'écoute effective, médiane 40 s par comparaison.
+
+| tranche | écart SMS | l'oreille suit le moteur | IC95 | p unilatéral |
+|---|---|---|---|---|
+| `duel_ecart_fort` | 0.102 – 0.206 | **18/29 = 62 %** | 0.44 – 0.77 | 0.132 |
+| `duel_ecart_faible` | 0.001 – 0.038 | 13/30 = 43 % | 0.27 – 0.61 | 0.819 |
+| ensemble | | 31/59 = 53 % | 0.40 – 0.65 | 0.397 |
+
+**Aucun des deux n'est significatif.** Mais les deux ne disent pas la même
+chose, et c'est là qu'est le résultat.
+
+**Le classement fin ne s'entend pas.** Sur les écarts de 0.001 à 0.038 —
+ceux qui décident du n°1 contre le n°3 dans un rapport Forge — l'oreille est
+à 43 %, c'est-à-dire au hasard, du mauvais côté. Ce n'est pas une absence de
+puissance : à n = 30, un effet réel de 0.75 aurait été détecté 8 fois sur 10.
+Départager deux candidats que le SMS sépare de deux centièmes n'a pas de
+correspondant audible.
+
+**Sur les gros écarts, il y a un signal — trop faible pour ce lot.** 62 % va
+dans le sens attendu, l'écart entre les deux tranches aussi (Fisher
+unilatéral p = 0.119), mais rien n'est établi. Le dimensionnement de la
+session visait 0.75 ; l'effet, s'il existe, est plus près de 0.62, et pour
+celui-là 30 duels ne donnent que **29 % de puissance**. Il en faudrait
+**106 par tranche** — soit une dizaine d'heures d'écoute pour un annotateur
+seul, ou trois à quatre annotateurs. C'est le coût réel de la question, il
+est maintenant chiffré.
+
+**Le biais de réponse est le point faible, et il se répète.** Sur 11 paires
+identiques, l'annotateur n'a répondu « aucune différence » que 3 fois : les
+8 autres fois il a inventé une préférence. Le harnais le signale comme
+SUSPECT, et il a raison de le faire — mais le chiffre à regarder est le
+contraste : **27 % de « aucune différence » sur les paires identiques contre
+1.7 % sur les duels réels** (3/11 contre 1/60, Fisher unilatéral
+p = 0.011). L'annotateur n'appuie donc pas au hasard : il reconnaît bien les
+paires indiscernables, il refuse simplement de le dire. Conséquence
+arithmétique : chaque préférence inventée est un tirage à pile ou face qui
+tire le taux observé vers 0.5. **Les 62 % sont donc un plancher, pas une
+estimation** — l'accord réel, sur les comparaisons où quelque chose
+s'entend, est plus haut. C'est exactement la réserve notée après la session 1
+(« répondre plus souvent : je n'entends pas de différence ») ; elle n'a pas
+été suivie, et elle coûte de la puissance à chaque session.
+
+Aucun biais de position : original en A 31 fois sur 59, et l'annotateur
+choisit A 23 fois contre B 36 — un penchant pour le second extrait entendu,
+sans effet systématique puisque les positions sont équilibrées.
+
+**Ce que la session autorise à écrire.** Forge, sur du loop arrangé, est un
+**triage grossier** : les gros écarts de score portent peut-être un signal
+audible, les petits n'en portent pas. C'est le même verdict que celui déjà
+établi sur du transcrit — écarter le bas est défendable, couronner le n°1 ne
+l'est pas — mais il vient cette fois d'une oreille, pas d'une corrélation de
+rangs.
+
 ### 2. Autres priorités
 
 - Un second annotateur : **fait** (session 5b) — réplication indépendante,

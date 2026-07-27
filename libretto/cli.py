@@ -115,7 +115,10 @@ def main(argv: list[str] | None = None) -> int:
     p_ann = sub.add_parser(
         "annotate",
         help="écoute comparée A/B en aveugle : recueille des jugements humains")
-    p_ann.add_argument("corpus", help="dossier de fichiers .mid")
+    p_ann.add_argument("corpus",
+                       help="dossier de fichiers .mid (paires original/dégradé), "
+                            "ou fichier .json de duels entre deux morceaux "
+                            "différents (voir examples/forge_duels.py)")
     p_ann.add_argument("--out", metavar="JSON", default="jugements.json",
                        help="fichier de jugements (repris s'il existe)")
     p_ann.add_argument("--host", default="127.0.0.1")

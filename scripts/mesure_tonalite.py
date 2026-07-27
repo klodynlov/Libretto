@@ -40,126 +40,23 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
 
 from libretto.axes import PC_NAMES, SenseOfMusicalStructure, estimate_key  # noqa: E402
 from libretto.builder import build_score  # noqa: E402
 from libretto.midi import parse_midi  # noqa: E402
 
-# ──────────────────────────────────────────────
-# Étiquettes : lecture du chemin
-# ──────────────────────────────────────────────
-
-# Tonique A-G, altération optionnelle, mode optionnel séparé ou collé
-# (`Dm`, `F_m`, `Emin`, `Cmn`, `F#`, `C_maj`). Les gardes de part et d'autre
-# évitent d'attraper l'initiale d'un mot : « Bonfire » n'est pas un si.
-KEY_RE = re.compile(
-    r"(?<![A-Za-z0-9#])([A-G])([#b]?)[ _\-.]?(minor|major|min|maj|mn|mi|m)?(?![A-Za-z0-9])",
-    re.IGNORECASE,
-)
-BASE_PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
-
-# Rôles percussifs : l'étiquette du kit ne dit rien de leur hauteur.
-DRUM_WORDS = (
-    "kick", "snare", "hat", "hihat", "perc", "conga", "bongo", "shaker",
-    "tamb", "clap", "snap", "drum", "tom", "crash", "ride", "rim", "cowbell",
-    "triangle", "fill", "cym", "clave", "shekere", "udu", "djembe",
-    "fall", "sweep", "riser", "impact", "fx",
-)
-# Rôles tonaux repérables dans le nom — sert à ventiler la mesure.
-ROLE_WORDS = (
-    "bass", "808", "chord", "pad", "pluck", "melod", "lead", "piano", "key",
-    "guitar", "string", "brass", "sax", "flute", "arp", "marimba", "vox",
-    "synth", "organ", "bell",
-)
-
-
-def parse_key_label(text: str) -> tuple[int, str | None] | None:
-    """(classe de hauteur, 'maj'|'min'|None) lue dans `text`, ou None.
-
-    Une tonique **nue** — sans altération ni mode — n'est retenue qu'en
-    capitale : `Moves_B_95` est un si, `d cymbl` est une convention de
-    nommage de batterie. Renvoie None aussi quand le texte annonce deux
-    toniques différentes : une étiquette contradictoire n'est pas une
-    vérité terrain.
-    """
-    found: dict[int, str | None] = {}
-    for m in KEY_RE.finditer(text):
-        letter, acc, mode = m.group(1), m.group(2), m.group(3)
-        if not acc and not mode and not letter.isupper():
-            continue
-        pc = BASE_PC[letter.upper()]
-        if acc == "#":
-            pc = (pc + 1) % 12
-        elif acc and acc.lower() == "b":
-            pc = (pc - 1) % 12
-        norm = None
-        if mode:
-            norm = "maj" if mode.lower() in ("maj", "major") else "min"
-        # un mode explicite l'emporte sur une occurrence muette de la même tonique
-        if pc not in found or (norm and not found[pc]):
-            found[pc] = norm
-    if len(found) != 1:
-        return None
-    pc, mode = next(iter(found.items()))
-    return pc, mode
-
-
-def label_for(path: Path, root: Path) -> tuple[int, str | None, str] | None:
-    """Étiquette du fichier, la mieux étayée d'abord.
-
-    Une étiquette **avec mode** l'emporte sur une tonique nue, où qu'elles
-    se trouvent — parce que ces packs nomment souvent chaque boucle par sa
-    fondamentale locale à l'intérieur d'un kit dont le dossier, lui, annonce
-    la tonalité : `KIT_1_PAD_SOULFUL_Eb_100BPM.mid` dans `KIT_1_Gmin_100BPM/`
-    n'est pas un pad en mi bémol, c'est le VI d'un sol mineur. À force égale,
-    le nom du fichier passe avant le dossier (plus précis). Le troisième
-    champ dit d'où vient l'étiquette retenue.
-    """
-    candidates: list[tuple[int, str | None, str]] = []
-    lab = parse_key_label(path.stem)
-    if lab:
-        candidates.append((lab[0], lab[1], "fichier"))
-    for parent in path.relative_to(root).parents:
-        if str(parent) in (".", ""):
-            continue
-        lab = parse_key_label(parent.name)
-        if lab:
-            candidates.append((lab[0], lab[1], "dossier"))
-    if not candidates:
-        return None
-    with_mode = [c for c in candidates if c[1]]
-    return with_mode[0] if with_mode else candidates[0]
-
-
-def role_of(path: Path) -> str:
-    low = path.stem.lower()
-    for w in DRUM_WORDS:
-        if w in low:
-            return "batterie"
-    for w in ROLE_WORDS:
-        if w in low:
-            return w
-    return "?"
-
-
-# ──────────────────────────────────────────────
-# Estimateurs
-# ──────────────────────────────────────────────
-
-def hist_brut(md) -> list[float]:
-    """Histogramme des classes de hauteur pondéré par la durée, canal 9 exclu."""
-    h = [0.0] * 12
-    for n in md.notes:
-        if n.channel == 9:
-            continue
-        h[n.pitch % 12] += max(1, n.end - n.start)
-    return h
+# La lecture des étiquettes d'un pack vit dans `examples/loop_index.py` : ce
+# harnais MESURE ce que cette lecture vaut, il ne peut pas en tenir une
+# seconde copie — deux parseurs qui divergent, et le chiffre ne dit plus de
+# quoi il parle.
+from loop_index import (hist_brut, label_for,  # noqa: E402,F401
+                        parse_key_label, role_of)
 
 
 def hist_pipeline(md) -> list[float]:

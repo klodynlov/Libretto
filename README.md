@@ -265,6 +265,49 @@ rejoué le lot à l'identique (session 5b, `agreement A.json B.json`) :
 [0.60–0.84]), et κ ≈ 0 signant la décorrélation des erreurs — deux
 oreilles, un même verdict, aucun artefact partagé.
 
+**Et le classement ?** Tout ce qui précède valide des *dégradations* : un
+morceau contre sa version abîmée. Rien n'y valide un *classement* — un
+morceau contre un autre — qui est pourtant l'hypothèse sur laquelle Forge
+repose tout entier. Le protocole s'y prête sans rien changer : le côté
+« original » devient le candidat que le moteur place devant.
+
+```bash
+python3 examples/forge_loops.py /tmp/index.json sortie/ 48 3 --keep-all
+python3 examples/forge_duels.py sortie/ --out duels.json
+python3 -m libretto.cli annotate duels.json --out jugements_duels.json --render instrument
+python3 -m libretto.cli agreement jugements_duels.json   # sans --corpus : pas de dégradation à rejouer
+```
+
+Deux sessions, cumulées : 60 duels, 11 contrôles, 71 jugements, rendu
+v3-instrument (la première, à 14 duels, ne pouvait rien conclure — sur n = 7
+par tranche, seul un 7/7 aurait été significatif ; détail en session 6).
+
+| tranche | écart SMS | l'oreille suit le moteur | IC95 | p unilatéral |
+|---|---|---|---|---|
+| écart fort | 0.102 – 0.206 | **18/29 = 62 %** | 0.44 – 0.77 | 0.132 |
+| écart faible | 0.001 – 0.038 | 13/30 = 43 % | 0.27 – 0.61 | 0.819 |
+
+Aucun des deux n'est significatif, et les deux ne disent pas la même chose.
+**Le classement fin ne s'entend pas** : sur les écarts de quelques
+centièmes — ceux qui décident du n°1 contre le n°3 — l'oreille est au
+hasard, et cette fois la puissance était là (un effet réel de 0.75 aurait
+été vu 8 fois sur 10). **Sur les gros écarts il y a un signal, trop faible
+pour ce lot** : 62 % va dans le sens attendu, l'écart entre tranches aussi
+(Fisher p = 0.119), mais établir un effet de 0.62 demanderait 106 duels par
+tranche. Le coût de la question est chiffré, il n'est pas payé.
+
+À lire avec la réserve que le harnais signale lui-même : sur 11 paires
+**identiques**, l'annotateur n'a dit « aucune différence » que 3 fois. Il
+n'appuie pas au hasard pour autant — 27 % de « aucune différence » sur les
+paires identiques contre 1.7 % sur les duels réels (Fisher p = 0.011) — mais
+chaque préférence inventée est un tirage à pile ou face qui tire le taux vers
+0.5 : **les 62 % sont un plancher, pas une estimation**.
+
+Conséquence pratique, écrite noir sur blanc : sur du loop arrangé comme sur
+du transcrit, Forge est un **triage grossier**. Écarter le bas du classement
+se défend ; couronner le n°1 ne se défend pas. Détail en session 7 de
+[`resultats_ecoute.md`](resultats_ecoute.md).
+
 ## Tonalité : l'estimateur confronté à une étiquette qu'il n'a pas écrite
 
 Krumhansl-Kessler (`libretto.axes.estimate_key`) alimente sept axes du
@@ -524,6 +567,88 @@ diversité est constante, pas un accident de tirage. Et la contrainte de
 diversité est bon marché : la shortlist round-robin (k=5) **retient 5.0
 formes sur 5, pour un coût en score moyen de 0.008** (max 0.020) — une forme
 entière regagnée coûte moins d'un centième de score.
+
+## Forge sur un pack de loops
+
+Il manquait à Forge la source la plus banale d'un studio : **un pack de
+loops**. Les progressions et les riffs y sont écrits par des humains, ce que
+le générateur de `make_corpus` ne sait pas inventer et qu'une transcription
+audio dégrade (−0.18). Ce qu'un pack n'a pas, en revanche, c'est une
+**forme** : il livre huit boucles de quatre mesures, pas une chanson. C'est
+exactement la division du travail que Forge permet — la matière vient du
+pack, la charpente est cherchée.
+
+```bash
+python3 examples/loop_index.py ~/Desktop/SAMPLES/MIDI --out /tmp/index.json
+python3 examples/forge_loops.py /tmp/index.json sortie/ 48 3 --axes --shortlist 5
+python3 examples/forge_loops.py /tmp/index.json sortie/ 48 3 --famille "Naija Waves"
+```
+
+`loop_index.py` lit ce que les noms de fichiers et de dossiers annoncent
+(tonalité, tempo, instrument) et mesure ce qu'ils taisent (longueur,
+polyphonie, tessiture). **La tonalité vient de l'étiquette, pas de
+l'estimateur** — sur une boucle isolée, celui-ci tombe juste 4 fois sur 10
+(voir *Tonalité*) ; il n'est appelé que pour les fichiers non étiquetés, et
+l'index dit toujours d'où vient l'information. Le rôle est lu dans le nom
+quand il s'y trouve, tranché par le contenu sinon (polyphonie ≥ 1.8 =
+accompagnement ; monodie grave = basse). Une **famille** — un dossier, une
+tonalité, un tempo — est ce qui s'arrange ensemble sans transposer ; elle
+sépare toute seule `Bonfire_Dm_100` de `Moody_90_Bm` dans le même dossier.
+Sur 820 fichiers : 800 indexés, 76 familles arrangeables.
+
+Chaque candidat tire un plan (forme, longueur des sections, effectif par
+section, courbe d'énergie, parfois une modulation ou une mélodie empruntée à
+une autre famille du même pack, transposée à mode égal), tuile les boucles
+dessus et écrit les marqueurs. Seule la batterie se prête d'une famille à
+l'autre : elle n'a pas de tonalité.
+
+**Ce que ça vaut.** Le seul comparatif qui isole l'apport de la recherche est
+à matière égale — le même pack Naija Waves, plan écrit à la main contre plan
+cherché :
+
+| Naija Waves | score SMS | fiabilité |
+|---|---|---|
+| `assemble_naija.py` (PLAN écrit à la main) | 0.760 | 0.97 |
+| `forge_loops.py` (48 plans cherchés, graine 3) | **0.839** | 0.93 |
+
+Contre le générateur synthétique, à budget égal (48 candidats, graines 1-2-3)
+le match est nul, et il faut le dire ainsi plutôt que de choisir la ligne qui
+arrange :
+
+| médiane sur 3 graines | gagnant | meilleur score | médiane du peloton |
+|---|---|---|---|
+| `forge.py` (synthétique) | **0.863** | 0.884 | **0.786** |
+| `forge_loops.py` (pack) | 0.849 | **0.893** | 0.757 |
+
+Le plafond est un peu plus haut sur les loops, le peloton un peu plus bas :
+la matière humaine est plus inégale que celle d'un générateur réglé sur les
+mêmes hypothèses que les axes.
+
+**Où ça se joue**, par groupe d'axes (médianes, 48 candidats) : la forme
+monte (A 0.846 contre 0.766) et la cohérence globale aussi (F 0.649 contre
+0.500) — c'est l'apport de la recherche de plan. La mélodie s'effondre
+(**C 0.597 contre 0.834**), et l'axe 15 (contour mélodique) porte presque
+tout l'écart : 0.471 contre 0.956. Deux corrections ont été essayées et
+**réfutées**, chiffres à l'appui : pousser tout l'accompagnement sous la note
+la plus grave de la mélodie, pour que la voix supérieure lue par Libretto
+soit bien la mélodie — groupe C inchangé (0.597), meilleur score 0.908 →
+0.899 ; et faire entrer la mélodie beaucoup plus souvent — groupe C 0.597 →
+0.574. Ce qui reste est l'explication la plus économique : les lignes d'un
+pack ne satisfont pas les bandes de tolérance des axes 15 et 19 comme le font
+celles de `make_corpus`, **écrites sous les mêmes hypothèses que les axes**.
+C'est la circularité vue d'un autre angle — le générateur maison a un
+avantage de naissance sur le juge maison, et il ne se voyait pas tant qu'on
+ne lui opposait pas de la matière étrangère.
+
+Ces écarts sont ceux du **juge**, et le juge a depuis été confronté à une
+oreille sur ces mêmes candidats (voir *Validation externe*, sessions 6-7) :
+sur des écarts de score supérieurs à 0.10 l'accord est de 62 % — un signal
+non établi ; sur des écarts de quelques centièmes, rien. Le 0.839 contre
+0.760 tient donc comme mesure de charpente, pas comme promesse que le
+gagnant s'entend mieux.
+
+Rien du pack n'entre dans le dépôt : l'index ne contient que des chemins, et
+le dossier reste où il est.
 
 ## Interface web locale
 
