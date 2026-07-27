@@ -356,7 +356,26 @@ class SenseOfMusicalStructure:
         return self.score.all_chords
 
     def _pc_hist(self, sections: list[Section]) -> list[float]:
+        """Poids des classes de hauteur, pour l'estimation tonale.
+
+        Les **notes brutes** (durée × vélocité, percussions exclues) quand le
+        builder les a conservées, la reconstruction accords + voix supérieure
+        sinon — un Score écrit à la main n'a pas de notes.
+
+        Cette préférence n'est pas un raffinement : l'histogramme reconstruit
+        pondère la fondamentale de chaque accord détecté ×2 et ses notes ×0.5,
+        c'est-à-dire qu'il fait passer par une détection d'accords à un accord
+        par mesure une information que les notes portaient déjà. Confronté à
+        une tonalité connue, il trouve la tonique dans 57 % des cas contre
+        78 % pour les notes brutes (README, *Tonalité*). Il ajoutait de
+        l'interprétation là où il ne fallait que compter.
+        """
         h = [0.0] * 12
+        if any(s.pc_weights for s in sections):
+            for s in sections:
+                for pc, poids in enumerate(s.pc_weights):
+                    h[pc] += poids
+            return h
         for s in sections:
             for c in s.harmony:
                 h[c.root_pc] += 2.0

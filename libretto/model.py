@@ -137,6 +137,14 @@ class Section:
     # change AUX frontières de sections (variété voulue) d'une qui fluctue
     # au hasard à l'intérieur (bruit). Voir l'axe 25.
     poly_by_bar: list[float] = field(default_factory=list)
+    # Poids des 12 classes de hauteur, pondérés par durée × vélocité,
+    # percussions exclues — les notes telles qu'elles sonnent, avant toute
+    # interprétation. C'est la matière de l'estimation tonale : mesuré, un
+    # histogramme reconstruit à partir des accords détectés et de la voix
+    # supérieure trouve la tonique dans 57 % des cas là où les notes brutes
+    # la trouvent dans 78 % (voir README, *Tonalité*). Vide pour un Score
+    # construit à la main : les axes retombent alors sur les accords.
+    pc_weights: list[float] = field(default_factory=list)
 
     @property
     def n_bars(self) -> int:

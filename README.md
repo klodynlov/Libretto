@@ -325,15 +325,21 @@ python3 scripts/mesure_tonalite.py ~/Desktop/SAMPLES/MIDI --controle /tmp/ctrl
 ```
 
 Deux histogrammes sont mesurés côte à côte : `pipeline`, celui que le moteur
-construit vraiment (`_pc_hist` — fondamentales d'accords ×2, notes d'accord
-×0.5, mélodie ×1), et `brut`, les notes non percussives pondérées par leur
-durée.
+construit vraiment, et `brut`, les notes non percussives pondérées par leur
+durée. Jusqu'à la v0.3, `_pc_hist` reconstruisait l'histogramme à partir des
+accords détectés (fondamentale ×2, notes d'accord ×0.5) et de la voix
+supérieure (×1) — et le payait cher :
 
 | tonique juste | contrôle généré (157) | packs de loops (433) |
 |---|---|---|
 | `brut` | **0.783** | 0.400 |
-| `pipeline` | 0.567 | 0.370 |
+| `pipeline`, histogramme reconstruit | 0.567 | 0.370 |
 | `brut`, tonique **+ mode** | **0.898** (108 maj/min) | 0.334 (317) |
+
+Le moteur lit désormais les **notes brutes** (durée × vélocité, percussions
+exclues), conservées par le builder section par section — voir *L'histogramme
+tonal* plus bas. L'écart s'est refermé : `pipeline` passe de 0.605 à 0.783
+(graine 23) et de 0.491 à 0.723 (graine 31).
 
 Trois enseignements, dans l'ordre où ils comptent.
 
@@ -353,12 +359,10 @@ de do majeur : l'estimateur répond do — d'où les 23 erreurs de
 **sous-dominante**, qui sont *toute* l'erreur mixolydienne. Ce n'est pas un
 réglage à corriger, c'est un profil qui manque.
 
-**L'histogramme du moteur est moins bon que les notes brutes** — 0.567 contre
-0.783 sur le contrôle, même sens sur les packs. Pondérer par les accords
-détectés et la voix supérieure *retire* de l'information tonale au lieu d'en
-ajouter : les axes 8, 11, 13 et 14 construisent sur le plus faible des deux.
-Le corriger touche sept axes et toute la calibration — c'est un chantier à
-part, pas une retouche.
+**L'histogramme du moteur était moins bon que les notes brutes** — 0.567
+contre 0.783 sur le contrôle, même sens sur les packs. Pondérer par les
+accords détectés et la voix supérieure *retirait* de l'information tonale au
+lieu d'en ajouter. C'est corrigé, et ce que ça coûte est détaillé ci-dessous.
 
 **Sur une boucle isolée, l'estimation ne vaut rien** : 0.400, et rien ne la
 sauve. Mettre en commun les boucles d'un même kit ne la remonte pas (0.36) ;
@@ -370,6 +374,55 @@ sur la dominante, la sous-dominante, la relative et le bVII, c'est-à-dire
 sur le voisinage diatonique, pas au hasard. Conséquence pratique pour
 indexer un pack : **croire l'étiquette du pack**, et ne recourir à
 l'estimateur que pour ce qui n'en a pas, en sachant que c'est un pari.
+
+### L'histogramme tonal : les notes plutôt que leur interprétation
+
+L'estimation tonale ne partait pas des notes. `_pc_hist` les remplaçait par
+une reconstruction — fondamentale de chaque accord détecté ×2, notes de
+l'accord ×0.5, voix supérieure ×1 — c'est-à-dire qu'elle faisait passer par
+une détection d'accords à un accord par mesure une information que les notes
+portaient déjà. Le builder calculait pourtant déjà, mesure par mesure, un
+chroma pondéré durée × vélocité et sans percussions : il ne le gardait pas.
+`Section.pc_weights` le conserve, `_pc_hist` le préfère, et retombe sur les
+accords pour un `Score` écrit à la main, qui n'a pas de notes.
+
+Le mélange a été essayé avant de trancher — réglage sur une graine tenue à
+part (11), vérification sur deux autres (23, 31) :
+
+| histogramme | graine 11 | graine 23 | graine 31 |
+|---|---|---|---|
+| notes brutes | **0.834** | **0.783** | **0.723** |
+| notes + basses pondérées ×3 | 0.803 | 0.743 | 0.704 |
+| notes + 0.25 × accords | 0.783 | 0.743 | 0.692 |
+| notes + 1.0 × accords | 0.688 | 0.691 | 0.579 |
+| accords seuls (ancien) | 0.561 | 0.605 | 0.491 |
+
+Chaque cuillerée d'accords dégrade le résultat, sur les trois graines. Le
+réglage optimal était de ne rien mélanger.
+
+**Ce que ça coûte, et ce n'est pas nul.** Trois graines de corpus généré,
+calibration complète des deux côtés : la validation croisée contrastive perd
+**0.012** en moyenne (0.938 → 0.925, 0.925 → 0.909, 0.934 → 0.925 — les trois
+dans le même sens), et la perte se concentre sur un axe, `13_tonal_contrast`,
+qui recule de **0.030** d'AUC en moyenne et descend à 0.49 sur une graine. Il
+reste au-dessus du plancher du gate (0.42) et `check.sh` passe, mais il
+rejoint la liste des axes sous 0.5.
+
+L'explication la plus économique est un effet de plafond : l'ancrage de
+l'axe 13 sature dès que la moitié des sections partagent la tonique, et avec
+une estimation plus nette l'original comme sa version dégradée y arrivent
+plus souvent. Ce serait aux bandes de l'axe d'être resserrées — mesuré sur
+une graine, validé sur d'autres. Constaté, pas corrigé.
+
+Deux conséquences visibles ailleurs : les poids publiés sont recalibrés
+(`weights_songs.json` accuracy calibrée 1.000 sur 3 fichiers — surappris et
+signalé comme tel ; `weights_sloopy.json` 0.881, validation croisée 0.853),
+et un fixture de test a dû gagner une basse. Quatre triades plaquées sans
+basse ne désignent pas leur fondamentale : do-mi-sol et mi-sol-si partagent
+assez de matière pour qu'un histogramme de hauteurs lise le relatif mineur.
+L'ancien histogramme s'en sortait parce que la détection d'accords, elle,
+nomme la fondamentale. La basse manquait au fixture, pas à l'axe — elle est
+là dans toute musique.
 
 ### Les profils modaux, désormais par défaut
 
@@ -795,9 +848,11 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
   profils de Krumhansl-Kessler s'ajoutent un dorien (réglé : 58/58) et un
   mixolydien (21/54, contre 9/54 sans lui) — le second reste le trou. Les
   modes plus rares (phrygien, lydien) sont absents faute de vérité terrain
-  pour les valider. Reste entier : l'histogramme sur lequel le moteur appuie
-  sa tonalité est moins bon que les notes brutes (0.567 contre 0.783). Voir
-  *Tonalité*.
+  pour les valider. Voir *Tonalité*.
+- **L'axe 13 a payé le passage aux notes brutes** : 0.030 d'AUC en moyenne,
+  jusqu'à 0.49 sur une graine — au-dessus du plancher du gate, mais dans la
+  liste des axes sous 0.5. Ses bandes d'ancrage saturent trop tôt pour une
+  estimation tonale devenue nette. Mesuré, non corrigé.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
   d'arpèges d'accompagnement, et le balayage est quadratique (lent sur les
   MIDI orchestraux denses).
