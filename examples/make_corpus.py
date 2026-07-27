@@ -402,7 +402,16 @@ def build_corpus(out_dir: str | Path, n: int = 60, seed: int = 7) -> list[Path]:
         written.append(path)
         truth[name] = {"boundaries": truth_bars, "roles": roles,
                        "n_bars": bars, "form": style.form,
-                       "with_markers": style.with_markers}
+                       "with_markers": style.with_markers,
+                       # Tonalité écrite : sert de contrôle positif à
+                       # l'estimateur Krumhansl-Kessler (scripts/
+                       # mesure_tonalite.py --controle), qui n'a sinon aucune
+                       # matière dont la tonalité soit connue par construction.
+                       # La modulation est notée : sur ces morceaux-là, il n'y
+                       # a pas une tonalité mais deux.
+                       "tonic": style.tonic, "mode": style.mode,
+                       "modulate_at": style.modulate_at,
+                       "modulate_by": style.modulate_by}
     # Vérité terrain à côté du corpus : c'est elle qui rend la segmentation
     # évaluable (F-mesure des frontières) au lieu de seulement observable.
     (out / "annotations.json").write_text(
