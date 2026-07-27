@@ -123,12 +123,13 @@ def _swap(profile: list[float], a: int, b: int) -> list[float]:
 KK_DORIAN = _swap(KK_MINOR, 8, 9)        # ♭6 ↔ ♮6
 KK_MIXOLYDIAN = _swap(KK_MAJOR, 10, 11)  # ♭7 ↔ ♮7
 
-# Vocabulaire par défaut : celui de Krumhansl-Kessler, inchangé.
+# Vocabulaire de Krumhansl-Kessler seul — ce qui était le défaut jusqu'à la
+# bascule. Gardé nommé : c'est le témoin de toutes les mesures antérieures.
 KEY_PROFILES = {"maj": KK_MAJOR, "min": KK_MINOR}
-# Vocabulaire élargi, réservé à qui le demande explicitement. Dorien et
-# mixolydien seulement : ce sont les deux modes dont `make_corpus` écrit la
-# vérité terrain, donc les deux qu'on sait valider. En ajouter d'autres
-# reviendrait à livrer non mesuré ce que ce module reproche à KK.
+# Vocabulaire par défaut depuis la bascule. Dorien et mixolydien seulement :
+# ce sont les deux modes dont `make_corpus` écrit la vérité terrain, donc les
+# deux qu'on sait valider. En ajouter d'autres reviendrait à livrer non
+# mesuré ce que ce module reproche à KK.
 MODAL_PROFILES = {**KEY_PROFILES, "dorien": KK_DORIAN, "mixolydien": KK_MIXOLYDIAN}
 
 # Mode -> parent majeur/mineur, pour les consommateurs qui raisonnent en
@@ -146,16 +147,18 @@ def estimate_key(hist: list[float],
     """(classe de hauteur de la tonique, mode, corrélation, marge sur la 2e
     tonique candidate). hist = poids par classe de hauteur (12).
 
-    `profiles` fixe le vocabulaire de modes ; par défaut `KEY_PROFILES`,
-    c'est-à-dire les deux profils de Krumhansl-Kessler. Passer
-    `MODAL_PROFILES` élargit au dorien et au mixolydien — mesuré, et pas
-    branché par défaut : le mode retourné traverse sept axes, et deux
-    d'entre eux en déduisent une gamme.
+    `profiles` fixe le vocabulaire de modes ; par défaut `MODAL_PROFILES`,
+    c'est-à-dire Krumhansl-Kessler **plus** le dorien et le mixolydien.
+    Passer `KEY_PROFILES` restreint aux deux profils d'origine — c'est le
+    témoin de toutes les mesures antérieures à la bascule.
+
+    Le mode retourné peut donc valoir « dorien » ou « mixolydien » : tout
+    consommateur qui en déduit une gamme doit passer par `PARENT_MODE`.
 
     L'ordre du dictionnaire départage les ex aequo (tri stable) : le
     résultat reste déterministe, mais dépend de cet ordre.
     """
-    profiles = profiles or KEY_PROFILES
+    profiles = profiles or MODAL_PROFILES
     if sum(hist) <= 0:
         return 0, next(iter(profiles)), 0.0, 0.0
     results = []
@@ -700,7 +703,7 @@ class SenseOfMusicalStructure:
             return self._make(9, 0.0)
         hist = self._pc_hist(self.score.sections)
         root, mode, _corr, _m = estimate_key(hist)
-        scale = MAJOR_SCALE if mode == "maj" else MINOR_SCALE
+        scale = MAJOR_SCALE if PARENT_MODE[mode] == "maj" else MINOR_SCALE
         scale_pcs = {(root + d) % 12 for d in scale}
 
         degrees = Counter((c.root_pc - root) % 12 for c in chords
@@ -878,7 +881,7 @@ class SenseOfMusicalStructure:
         move_ratio = len(nonzero) / len(moves)
         good = sum(1 for m in nonzero if m in (1, 2, 5)) / len(nonzero) if nonzero else 0.0
         key_root, mode, _c, _m = estimate_key(self._pc_hist(self.score.sections))
-        scale = MAJOR_SCALE if mode == "maj" else MINOR_SCALE
+        scale = MAJOR_SCALE if PARENT_MODE[mode] == "maj" else MINOR_SCALE
         scale_pcs = {(key_root + d) % 12 for d in scale}
         in_key = sum(1 for r in roots if r in scale_pcs) / len(roots)
         # Le plateau monte jusqu'à 1.01 : une basse qui change de note à

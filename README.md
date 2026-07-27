@@ -371,7 +371,7 @@ sur le voisinage diatonique, pas au hasard. Conséquence pratique pour
 indexer un pack : **croire l'étiquette du pack**, et ne recourir à
 l'estimateur que pour ce qui n'en a pas, en sachant que c'est un pari.
 
-### Les profils modaux : mesurés, gagnants, pas branchés
+### Les profils modaux, désormais par défaut
 
 Le trou est identifié — il manque des profils. `libretto.axes` en propose
 deux, construits et non mesurés sur des auditeurs comme l'ont été ceux de
@@ -383,9 +383,10 @@ ce sont les deux modes dont `make_corpus` écrit la vérité terrain, donc les
 deux qu'on sait valider — en livrer d'autres reproduirait le défaut qu'on
 reproche à KK.
 
-`estimate_key(hist, MODAL_PROFILES)` les utilise ; **le défaut ne bouge
-pas**. Validé sur deux graines de contrôle fraîches (23 et 31, 311 morceaux
-non modulants), à histogramme rigoureusement identique :
+`estimate_key` les utilise **par défaut** ; `estimate_key(hist,
+KEY_PROFILES)` restreint aux deux profils d'origine, témoin de toutes les
+mesures antérieures. Validé sur deux graines de contrôle fraîches (23 et 31,
+311 morceaux non modulants), à histogramme rigoureusement identique :
 
 | tonique juste | graine 23 | graine 31 |
 |---|---|---|
@@ -415,16 +416,27 @@ et sur l'histogramme du moteur, le gain existe mais reste inutile (`pipeline`
 0.566 → 0.605), parce que c'est l'histogramme qui plafonne, pas le
 vocabulaire.
 
-**Pourquoi ce n'est pas branché.** Le mode retourné traverse sept axes, dont
-deux en déduisent une gamme, et les poids publiés ont été calibrés avec
-l'estimateur actuel. La bascule a été essayée pour en mesurer le coût —
-défaut modal + `PARENT_MODE` dans les axes 9 et 14 — et le verdict du propre
-gate du dépôt est qu'elle ne casse rien : `scripts/check.sh` → CHECK OK, un
-seul axe bouge de plus de 0.02 et c'est vers le haut (11_modulation_count
-0.604 → 0.650), l'axe 8 gagne 0.012, la validation croisée passe de 0.944 à
-0.938 (dans le bruit, ± 0.10). La bascule est donc **documentée et
-défendable, pas faite** : elle demande sa propre PR, avec les poids
-recalibrés et les chiffres du README repris derrière.
+**Ce que la bascule a coûté.** Le mode retourné traverse sept axes, dont deux
+en déduisent une gamme — ceux-là passent maintenant par `PARENT_MODE`, un
+mixolydien étant analysé sur la gamme majeure et non sur la mineure. La
+question était de savoir si mieux nommer la tonalité dégrade la tâche que le
+moteur sait faire : distinguer un original de sa version dégradée. Mesuré
+sur trois graines de corpus généré (40 morceaux chacune), calibration
+complète des deux côtés :
+
+| graine | validation croisée, KK seul | avec les modes | AUC 11 |
+|---|---|---|---|
+| 7 | 0.944 | 0.938 | 0.604 → 0.650 |
+| 23 | 0.916 | 0.925 | 0.548 → 0.581 |
+| 31 | 0.944 | 0.934 | 0.616 → 0.603 |
+
+Écart moyen **−0.002** : la bascule ne coûte rien de mesurable, et
+`11_modulation_count` y gagne en moyenne 0.022. Les poids publiés ont été
+recalibrés derrière, avec les commandes qui les avaient produits :
+`weights_songs.json` (3 morceaux assemblés, accuracy calibrée 0.833 → 0.896)
+et `weights_sloopy.json` (49 loops, calibrée 0.898 → 0.902, validation
+croisée 0.873 → 0.858 — dans son propre écart-type, ± 0.05). `check.sh`
+passe, aucun axe ne repasse sous le plancher AUC.
 
 Réserves inscrites dans la sortie du script plutôt qu'en note de bas de page :
 l'étiquette vaut pour le **kit** et non pour le fichier (les 160 fichiers
@@ -779,13 +791,13 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
 - Détection d'accords par gabarits diatoniques : un accord par mesure au
   maximum, renversements fusionnés, rien au-delà des 7èmes. L'axe 12 est
   plafonné par cette résolution.
-- **Deux profils tonaux seulement, par défaut.** Krumhansl-Kessler ne connaît
-  que majeur et mineur : une pièce mixolydienne est lue à la sous-dominante
-  (3/22 sur le contrôle). Des profils dorien et mixolydien existent et sont
-  validés (+6.5 points de tonique, dorien réglé à 58/58), mais restent
-  optionnels — les brancher touche sept axes et les poids publiés. Reste
-  entier : l'histogramme sur lequel le moteur appuie sa tonalité est moins
-  bon que les notes brutes (0.567 contre 0.783). Voir *Tonalité*.
+- **Quatre profils tonaux, et le mixolydien reste à moitié manqué.** Aux deux
+  profils de Krumhansl-Kessler s'ajoutent un dorien (réglé : 58/58) et un
+  mixolydien (21/54, contre 9/54 sans lui) — le second reste le trou. Les
+  modes plus rares (phrygien, lydien) sont absents faute de vérité terrain
+  pour les valider. Reste entier : l'histogramme sur lequel le moteur appuie
+  sa tonalité est moins bon que les notes brutes (0.567 contre 0.783). Voir
+  *Tonalité*.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
   d'arpèges d'accompagnement, et le balayage est quadratique (lent sur les
   MIDI orchestraux denses).

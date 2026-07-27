@@ -50,7 +50,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from libretto.axes import PC_NAMES, SenseOfMusicalStructure  # noqa: E402
+from libretto.axes import (PARENT_MODE, PC_NAMES,  # noqa: E402
+                           SenseOfMusicalStructure)
 from libretto.midi import parse_midi, write_midi  # noqa: E402
 
 from forge import (_print_axes_report, _print_report,  # noqa: E402
@@ -153,7 +154,8 @@ def emprunt_melodique(loops: list[Loop], plan_famille: list[Loop], famille: str,
     pack = plan_famille[0].pack
     candidats = [lp for lp in loops
                  if lp.pupitre == "melodie" and lp.famille != famille
-                 and lp.pack == pack and lp.tonique is not None and lp.mode == mode
+                 and lp.pack == pack and lp.tonique is not None
+                 and PARENT_MODE.get(lp.mode) == PARENT_MODE.get(mode)
                  and lp.source_tonalite in ("fichier", "dossier")
                  and (bpm is None or lp.bpm is None
                       or abs(lp.bpm - bpm) <= 0.08 * bpm)]

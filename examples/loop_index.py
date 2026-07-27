@@ -46,7 +46,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from libretto.axes import PC_NAMES, estimate_key  # noqa: E402
+from libretto.axes import PARENT_MODE, PC_NAMES, estimate_key  # noqa: E402
 from libretto.midi import parse_midi  # noqa: E402
 
 BEATS_PER_BAR = 4
@@ -305,8 +305,13 @@ def index_pack(root: Path, estimer: bool = True,
         beats = md.end_tick / md.ppq if md.ppq else 0.0
         mesures = max(1, math.ceil(beats / BEATS_PER_BAR)) if beats else 1
         # Famille : ce qui peut s'arranger ensemble sans réfléchir. Le tempo
-        # est arrondi — un pack écrit 100 ici et 100.02 là.
-        cle_ton = f"{PC_NAMES[tonique]}{mode or ''}" if tonique is not None else "?"
+        # est arrondi — un pack écrit 100 ici et 100.02 là. Le mode est
+        # ramené à son parent : depuis que l'estimateur connaît le dorien,
+        # deux boucles du même kit peuvent sortir l'une « min » et l'autre
+        # « dorien », et grouper sur la chaîne exacte scinderait la famille
+        # sur une nuance qui ne les empêche pas de jouer ensemble.
+        parent = PARENT_MODE.get(mode, mode) if mode else None
+        cle_ton = f"{PC_NAMES[tonique]}{parent or ''}" if tonique is not None else "?"
         famille = f"{rel.parent}|{cle_ton}|{round(bpm) if bpm else '?'}"
 
         loops.append(Loop(

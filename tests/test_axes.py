@@ -26,21 +26,18 @@ class TestProfilsModaux(unittest.TestCase):
     le défaut ne bouge pas, et le vocabulaire élargi trouve bien la tonique
     que le vocabulaire réduit manque."""
 
-    def test_defaut_inchange(self):
-        # sept axes lisent ce mode : le vocabulaire par défaut reste celui de
-        # Krumhansl-Kessler tant que la bascule n'est pas décidée
+    def test_defaut_modal(self):
+        # depuis la bascule, le vocabulaire par défaut est le vocabulaire
+        # élargi ; KEY_PROFILES reste nommé, témoin des mesures antérieures
         self.assertEqual(set(KEY_PROFILES), {"maj", "min"})
-        for hist in (DO_MAJEUR, RE_DORIEN, SOL_MIXOLYDIEN):
-            self.assertIn(estimate_key(hist)[1], ("maj", "min"))
+        self.assertEqual(estimate_key(RE_DORIEN)[1], "dorien")
+        self.assertIn(estimate_key(RE_DORIEN, KEY_PROFILES)[1], ("maj", "min"))
 
     def test_dorien_reconnu(self):
-        # sans le profil, ré dorien se lit en ré mineur (tonique juste) ;
-        # avec, le mode l'est aussi
-        self.assertEqual(estimate_key(RE_DORIEN, MODAL_PROFILES)[:2], (2, "dorien"))
+        self.assertEqual(estimate_key(RE_DORIEN)[:2], (2, "dorien"))
 
     def test_mixolydien_reconnu(self):
-        self.assertEqual(estimate_key(SOL_MIXOLYDIEN, MODAL_PROFILES)[:2],
-                         (7, "mixolydien"))
+        self.assertEqual(estimate_key(SOL_MIXOLYDIEN)[:2], (7, "mixolydien"))
 
     def test_le_profil_juste_correle_mieux(self):
         """Sur un histogramme d'école, KK trouve déjà la bonne tonique et se
@@ -50,8 +47,8 @@ class TestProfilsModaux(unittest.TestCase):
         colle mieux à sa propre gamme que le profil parent, condition
         nécessaire pour qu'il gagne quand la matière est ambiguë."""
         for hist, mode in ((RE_DORIEN, "dorien"), (SOL_MIXOLYDIEN, "mixolydien")):
-            sans = estimate_key(hist)
-            avec = estimate_key(hist, MODAL_PROFILES)
+            sans = estimate_key(hist, KEY_PROFILES)
+            avec = estimate_key(hist)
             self.assertEqual(sans[0], avec[0])          # même tonique
             self.assertNotEqual(sans[1], avec[1])       # mode corrigé
             self.assertEqual(avec[1], mode)
@@ -59,7 +56,21 @@ class TestProfilsModaux(unittest.TestCase):
 
     def test_majeur_franc_reste_majeur(self):
         # le vocabulaire élargi ne doit pas voler les pièces qu'on lisait bien
-        self.assertEqual(estimate_key(DO_MAJEUR, MODAL_PROFILES)[:2], (0, "maj"))
+        self.assertEqual(estimate_key(DO_MAJEUR)[:2], (0, "maj"))
+
+    def test_les_axes_qui_deduisent_une_gamme_passent_par_le_parent(self):
+        """Les axes 9 et 14 transforment le mode en gamme. Depuis la bascule,
+        ce mode peut valoir « dorien » : sans `PARENT_MODE`, un morceau
+        mixolydien serait analysé sur une gamme mineure."""
+        harmony = [_chord(NoteType.G), _chord(NoteType.F), _chord(NoteType.C),
+                   _chord(NoteType.G)]
+        melody = [Pitch(n) for n in (NoteType.G, NoteType.B, NoteType.D, NoteType.F,
+                                     NoteType.E, NoteType.D, NoteType.C, NoteType.G)]
+        score = Score(sections=[Section("a", 1, 9, "verse", harmony=harmony,
+                                        melody_pitches=melody)])
+        axes = {a.id: a for a in SenseOfMusicalStructure(score).calculate()}
+        self.assertGreater(axes["09_progression_complexity"].score, 0.0)
+        self.assertGreater(axes["14_bass_melodic"].score, 0.0)
 
     def test_profils_derives_de_leur_parent(self):
         # construction assumée : un seul degré échangé, le reste intact
