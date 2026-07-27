@@ -278,16 +278,35 @@ python3 -m libretto.cli annotate duels.json --out jugements_duels.json --render 
 python3 -m libretto.cli agreement jugements_duels.json   # sans --corpus : pas de dégradation à rejouer
 ```
 
-Première session (14 duels, 4 contrôles) : **non concluante** — 50 % (IC95
-0.27–0.73), 43 % sur les écarts forts (≥ 0.10), 57 % sur les faibles. Et le
-verdict qui compte est méthodologique : **le lot ne pouvait pas conclure**.
-Sur n = 7 par tranche, le seul résultat significatif possible était 7/7, et
-la puissance pour une vraie détection de 0.80 était de 21 %. Il faut 20, 30,
-49 ou 90 jugements tranchés par tranche pour détecter respectivement 0.80,
-0.75, 0.70 ou 0.65. Détail et pistes dans
-[`resultats_ecoute.md`](resultats_ecoute.md) — d'ici là, le n°1 de Forge est
-le mieux construit *au sens des 29 axes*, et personne ne l'a encore entendu
-dire par une oreille.
+Deux sessions, cumulées : 60 duels, 11 contrôles, 71 jugements, rendu
+v3-instrument (la première, à 14 duels, ne pouvait rien conclure — sur n = 7
+par tranche, seul un 7/7 aurait été significatif ; détail en session 6).
+
+| tranche | écart SMS | l'oreille suit le moteur | IC95 | p unilatéral |
+|---|---|---|---|---|
+| écart fort | 0.102 – 0.206 | **18/29 = 62 %** | 0.44 – 0.77 | 0.132 |
+| écart faible | 0.001 – 0.038 | 13/30 = 43 % | 0.27 – 0.61 | 0.819 |
+
+Aucun des deux n'est significatif, et les deux ne disent pas la même chose.
+**Le classement fin ne s'entend pas** : sur les écarts de quelques
+centièmes — ceux qui décident du n°1 contre le n°3 — l'oreille est au
+hasard, et cette fois la puissance était là (un effet réel de 0.75 aurait
+été vu 8 fois sur 10). **Sur les gros écarts il y a un signal, trop faible
+pour ce lot** : 62 % va dans le sens attendu, l'écart entre tranches aussi
+(Fisher p = 0.119), mais établir un effet de 0.62 demanderait 106 duels par
+tranche. Le coût de la question est chiffré, il n'est pas payé.
+
+À lire avec la réserve que le harnais signale lui-même : sur 11 paires
+**identiques**, l'annotateur n'a dit « aucune différence » que 3 fois. Il
+n'appuie pas au hasard pour autant — 27 % de « aucune différence » sur les
+paires identiques contre 1.7 % sur les duels réels (Fisher p = 0.011) — mais
+chaque préférence inventée est un tirage à pile ou face qui tire le taux vers
+0.5 : **les 62 % sont un plancher, pas une estimation**.
+
+Conséquence pratique, écrite noir sur blanc : sur du loop arrangé comme sur
+du transcrit, Forge est un **triage grossier**. Écarter le bas du classement
+se défend ; couronner le n°1 ne se défend pas. Détail en session 7 de
+[`resultats_ecoute.md`](resultats_ecoute.md).
 
 ## Tonalité : l'estimateur confronté à une étiquette qu'il n'a pas écrite
 
@@ -620,6 +639,13 @@ celles de `make_corpus`, **écrites sous les mêmes hypothèses que les axes**.
 C'est la circularité vue d'un autre angle — le générateur maison a un
 avantage de naissance sur le juge maison, et il ne se voyait pas tant qu'on
 ne lui opposait pas de la matière étrangère.
+
+Ces écarts sont ceux du **juge**, et le juge a depuis été confronté à une
+oreille sur ces mêmes candidats (voir *Validation externe*, sessions 6-7) :
+sur des écarts de score supérieurs à 0.10 l'accord est de 62 % — un signal
+non établi ; sur des écarts de quelques centièmes, rien. Le 0.839 contre
+0.760 tient donc comme mesure de charpente, pas comme promesse que le
+gagnant s'entend mieux.
 
 Rien du pack n'entre dans le dépôt : l'index ne contient que des chemins, et
 le dossier reste où il est.
