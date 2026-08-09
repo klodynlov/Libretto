@@ -335,48 +335,93 @@ def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: in
     return boundaries
 
 
-def _assign_letters(section_feats: list[list[float]],
+# Deux sections sont « le même matériau » quand leurs mesures se ressemblent
+# une à une au-delà de ce seuil. Réglé sur la graine 7 (plateau 0.975-0.98,
+# milieu du fossé observé : reprises exactes ≥ 0.994, matériaux distincts
+# ≤ 0.972), validé sur les graines 11/23/31 tenues à l'écart.
+SECTION_SIM_THRESHOLD = 0.975
+
+
+def _aligned_section_sim(a: list[list[float]], b: list[list[float]]) -> float:
+    """Similarité de deux sections par alignement mesure à mesure.
+
+    Le cosinus des MOYENNES par section — l'ancienne mesure — écrase la
+    séquence : deux sections au même registre et à la même énergie sortaient
+    à 0.99 même bâties sur des matériaux différents, quand un couplet et son
+    refrain bâtis sur la même grille sortaient eux aussi à 0.98 — tout se
+    jouait dans la troisième décimale, et aucun seuil ne tenait. Comparer
+    les mesures une à une — ce que la diagonale de la matrice
+    d'auto-similarité fait déjà pour les frontières — écarte l'étau :
+    reprises d'une même section ≥ 0.99, matériaux distincts ≤ 0.97, un
+    couplet contre son refrain tombe à 0.67.
+
+    Le préfixe commun est pondéré par L/max(la, lb) : sans cette pénalité,
+    une intro de quatre mesures égale aux quatre premières mesures d'un
+    couplet de huit en serait indiscernable."""
+    L = min(len(a), len(b))
+    if L == 0:
+        return 0.0
+    s = sum(1.0 - _cosine_dist(a[k], b[k]) for k in range(L)) / L
+    return s * (L / max(len(a), len(b)))
+
+
+def _assign_letters(section_bars: list[list[list[float]]],
                     sim_threshold: float | None = None) -> list[str]:
-    """Regroupe les sections par matériau (A, B, C…).
+    """Regroupe les sections par matériau (A, B, C…) — agglomératif à
+    liaison moyenne sur la similarité alignée, seuil absolu.
 
-    Le seuil est **adaptatif**, calculé sur la distribution des similarités
-    entre sections de la pièce. Un seuil absolu — 0.82 en v0.2 — ne peut pas
-    convenir : le niveau de similarité dépend entièrement du matériau. Une
-    pièce bâtie sur une seule couleur harmonique a toutes ses sections
-    au-dessus de 0.95 et se retrouvait rangée en un unique cluster, si bien
-    que 29 morceaux sur 34 d'un corpus annoté ressortaient avec un seul type
-    de section. Les axes 3 et 6, qui lisent ces étiquettes, n'avaient plus
-    rien à mesurer.
+    L'ancien regroupement était glouton (chaque section comparée au premier
+    représentant de chaque groupe) sur le cosinus des moyennes, avec un
+    seuil adaptatif à la pièce — nécessaire parce que cette similarité-là
+    écrasait tout vers 1.0 (cf. _aligned_section_sim). Sur la similarité
+    alignée, l'échelle redevient absolue : « même section rejouée » a une
+    signature (≥ 0.99) qui ne dépend plus du matériau, et le seuil adaptatif
+    redevenait le maillon faible — il descendait sous les paires
+    couplet/pont (0.92) dès que la pièce était homogène. Frontières vraies
+    injectées, graine 7 : l'exactitude de partition passe de 4/23 (glouton
+    adaptatif) à 17/23 (agglomératif absolu).
 
-    On place donc le seuil à mi-chemin entre la similarité typique (médiane)
-    et la similarité maximale observée : ce qui compte est qu'une paire de
-    sections se ressemble **plus que la moyenne des paires de cette pièce**."""
-    n = len(section_feats)
+    Un morceau sans AUCUNE paire au-dessus du seuil ressort tout en
+    singletons : c'est le verdict voulu pour un travers-composé, dont les
+    sections ne reviennent jamais."""
+    n = len(section_bars)
     if n < 2:
         return ["A"] * n
     if sim_threshold is None:
-        sims = [1.0 - _cosine_dist(section_feats[i], section_feats[j])
-                for i in range(n) for j in range(i + 1, n)]
-        med = _median(sims)
-        top = max(sims)
-        # Une pièce dont toutes les sections se valent vraiment (écart nul)
-        # garde un seuil haut : mieux vaut un seul groupe qu'un découpage
-        # inventé sur du bruit.
-        sim_threshold = med + 0.5 * (top - med) if top - med > 0.02 else 0.95
+        sim_threshold = SECTION_SIM_THRESHOLD
+    sim = [[1.0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            sim[i][j] = sim[j][i] = _aligned_section_sim(section_bars[i],
+                                                         section_bars[j])
+    clusters: list[list[int]] = [[i] for i in range(n)]
 
+    def link(a: list[int], b: list[int]) -> float:
+        return sum(sim[i][j] for i in a for j in b) / (len(a) * len(b))
+
+    while len(clusters) > 1:
+        best: tuple[float, int, int] | None = None
+        for x in range(len(clusters)):
+            for y in range(x + 1, len(clusters)):
+                s = link(clusters[x], clusters[y])
+                if best is None or s > best[0]:
+                    best = (s, x, y)
+        s, x, y = best
+        if s < sim_threshold:
+            break
+        clusters[x] = clusters[x] + clusters[y]
+        del clusters[y]
+
+    owner = [0] * n
+    for members in clusters:
+        for i in members:
+            owner[i] = min(members)
     letters: list[str] = []
-    reps: list[tuple[str, list[float]]] = []
-    for feat in section_feats:
-        assigned = None
-        best_sim = -1.0
-        for letter, rep in reps:
-            sim = 1.0 - _cosine_dist(feat, rep)
-            if sim >= sim_threshold and sim > best_sim:
-                assigned, best_sim = letter, sim
-        if assigned is None:
-            assigned = chr(ord("A") + len(reps))
-            reps.append((assigned, feat))
-        letters.append(assigned)
+    mapping: dict[int, str] = {}
+    for i in range(n):
+        if owner[i] not in mapping:
+            mapping[owner[i]] = chr(ord("A") + len(mapping))
+        letters.append(mapping[owner[i]])
     return letters
 
 
@@ -400,13 +445,22 @@ def _name_sections(letters: list[str], energies: list[float]) -> list[str]:
     others = [lt for lt in repeated if lt != chorus]
     if others:
         verse = max(others, key=lambda lt: counts[lt])
+    # Chaque lettre singleton du milieu reçoit un nom DISTINCT : tout
+    # nommer « bridge » fusionnait des matériaux que le clustering avait
+    # séparés — un travers-composé A-B-C-D-E ressortait intro-bridge-
+    # bridge-bridge-outro, et l'axe 3 (diversité) comptait 3 types au lieu
+    # de 5. Le nom est une présentation ; il n'a pas le droit de détruire
+    # la partition qu'il présente.
+    singleton_names = iter(["bridge", "interlude", "solo"])
+    singleton_by_letter: dict[str, str] = {}
     for i, letter in enumerate(letters):
         if letter == chorus:
             labels[i] = "chorus"
         elif letter == verse:
             labels[i] = "verse"
         elif counts[letter] == 1 and 0 < i < n - 1:
-            labels[i] = "bridge"
+            labels[i] = singleton_by_letter.setdefault(
+                letter, next(singleton_names, letter))
     if counts[letters[0]] == 1 and energies[0] <= median_e:
         labels[0] = "intro"
     if counts[letters[-1]] == 1 and energies[-1] <= median_e:
@@ -544,6 +598,12 @@ def build_score(md: MidiData) -> Score:
         feat.append(GESTURE_W * dur_mean[b])
         features.append(feat)
 
+    # Les mesures de queue vides ne sont pas de la musique, seulement le
+    # sillage d'une note tenue : la segmentation les ignore (leur nouveauté
+    # maximale fausserait le seuil), et le clustering des sections aussi —
+    # elles allongeaient la dernière section de mesures nulles, ce que la
+    # pénalité de longueur de _aligned_section_sim payait à tort.
+    last_sounding = max((b for b in range(n_bars) if density[b] > 0), default=0)
     marker_bars = sorted({bar_of(t) for t, _ in md.markers})
     if len(marker_bars) >= 2:
         boundaries = sorted(set([0] + marker_bars))
@@ -554,10 +614,6 @@ def build_score(md: MidiData) -> Score:
             key = next((v for k, v in MARKER_LABELS.items() if k in text), None)
             raw_labels.append(key or text or "section")
     else:
-        # La segmentation ne regarde que les mesures qui sonnent : les mesures
-        # de queue vides ne sont pas de la musique, seulement le sillage d'une
-        # note tenue, et leur nouveauté maximale fausserait le seuil.
-        last_sounding = max((b for b in range(n_bars) if density[b] > 0), default=0)
         boundaries = _detect_boundaries(features[:last_sounding + 1])
         raw_labels = None
 
@@ -591,7 +647,7 @@ def build_score(md: MidiData) -> Score:
         poly_by_bar.append(sum(window) / len(window) if window else 0.0)
 
     sections: list[Section] = []
-    section_feats: list[list[float]] = []
+    section_bar_feats: list[list[list[float]]] = []
     energies: list[float] = []
     max_vel_piece = max((n.velocity for n in all_notes), default=1)
     # Répartition des notes par section en un passage (bisect sur les ticks
@@ -642,8 +698,8 @@ def build_score(md: MidiData) -> Score:
                         for pc in range(12)],
         )
         sections.append(section)
-        feats = [features[b] for b in range(b0, b1)]
-        section_feats.append([sum(col) / len(feats) for col in zip(*feats)])
+        section_bar_feats.append([features[b]
+                                  for b in range(b0, min(b1, last_sounding + 1))])
         energies.append(0.6 * mean_vel / max_vel_piece
                         + 0.4 * min(1.0, (len(sec_notes) / max(1, n_sec_bars)) / 12.0))
 
@@ -651,7 +707,7 @@ def build_score(md: MidiData) -> Score:
         return Score()
 
     # ── labels ──
-    letters = _assign_letters(section_feats)
+    letters = _assign_letters(section_bar_feats)
     if raw_labels is not None:
         for section, label in zip(sections, raw_labels):
             section.label = label
