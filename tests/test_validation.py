@@ -389,29 +389,38 @@ class TestRepetitionSegmentation(unittest.TestCase):
         self.assertEqual(edges, {4, 8},
                          "le retour A-A d'un petit ternaire doit exister")
 
-    def test_labelling_threshold_adapts_to_material(self):
-        """Seuil fixe à 0.82 : une pièce à couleur harmonique unique voyait
-        toutes ses sections rangées dans le même groupe — 29 morceaux sur 34
-        d'un corpus annoté ressortaient avec un seul type de section, et les
-        axes 3 et 6 n'avaient plus rien à lire."""
-        # Deux matériaux réellement distincts, mais dont la similarité
-        # croisée (0.89) reste au-dessus de l'ancien seuil absolu de 0.82 :
-        # celui-ci les fondait en un seul groupe.
-        feats = [[1.0, 0.35, 0.0], [1.0, 0.35, 0.0],
-                 [1.0, 0.0, 0.35], [1.0, 0.0, 0.35]]
-        cross = 1.0 - _cosine_dist(feats[0], feats[2])
+    def test_labelling_splits_similar_but_distinct_material(self):
+        """Régression v0.2 : le seuil absolu de 0.82 sur le cosinus des
+        moyennes fondait en un seul groupe deux matériaux distincts dont la
+        similarité croisée restait haute (0.89) — 29 morceaux sur 34 d'un
+        corpus annoté ressortaient avec un seul type de section, et les
+        axes 3 et 6 n'avaient plus rien à lire. La similarité alignée met
+        « même section rejouée » (1.0) et « matériaux voisins » (0.89) de
+        part et d'autre du seuil."""
+        bar_a, bar_b = [1.0, 0.35, 0.0], [1.0, 0.0, 0.35]
+        cross = 1.0 - _cosine_dist(bar_a, bar_b)
         self.assertGreater(cross, 0.82, "prémisse du test : au-dessus du seuil v0.2")
-        letters = _assign_letters(feats)
+        sections = [[bar_a], [bar_a], [bar_b], [bar_b]]
+        letters = _assign_letters(sections)
         self.assertGreater(len(set(letters)), 1,
-                           "le seuil doit s'adapter au matériau de la pièce")
+                           "des matériaux distincts doivent rester séparés")
         self.assertEqual(letters[0], letters[1])
         self.assertEqual(letters[2], letters[3])
 
     def test_uniform_material_stays_one_group(self):
         # Sections réellement identiques : un seul groupe, pas un découpage
         # inventé sur du bruit numérique.
-        feats = [[1.0, 0.5, 0.2]] * 5
-        self.assertEqual(len(set(_assign_letters(feats))), 1)
+        sections = [[[1.0, 0.5, 0.2], [0.8, 0.1, 0.4]]] * 5
+        self.assertEqual(len(set(_assign_letters(sections))), 1)
+
+    def test_length_mismatch_penalised(self):
+        # Une intro de 2 mesures égale aux 2 premières mesures d'une section
+        # de 8 n'est PAS la même section : le préfixe commun parfait est
+        # pondéré par le rapport des longueurs (2/8 ici).
+        bar = [1.0, 0.5, 0.2]
+        other = [0.1, 0.9, 0.3]
+        sections = [[bar, bar], [bar, bar] + [other] * 6]
+        self.assertEqual(len(set(_assign_letters(sections))), 2)
 
 
 class TestGestureDims(unittest.TestCase):

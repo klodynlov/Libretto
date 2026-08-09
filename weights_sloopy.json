@@ -17,7 +17,7 @@
   },
   "after": {
     "accuracy": 0.8811,
-    "margin": 0.0636
+    "margin": 0.0621
   },
   "validation": {
     "n_folds": 5,
@@ -64,7 +64,7 @@
         "test_accuracy": 0.7692,
         "test_margin": 0.0596,
         "expert_test_accuracy": 0.7436,
-        "expert_test_margin": 0.0325
+        "expert_test_margin": 0.0324
       },
       {
         "fold": 3,
@@ -88,7 +88,7 @@
         "test_accuracy": 0.9028,
         "test_margin": 0.0837,
         "expert_test_accuracy": 0.8194,
-        "expert_test_margin": 0.0287
+        "expert_test_margin": 0.0288
       }
     ]
   },
@@ -104,18 +104,18 @@
     "09_progression_complexity": 0.005,
     "10_cadence_presence": 0.008,
     "11_modulation_count": 0.03,
-    "12_harmonic_rhythm": 0.032,
+    "12_harmonic_rhythm": 0.034,
     "13_tonal_contrast": 0.03,
     "14_bass_melodic": 0.02,
-    "15_melodic_contour": 0.032,
+    "15_melodic_contour": 0.03,
     "16_motivic_development": 0.078,
-    "17_theme_recognition": 0.087,
+    "17_theme_recognition": 0.081,
     "18_melodic_range": 0.023,
-    "19_intervallic_character": 0.025,
-    "20_melodic_rhythm_syncopation": 0.032,
+    "19_intervallic_character": 0.027,
+    "20_melodic_rhythm_syncopation": 0.03,
     "21_tempo_variation": 0.03,
     "22_tempo_consistency": 0.025,
-    "23_rhythmic_complexity": 0.033,
+    "23_rhythmic_complexity": 0.039,
     "24_hypermetric_regularity": 0.025,
     "25_texture_variety": 0.039,
     "26_dynamic_range": 0.03,
@@ -143,10 +143,10 @@
     "17_theme_recognition": 0.3322,
     "18_melodic_range": -0.0362,
     "19_intervallic_character": -0.0946,
-    "20_melodic_rhythm_syncopation": 0.036,
+    "20_melodic_rhythm_syncopation": 0.0358,
     "21_tempo_variation": 0.0,
     "22_tempo_consistency": 0.0,
-    "23_rhythmic_complexity": 0.0875,
+    "23_rhythmic_complexity": 0.0876,
     "24_hypermetric_regularity": 0.0,
     "25_texture_variety": 0.0,
     "26_dynamic_range": 0.0,
@@ -174,7 +174,7 @@
     "17_theme_recognition": 0.75,
     "18_melodic_range": 0.5105,
     "19_intervallic_character": 0.2542,
-    "20_melodic_rhythm_syncopation": 0.5887,
+    "20_melodic_rhythm_syncopation": 0.5871,
     "21_tempo_variation": 0.5,
     "22_tempo_consistency": 0.5,
     "23_rhythmic_complexity": 0.5823,
@@ -268,7 +268,7 @@
       "17_theme_recognition": 0.25,
       "18_melodic_range": 0.5,
       "19_intervallic_character": 0.4083,
-      "20_melodic_rhythm_syncopation": 0.5065,
+      "20_melodic_rhythm_syncopation": 0.5,
       "21_tempo_variation": 0.5,
       "22_tempo_consistency": 0.5,
       "23_rhythmic_complexity": 0.4935,

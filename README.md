@@ -821,9 +821,19 @@ tempo/signatures/marqueurs ; SMPTE rejeté) + writer minimal.
   0.55 → **0.73**. Le noyau en damier de Foote (2000) a été implémenté puis
   retiré : il ne faisait jamais mieux que la nouveauté par fenêtres et ne
   paraissait gagnant que sur le corpus ayant servi à régler son seuil ;
-- étiquetage par regroupement des sections à **seuil adaptatif** — le
-  niveau de similarité dépend du matériau, si bien qu'un seuil absolu
-  rangeait 29 morceaux sur 34 dans un unique type de section ;
+- étiquetage par regroupement des sections sur la **similarité alignée
+  mesure à mesure** (agglomératif à liaison moyenne, seuil absolu 0.975,
+  pénalité de longueur). Deux seuils absolus ont existé et le premier a
+  échoué : sur le cosinus des *moyennes* par section, tout s'écrase vers
+  1.0 (29 morceaux sur 34 rangés dans un unique type en v0.2 — d'où un
+  seuil adaptatif, longtemps). Comparer les mesures une à une rouvre
+  l'échelle — reprises ≥ 0.99, matériaux distincts ≤ 0.97, couplet contre
+  refrain 0.67 — et c'est alors le seuil *adaptatif* qui devenait le
+  maillon faible. Réglé sur la graine 7, validé sur trois graines jamais
+  consultées : partitions exactes à frontières vraies 4 → 17/23
+  (réglage) et 16 → 40/57 (écartées). Les singletons gardent en outre
+  des noms distincts (bridge, interlude, solo) — tout nommer « bridge »
+  détruisait la partition que le clustering venait de trouver ;
 - vélocité moyenne, polyphonie **par mesure**, densité et onsets par section
   (alimentent les axes 20, 23, 25-28) ;
 - **contexte métrique** dérivé du chiffrage : un chiffrage composé (6/8,
@@ -867,16 +877,19 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
   modes plus rares (phrygien, lydien) sont absents faute de vérité terrain
   pour les valider. Voir *Tonalité*.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
-  d'arpèges d'accompagnement, et le balayage est quadratique (lent sur les
-  MIDI orchestraux denses).
+  d'arpèges d'accompagnement.
 - Segmentation évaluée, mais encore approximative : F-mesure des frontières
-  **0.73** (tolérance ±1 mesure) sur trois corpus annotés, et le
-  regroupement des sections par matériau ne retrouve le bon nombre de types
-  que dans un quart des cas. C'est ce qui plafonne les axes de forme (01,
-  03, 04, 06), tous voisins de 0.5 — donc neutres plutôt qu'inversés, mais
-  peu informatifs. Le gate AUC est calé à 0.42 en conséquence : la marge
-  avec le plancher de bruit mesuré (0.448) est mince, et le remonter suppose
-  de stabiliser d'abord l'étiquetage.
+  **0.73-0.89** selon la graine (tolérance ±1 mesure), et surtout le **nombre
+  de sections** n'est exact que dans 36 % des cas (29/80) — c'est lui,
+  désormais, qui plafonne la forme : le regroupement par matériau, à
+  frontières justes, est passé de 4/23 à 17/23 (validé sur trois graines
+  écartées), et la forme complète — frontières détectées puis partition —
+  de 12/80 à 22/80. Les axes qui lisent les étiquettes ont suivi (AUC
+  moyenne sur 3 graines : 03 0.50 → 0.58, 04 0.51 → 0.59, 06 0.44 → 0.73,
+  ce dernier inversé sur une graine avant) ; l'axe 01, qui ne lit que le
+  nombre de sections, reste à 0.55. Le gate AUC reste calé à 0.42 : la
+  marge avec le plancher de bruit mesuré (0.448) est mince, et le remonter
+  suppose de stabiliser d'abord le compte de sections.
 - Esthétique pop inscrite dans les bandes de tolérance : un nocturne ou une
   pièce ambient scorent bas par construction. Les profils de poids
   (`weights_*.json`) atténuent, ils ne suppriment pas.
