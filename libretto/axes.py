@@ -566,7 +566,8 @@ class SenseOfMusicalStructure:
         formelle dégénérée prise pour une qualité. L'équilibre des durées,
         lui, est conservé : il ne dépend d'aucune étiquette, et l'annuler
         punirait un morceau pour une erreur de regroupement en amont — le
-        labelling ne retrouve la forme annotée que dans un cas sur deux.
+        regroupement, même à frontières justes, se trompe encore une fois
+        sur quatre (57/80 sur quatre corpus annotés).
 
         **L'équilibre des moitiés est un plateau, pas un gradient.** Noter
         `1 − déséquilibre` fait de l'égalité parfaite l'unique optimum, si
