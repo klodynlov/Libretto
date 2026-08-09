@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 from bisect import bisect_right
 from collections import Counter
+from heapq import heappop, heappush
 
 from .midi import MidiData, MidiNote
 from .model import Chord, Score, Section, pitch_from_midi
@@ -448,25 +449,46 @@ def build_score(md: MidiData) -> Score:
     # ── accord par mesure ──
     chords_by_bar: list[Chord | None] = [_best_chord(chroma[b]) for b in range(n_bars)]
 
-    # ── mélodie : voix supérieure échantillonnée par temps ──
+    # ── mélodie (voix supérieure) et polyphonie, échantillonnées par temps ──
+    # Balayage par événements : l'ancien code relisait toutes les notes à
+    # chaque temps — quadratique, et c'était le coût dominant sur les MIDI
+    # denses (~600 ms pour 24 000 notes, là où tout le reste tient en 40 ms).
+    # La clé du tas reproduit le choix de max(key=pitch) : hauteur maximale,
+    # puis PREMIÈRE note dans l'ordre du fichier en cas d'égalité — un
+    # sommet ex æquo doit désigner la même note qu'avant.
     total_beats = max(1, math.ceil(md.end_tick / ppq))
     melody_samples: list[tuple[int, MidiNote]] = []  # (beat, note)
+    poly_by_beat: list[int] = []
+    by_start = sorted(range(len(notes)), key=lambda i: notes[i].start)
+    by_end = sorted(range(len(notes)), key=lambda i: notes[i].end)
+    heap: list[tuple[int, int]] = []  # (-pitch, index d'origine), retrait paresseux
+    pitch_count = [0] * 128
+    distinct = 0
+    si = ei = 0
     last_note: MidiNote | None = None
     for beat in range(total_beats):
         tick = beat * ppq
-        sounding = [n for n in notes if n.start <= tick < n.end]
-        if not sounding:
-            continue
-        top = max(sounding, key=lambda n: n.pitch)
-        if top is not last_note:
-            melody_samples.append((beat, top))
-            last_note = top
-
-    # ── polyphonie par temps ──
-    poly_by_beat: list[int] = []
-    for beat in range(total_beats):
-        tick = beat * ppq
-        poly_by_beat.append(len({n.pitch for n in notes if n.start <= tick < n.end}))
+        while si < len(by_start) and notes[by_start[si]].start <= tick:
+            i = by_start[si]
+            heappush(heap, (-notes[i].pitch, i))
+            if pitch_count[notes[i].pitch] == 0:
+                distinct += 1
+            pitch_count[notes[i].pitch] += 1
+            si += 1
+        while ei < len(by_end) and notes[by_end[ei]].end <= tick:
+            p = notes[by_end[ei]].pitch
+            pitch_count[p] -= 1
+            if pitch_count[p] == 0:
+                distinct -= 1
+            ei += 1
+        poly_by_beat.append(distinct)
+        while heap and notes[heap[0][1]].end <= tick:
+            heappop(heap)
+        if heap:
+            top = notes[heap[0][1]]
+            if top is not last_note:
+                melody_samples.append((beat, top))
+                last_note = top
 
     # ── frontières de sections ──
     # Features de segmentation. Le chroma seul ne suffit pas : normalisé L2,
@@ -572,13 +594,23 @@ def build_score(md: MidiData) -> Score:
     section_feats: list[list[float]] = []
     energies: list[float] = []
     max_vel_piece = max((n.velocity for n in all_notes), default=1)
+    # Répartition des notes par section en un passage (bisect sur les ticks
+    # de départ), au lieu de refiltrer tout le fichier à chaque section.
+    # L'ordre d'origine des notes est conservé dans chaque seau — les
+    # onset_beats en dépendent.
+    sec_start_ticks = [bar_starts[edges[idx]] for idx in range(len(edges) - 1)]
+    notes_by_section: list[list[MidiNote]] = [[] for _ in sec_start_ticks]
+    for n in all_notes:
+        k = bisect_right(sec_start_ticks, n.start) - 1
+        if k >= 0:
+            notes_by_section[k].append(n)
     for idx in range(len(edges) - 1):
         b0, b1 = edges[idx], edges[idx + 1]
         if b1 <= b0:
             continue
         start_tick = bar_starts[b0]
         end_tick = bar_starts[b1] if b1 < n_bars else md.end_tick + 1
-        sec_notes = [n for n in all_notes if start_tick <= n.start < end_tick]
+        sec_notes = notes_by_section[idx]
         harmony = [chords_by_bar[b] for b in range(b0, b1) if chords_by_bar[b] is not None]
         beat0 = math.ceil(start_tick / ppq)
         beat1 = math.ceil(end_tick / ppq)
