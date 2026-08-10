@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
 
 from libretto.library import Library  # noqa: E402
-from forge_library import _collect, ingest_forge_output  # noqa: E402
+from forge_library import _clean_meta, _collect, ingest_forge_output  # noqa: E402
 
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 MIDI_A = EXAMPLES / "morceau_sloopy.mid"
@@ -107,6 +107,24 @@ class TestForgeLibrary(unittest.TestCase):
             self.assertEqual(res["added"], 0)
             self.assertEqual(res["updated"], 2)
             self.assertEqual(len(Library.load(libpath).entries), 2)
+
+
+class TestCleanMeta(unittest.TestCase):
+    """Les sentinelles d'un rapport Forge (« — », None) ne doivent pas être
+    imposées comme métadonnées : un générateur appris ne déclare ni tonalité
+    ni longueur, `analyze_entry` doit alors estimer, pas recevoir « — »."""
+
+    def test_sentinels_dropped(self):
+        clean = _clean_meta({"tonic": None, "mode": "—", "bpm": 168, "bars": None})
+        self.assertEqual(clean, {"tonic": None, "mode": None, "bpm": 168, "bars": None})
+
+    def test_real_values_kept(self):
+        clean = _clean_meta({"tonic": 5, "mode": "min", "bpm": 92, "bars": 8})
+        self.assertEqual(clean, {"tonic": 5, "mode": "min", "bpm": 92, "bars": 8})
+
+    def test_out_of_domain_rejected(self):
+        clean = _clean_meta({"tonic": 42, "mode": "lydien", "bpm": -3, "bars": 0})
+        self.assertEqual(clean, {"tonic": None, "mode": None, "bpm": None, "bars": None})
 
 
 if __name__ == "__main__":

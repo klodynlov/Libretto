@@ -49,6 +49,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from libretto.library import Library, analyze_entry  # noqa: E402
 
+_MODES = {"maj", "min", "dorien", "mixolydien"}
+
+
+def _clean_meta(meta: dict) -> dict:
+    """Ne retient que les métadonnées Forge RÉELLEMENT connues. Selon le
+    générateur, le rapport porte de vraies valeurs (make_corpus sait ce qu'il
+    a écrit) ou des sentinelles (« — », None) quand un modèle appris ne les
+    déclare pas. Imposer une sentinelle donnerait un mode « — » à `analyze_
+    entry`, marqué à tort comme override ; on la laisse plutôt estimer."""
+    def _int(x, lo, hi):
+        return x if isinstance(x, int) and not isinstance(x, bool) and lo <= x <= hi else None
+    tonic = _int(meta.get("tonic"), 0, 11)
+    mode = meta.get("mode") if meta.get("mode") in _MODES else None
+    bpm = meta.get("bpm") if isinstance(meta.get("bpm"), (int, float)) \
+        and not isinstance(meta.get("bpm"), bool) and meta.get("bpm") > 0 else None
+    bars = _int(meta.get("bars"), 1, 10_000)
+    return {"tonic": tonic, "mode": mode, "bpm": bpm, "bars": bars}
+
 
 def _collect(report: dict, base: Path, include_all: bool) -> list[tuple[Path, dict, str]]:
     """(chemin sur disque, métadonnées Forge, rôle) pour chaque livrable
@@ -107,10 +125,11 @@ def ingest_forge_output(out_dir: str | Path, lib_path: str | Path, *,
     rows: list[tuple[Path, object, str]] = []
     for path, meta, role in items:
         entry_tags = list(tags or []) + ["forge", f"forge:{role}"]
+        clean = _clean_meta(meta)
         try:
             entry = analyze_entry(path, weights=weights,
-                                  tonic=meta.get("tonic"), mode=meta.get("mode"),
-                                  bpm=meta.get("bpm"), bars=meta.get("bars"),
+                                  tonic=clean["tonic"], mode=clean["mode"],
+                                  bpm=clean["bpm"], bars=clean["bars"],
                                   tags=entry_tags)
         except ValueError as exc:
             failed += 1
