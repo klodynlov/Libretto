@@ -7,22 +7,31 @@ si occupé — 8765 appartient au dashboard Library Brain sur cette machine) :
 - comparateur : les analyses de la session s'empilent, triées par score ;
 - recherche par intention dans la bibliothèque (`serve --lib lib.json`) :
   « mélancolique 8 mesures ~90 bpm » classe les séquences indexées ;
+- génération de séquences (`serve --generate`, ou `--corpus DIR` pour le
+  modèle appris) : Forge produit des candidats et garde les mieux construits,
+  chacun téléchargeable, poussable dans REAPER, indexable en un clic ;
 - bouton « ▶ Reaper » : pousse le fichier dans REAPER via le pont Klody
-  (:9000) et lance la lecture — sur une analyse déposée comme sur un
-  résultat de recherche.
+  (:9000) et lance la lecture — sur une analyse déposée, un résultat de
+  recherche, ou une séquence générée.
 
-API : GET /api/analyses · POST /api/analyze (corps = octets MIDI,
-en-tête X-Filename) · POST /api/search {"query": …} · POST /api/reaper
-{"id": N} (analyse en mémoire) ou {"path": …} (entrée de la bibliothèque).
-Les analyses déposées restent en mémoire ; la recherche lit le fichier
-d'index sur disque (rafraîchi à chaque requête).
+Le cœur (`libretto`) ne dépend PAS des générateurs (qui vivent dans
+`examples/`) : la CLI fournit un rappel `generator`, le serveur l'appelle
+sans le connaître — panneau masqué si absent, comme la recherche sans `--lib`.
+
+API : GET /api/analyses · GET /api/download?path=… (fichier généré) ·
+POST /api/analyze (octets MIDI, en-tête X-Filename) · POST /api/search
+{"query": …} · POST /api/generate {"mode","n","shortlist","bars","seed"} ·
+POST /api/library_add {"path"} (fichier généré) · POST /api/reaper {"id": N}
+ou {"path": …} (généré ou entrée de la bibliothèque).
 """
 
 from __future__ import annotations
 
 import json
+import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 from .axes import GROUP_NAMES, SenseOfMusicalStructure
 from .builder import build_score
@@ -34,7 +43,8 @@ MAX_UPLOAD = 8 * 1024 * 1024  # 8 Mio, très large pour du MIDI
 
 
 class _Store:
-    def __init__(self, lib_path: str | None = None):
+    def __init__(self, lib_path: str | None = None,
+                 generator=None, gen_modes: list[str] | None = None):
         self.lock = threading.Lock()
         self.entries: list[dict] = []
         self.raw: dict[int, bytes] = {}
@@ -43,6 +53,16 @@ class _Store:
         # On le relit à chaque requête pour refléter les ajouts hors interface
         # (par ex. `forge_library.py` qui verse un run entre deux recherches).
         self.lib_path = lib_path
+        # Rappel de génération (fourni par la CLI — le cœur reste sans
+        # dépendance aux exemples) et modes qu'il annonce. None = panneau masqué.
+        self.generator = generator
+        self.gen_modes = gen_modes or []
+        # Fichiers produits par la génération, autorisés au téléchargement et au
+        # push Reaper. On ne sert JAMAIS un chemin arbitraire du disque : seuls
+        # les fichiers de cet ensemble (et les entrées de la bibliothèque) le sont.
+        self.generated: set[str] = set()
+        self._gen_root: str | None = None
+        self._gen_seq = 0
 
     def add(self, entry: dict, raw: bytes) -> dict:
         with self.lock:
@@ -59,6 +79,26 @@ class _Store:
     def raw_for(self, entry_id: int) -> bytes | None:
         with self.lock:
             return self.raw.get(entry_id)
+
+    def new_workdir(self) -> Path:
+        """Sous-dossier unique pour un run de génération (jamais deux runs
+        concurrents dans le même dossier)."""
+        with self.lock:
+            if self._gen_root is None:
+                self._gen_root = tempfile.mkdtemp(prefix="libretto_gen_")
+            self._gen_seq += 1
+            d = Path(self._gen_root) / f"run_{self._gen_seq}"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def register_generated(self, paths) -> None:
+        with self.lock:
+            for p in paths:
+                self.generated.add(str(Path(p).resolve()))
+
+    def is_generated(self, path: str) -> bool:
+        with self.lock:
+            return str(Path(path).resolve()) in self.generated
 
 
 def analyze_bytes(data: bytes, filename: str) -> tuple[dict, "SenseOfMusicalStructure"]:
@@ -150,6 +190,30 @@ def push_library_path(lib_path: str, path: str, *, play: bool = True) -> dict:
     return push_mididata(parse_midi(entry.path), track_names=names, play=play)
 
 
+def push_generated_path(path: str, *, play: bool = True) -> dict:
+    """Pousse dans REAPER un fichier fraîchement généré (pas encore indexé).
+    L'appelant a déjà vérifié qu'il appartient à l'ensemble des générés."""
+    from .midi import parse_midi
+    from .reaper import push_mididata
+    return push_mididata(parse_midi(path), track_names=["Libretto généré"], play=play)
+
+
+def add_generated_to_library(lib_path: str, path: str,
+                             tags: list[str] | None = None) -> dict:
+    """Indexe un fichier généré dans la bibliothèque cherchable, avec son
+    profil émotionnel. Renvoie un résumé pour l'UI."""
+    from pathlib import Path
+
+    from .library import Library, analyze_entry
+    entry = analyze_entry(path, tags=(tags or []) + ["généré"])
+    lib = Library.load(lib_path)
+    is_new = lib.add(entry)
+    lib.save(lib_path)
+    return {"name": Path(entry.path).name, "added": is_new,
+            "key": entry.key, "bpm": entry.bpm, "bars": entry.bars,
+            "descriptors": entry.emotion.get("descriptors", [])}
+
+
 INDEX_HTML = """<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -239,12 +303,57 @@ footer { color:var(--muted); font-size:12.5px; margin-top:26px; }
 .tagpill { border:1px solid var(--border); border-radius:999px; padding:1px 9px;
   font-size:11.5px; color:var(--muted); }
 .tagpill.intent { color:var(--accent); border-color:var(--accent-soft); }
+#genpanel { margin:18px 0 8px; border:1px solid var(--border); border-radius:14px;
+  padding:16px 18px; background:var(--card); }
+#genpanel h2 { font-size:15px; letter-spacing:-.01em; margin-bottom:2px; }
+#genpanel .hint { color:var(--muted); font-size:12.5px; margin-bottom:12px; }
+.genform { display:flex; flex-wrap:wrap; gap:10px 14px; align-items:flex-end; }
+.genfield { display:flex; flex-direction:column; gap:3px; }
+.genfield label { font-size:11px; color:var(--muted); text-transform:uppercase;
+  letter-spacing:.06em; }
+.genform select, .genform input { font:inherit; font-size:13.5px; padding:7px 10px;
+  border:1px solid var(--border); border-radius:9px; background:var(--bg); color:var(--fg); }
+.genform input[type=number] { width:80px; }
+.genform .grow { flex:1; }
+#genmeta { min-height:19px; font-size:12.5px; color:var(--muted); margin:11px 2px 4px; }
+#genmeta .err { color:var(--err); }
+#genresults { display:flex; flex-direction:column; gap:9px; }
+.gen { border:1px solid var(--border); border-radius:12px; padding:10px 13px;
+  display:flex; gap:13px; align-items:center; }
+.gen .badge { font-size:12px; font-weight:650; padding:2px 9px; border-radius:999px;
+  border:1px solid var(--border); color:var(--muted); white-space:nowrap; }
+.gen .badge.win { color:#fff; background:var(--accent); border-color:var(--accent); }
+.gen .body { flex:1; min-width:0; }
+.gen .title { font-weight:600; }
+.gen .why { color:var(--muted); font-size:12.5px; margin-top:2px; }
+.gen .acts { display:flex; gap:6px; flex-wrap:wrap; }
+.gen a.btn { text-decoration:none; display:inline-block; }
 </style>
 </head>
 <body>
 <main>
   <h1>Libretto — Sense of Musical Structure
-    <small>dépose des .mid : analyse 29 axes · cherche par intention · écoute dans Reaper</small></h1>
+    <small>génère · analyse 29 axes · cherche par intention · écoute dans Reaper</small></h1>
+  <section id="genpanel" hidden>
+    <h2>Générer des séquences</h2>
+    <div class="hint">Libretto génère des candidats et garde les mieux
+      construits (gate de fiabilité, tri fiabilité-d'abord).</div>
+    <div class="genform">
+      <div class="genfield"><label for="genmode">modèle</label>
+        <select id="genmode"></select></div>
+      <div class="genfield"><label for="genn">candidats</label>
+        <input id="genn" type="number" min="1" max="64" value="12"></div>
+      <div class="genfield"><label for="genshort">variantes</label>
+        <input id="genshort" type="number" min="0" max="12" value="4"></div>
+      <div class="genfield"><label for="genbars">mesures</label>
+        <input id="genbars" type="number" min="4" max="128" value="24"></div>
+      <div class="genfield"><label for="genseed">graine</label>
+        <input id="genseed" type="number" min="0" value="1"></div>
+      <div class="genfield"><button class="primary" id="genbtn">Générer</button></div>
+    </div>
+    <div id="genmeta"></div>
+    <div id="genresults"></div>
+  </section>
   <section id="searchpanel" hidden>
     <div class="searchbar">
       <input id="q" type="search" autocomplete="off"
@@ -259,7 +368,8 @@ footer { color:var(--muted); font-size:12.5px; margin-top:26px; }
   <div id="status"></div>
   <div id="cards"></div>
   <footer>Libretto SMS — 100 % local. « ▶ Reaper » utilise le pont Klody sur 127.0.0.1:9000
-  (REAPER doit être lancé). Recherche active avec <code>serve --lib&nbsp;lib.json</code>.</footer>
+  (REAPER doit être lancé). Génération avec <code>serve --generate</code>,
+  recherche avec <code>serve --lib&nbsp;lib.json</code>.</footer>
 </main>
 <script>
 const drop = document.getElementById('drop');
@@ -271,6 +381,13 @@ const qInput = document.getElementById('q');
 const searchBtn = document.getElementById('searchbtn');
 const searchMeta = document.getElementById('searchmeta');
 const results = document.getElementById('results');
+const genPanel = document.getElementById('genpanel');
+const genMode = document.getElementById('genmode');
+const genBtn = document.getElementById('genbtn');
+const genMeta = document.getElementById('genmeta');
+const genResults = document.getElementById('genresults');
+let hasLibrary = false;
+let genModesFilled = false;
 
 function setStatus(msg, isErr) {
   statusEl.innerHTML = msg ? `<span class="${isErr ? 'err' : ''}">${msg}</span>` : '';
@@ -316,12 +433,101 @@ function render(entries, names) {
     </div>`).join('');
 }
 
+const MODE_LABELS = {procedural: 'procédural (make_corpus)', markov: 'appris (corpus)'};
+
 async function refresh() {
   const r = await fetch('/api/analyses');
   const data = await r.json();
+  hasLibrary = data.has_library;
   searchPanel.hidden = !data.has_library;
+  genPanel.hidden = !data.can_generate;
+  if (data.can_generate && !genModesFilled) {
+    genMode.innerHTML = (data.gen_modes || []).map(m =>
+      `<option value="${esc(m)}">${esc(MODE_LABELS[m] || m)}</option>`).join('');
+    genModesFilled = true;
+  }
   render(data.entries, data.group_names);
 }
+
+function renderGen(data) {
+  const s = data.summary || {};
+  genMeta.textContent = `${s.n_generated} généré(s) · ${s.n_eligible} éligible(s)`
+    + (s.n_rejected ? ` · ${s.n_rejected} recalé(s) par le gate` : '')
+    + ` — ${data.results.length} livré(s)`;
+  genResults.innerHTML = data.results.map(g => {
+    const win = g.role === 'winner';
+    const conf = g.confidence != null ? g.confidence.toFixed(2) : '?';
+    const meta = [g.form ? `forme ${g.form}` : null,
+                  g.score != null ? `SMS ${g.score.toFixed(2)}` : null,
+                  `fiab. ${esc(g.confidence_level || '?')} ${conf}`]
+                 .filter(Boolean).join(' · ');
+    const dl = `/api/download?path=${encodeURIComponent(g.path)}`;
+    const addBtn = hasLibrary
+      ? `<button data-add="${esc(g.path)}">+ Bibliothèque</button>` : '';
+    return `<div class="gen">
+      <span class="badge${win ? ' win' : ''}">${win ? '🏆 gagnant' : 'variante'}</span>
+      <div class="body">
+        <div class="title">${esc(g.name)}</div>
+        <div class="why">${esc(meta)}</div>
+      </div>
+      <div class="acts">
+        <button class="primary" data-genpath="${esc(g.path)}">▶ Reaper</button>
+        <a class="btn" href="${dl}"><button>⬇ .mid</button></a>
+        ${addBtn}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function doGenerate() {
+  genBtn.disabled = true;
+  const prev = genBtn.textContent; genBtn.textContent = 'génération…';
+  genMeta.textContent = 'génération en cours (quelques secondes)…';
+  const body = {
+    mode: genMode.value,
+    n: +document.getElementById('genn').value,
+    shortlist: +document.getElementById('genshort').value,
+    bars: +document.getElementById('genbars').value,
+    seed: +document.getElementById('genseed').value,
+  };
+  try {
+    const r = await fetch('/api/generate', {method: 'POST',
+      headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const data = await r.json();
+    if (!r.ok) { genMeta.innerHTML = `<span class="err">${esc(data.error)}</span>`;
+      genResults.innerHTML = ''; }
+    else renderGen(data);
+  } finally { genBtn.disabled = false; genBtn.textContent = prev; }
+}
+
+async function genToReaper(path, btn) {
+  btn.disabled = true; const t = btn.textContent; btn.textContent = '…';
+  const r = await fetch('/api/reaper', {method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path})});
+  const data = await r.json();
+  if (r.ok) { btn.textContent = '▶ joue'; setStatus(
+    `Reaper : ${data.total_notes} notes sur ${data.tracks.length} pistes, lecture lancée`); }
+  else { btn.textContent = t; setStatus(`Reaper : ${data.error}`, true); }
+  btn.disabled = false;
+}
+
+async function genToLibrary(path, btn) {
+  btn.disabled = true; const t = btn.textContent; btn.textContent = '…';
+  const r = await fetch('/api/library_add', {method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path})});
+  const data = await r.json();
+  if (r.ok) { btn.textContent = data.added ? '✓ indexé' : '✓ à jour';
+    setStatus(`bibliothèque : ${data.name} — ${(data.descriptors || []).join(', ')}`); }
+  else { btn.textContent = t; setStatus(`bibliothèque : ${data.error}`, true); btn.disabled = false; }
+}
+
+genBtn.addEventListener('click', doGenerate);
+genResults.addEventListener('click', e => {
+  const rb = e.target.closest('button[data-genpath]');
+  if (rb) { genToReaper(rb.dataset.genpath, rb); return; }
+  const ab = e.target.closest('button[data-add]');
+  if (ab) genToLibrary(ab.dataset.add, ab);
+});
 
 function renderHits(data) {
   if (data.empty) {
@@ -442,12 +648,29 @@ def make_handler(store: _Store):
                        "application/json; charset=utf-8")
 
         def do_GET(self):
-            if self.path in ("/", "/index.html"):
+            from urllib.parse import parse_qs, urlparse
+            parsed = urlparse(self.path)
+            if parsed.path in ("/", "/index.html"):
                 self._send(200, INDEX_HTML.encode(), "text/html; charset=utf-8")
-            elif self.path == "/api/analyses":
+            elif parsed.path == "/api/analyses":
                 self._json(200, {"entries": store.snapshot(),
                                  "group_names": GROUP_NAMES,
-                                 "has_library": store.lib_path is not None})
+                                 "has_library": store.lib_path is not None,
+                                 "can_generate": store.generator is not None,
+                                 "gen_modes": store.gen_modes})
+            elif parsed.path == "/api/download":
+                path = (parse_qs(parsed.query).get("path") or [""])[0]
+                if not store.is_generated(path):
+                    self._json(404, {"error": "fichier généré inconnu"})
+                    return
+                data = Path(path).read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/midi")
+                self.send_header("Content-Disposition",
+                                 f'attachment; filename="{Path(path).name}"')
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
             else:
                 self._json(404, {"error": "introuvable"})
 
@@ -480,16 +703,39 @@ def make_handler(store: _Store):
                         limit=int(req.get("limit", 8)),
                         bpm_tol=float(req.get("bpm_tol", 15.0)),
                         bars_tol=int(req.get("bars_tol", 2))))
+                elif self.path == "/api/generate":
+                    if store.generator is None:
+                        self._json(400, {"error": "génération désactivée "
+                                                  "(lancer `serve --generate`)"})
+                        return
+                    req = json.loads(self._read_body() or b"{}")
+                    workdir = store.new_workdir()
+                    result = store.generator(req, workdir)
+                    store.register_generated(g["path"] for g in result["results"])
+                    self._json(200, result)
+                elif self.path == "/api/library_add":
+                    if store.lib_path is None:
+                        self._json(400, {"error": "aucune bibliothèque chargée"})
+                        return
+                    req = json.loads(self._read_body() or b"{}")
+                    path = str(req.get("path", ""))
+                    if not store.is_generated(path):
+                        self._json(400, {"error": "seul un fichier généré "
+                                                  "peut être indexé depuis l'UI"})
+                        return
+                    self._json(200, add_generated_to_library(store.lib_path, path))
                 elif self.path == "/api/reaper":
                     from .reaper import BridgeError, push_mididata
                     req = json.loads(self._read_body() or b"{}")
                     try:
-                        if req.get("path"):     # entrée de la bibliothèque
-                            if store.lib_path is None:
-                                self._json(400, {"error": "aucune bibliothèque chargée"})
-                                return
-                            self._json(200, push_library_path(
-                                store.lib_path, str(req["path"])))
+                        if req.get("path"):     # généré, ou entrée de la bibliothèque
+                            path = str(req["path"])
+                            if store.is_generated(path):
+                                self._json(200, push_generated_path(path))
+                            elif store.lib_path is not None:
+                                self._json(200, push_library_path(store.lib_path, path))
+                            else:
+                                self._json(404, {"error": "chemin non autorisé"})
                         else:                   # analyse déposée en mémoire
                             raw = store.raw_for(int(req.get("id", -1)))
                             if raw is None:
@@ -515,18 +761,21 @@ DEFAULT_PORT = 8787
 
 
 def serve(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
-          lib_path: str | None = None) -> ThreadingHTTPServer:
+          lib_path: str | None = None, generator=None,
+          gen_modes: list[str] | None = None) -> ThreadingHTTPServer:
     """Crée le serveur (sans le lancer) — utilisé par la CLI et les tests."""
-    store = _Store(lib_path=lib_path)
+    store = _Store(lib_path=lib_path, generator=generator, gen_modes=gen_modes)
     return ThreadingHTTPServer((host, port), make_handler(store))
 
 
 def main(host: str = "127.0.0.1", port: int | None = None,
-         lib_path: str | None = None) -> int:
+         lib_path: str | None = None, generator=None,
+         gen_modes: list[str] | None = None) -> int:
     import sys
     want = DEFAULT_PORT if port is None else port
+    kw = {"lib_path": lib_path, "generator": generator, "gen_modes": gen_modes}
     try:
-        httpd = serve(host, want, lib_path=lib_path)
+        httpd = serve(host, want, **kw)
     except OSError as exc:
         if port is not None:
             print(f"libretto: port {want} déjà occupé ({exc.strerror}) — un autre service "
@@ -534,8 +783,10 @@ def main(host: str = "127.0.0.1", port: int | None = None,
                   file=sys.stderr)
             return 1
         print(f"port {want} occupé — bascule sur un port libre", file=sys.stderr)
-        httpd = serve(host, 0, lib_path=lib_path)
+        httpd = serve(host, 0, **kw)
     real_port = httpd.server_address[1]
+    if generator:
+        print(f"génération active : {', '.join(gen_modes or [])}", file=sys.stderr)
     if lib_path:
         print(f"bibliothèque cherchable : {lib_path}", file=sys.stderr)
     print(f"Libretto SMS — interface sur http://{host}:{real_port} (Ctrl-C pour quitter)")
