@@ -19,6 +19,7 @@ from pathlib import Path
 from libretto.axes import SenseOfMusicalStructure
 from libretto.builder import (
     _assign_letters,
+    _consistent_boundaries,
     _cosine_dist,
     _repetition_edges,
     _self_similarity,
@@ -366,28 +367,56 @@ class TestRepetitionSegmentation(unittest.TestCase):
         self.assertEqual(avec_porte, {16, 20, 36},
                          "seuls les bords du retour de section survivent")
 
-    def test_small_matrix_quantile_cap_lets_the_return_exist(self):
-        """Plafond arithmétique du quantile. Sur un ternaire de 12 mesures
-        (sections de 4), la matrice n'a que 36 paires hors bande : le
-        quantile 0.94 n'en admet que 3, et le retour A-A — 4 cellules, la
-        définition même de la forme — ne pouvait JAMAIS former un run de
-        min_len, quelle que soit sa netteté. Le plafond
-        q_eff = min(q, 1 − min_len/paires) garantit qu'au moins min_len
-        cellules passent.
+    def test_small_matrix_return_survives_phrase_competition(self):
+        """Plafond arithmétique du quantile, version budget de concurrence.
+        Sur un ternaire de 12 mesures (sections de 4), la matrice n'a que
+        36 paires hors bande : le quantile 0.94 n'en admettait que 3, et le
+        retour A-A — 4 cellules, la définition même de la forme — ne
+        pouvait jamais former un run. Garantir min_len cellules ne
+        suffisait pas non plus : les cellules admises se partagent entre
+        TOUTES les diagonales, et un alignement de phrase à lag 4 plus
+        net que le retour (0.99+ contre 0.96) mangeait le budget — le run
+        A-A perdait ses cellules et mourait, mesuré sur deux ternaires de
+        la graine 7. Le budget est de 3 × min_len : les deux diagonales
+        passent, chacune émet ses bords, et ils coïncident sur {4, 8}.
 
-        Valeurs diagonales distinctes à dessein : des égalités laisseraient
-        plusieurs cellules partager le seuil et masqueraient
-        l'impossibilité."""
+        Valeurs toutes distinctes à dessein : des égalités laisseraient
+        plusieurs cellules partager le seuil et masqueraient le partage du
+        budget."""
         n = 12
-        ssm = [[0.2 if min(i, j) % 7 == 3 else 0.1 for j in range(n)]
-               for i in range(n)]
+        ssm = [[0.0] * n for _ in range(n)]
         for i in range(n):
+            for j in range(n):
+                ssm[i][j] = 0.1 + 0.003 * min(i * n + j, j * n + i)
             ssm[i][i] = 1.0
-        for i, v in enumerate((0.96, 0.97, 0.98, 0.99)):   # retour A-A, lag 8
+        for i in range(8):                                 # phrases, lag 4
+            ssm[i][i + 4] = ssm[i + 4][i] = 0.991 + 0.001 * i
+        for i, v in enumerate((0.96, 0.965, 0.97, 0.975)):  # retour A-A, lag 8
             ssm[i][i + 8] = ssm[i + 8][i] = v
         edges = _repetition_edges(ssm, min_len=4)
         self.assertEqual(edges, {4, 8},
-                         "le retour A-A d'un petit ternaire doit exister")
+                         "le retour A-A doit survivre aux phrases plus nettes")
+
+    def test_boundary_inside_run_without_twin_is_dropped(self):
+        """Un refrain 12-20 rejoué en 36-44 (run lag 24, longueur 8) coupé
+        en 16 par la nouveauté : la jumelle exigée en 40 n'existe pas, la
+        coupure est contredite par la répétition qui la contient."""
+        runs = [(24, 12, 8)]
+        self.assertEqual(_consistent_boundaries([0, 12, 16, 20, 36, 44], runs),
+                         [0, 12, 20, 36, 44])
+
+    def test_twin_boundaries_save_each_other(self):
+        """AB|AB : le run couvre les deux copies entières (lag 8, longueur
+        8) ; la coupure A|B en 4 a sa jumelle en 12, chacune sauve
+        l'autre — le filtre ne détruit pas une vraie structure interne."""
+        runs = [(8, 0, 8)]
+        self.assertEqual(_consistent_boundaries([0, 4, 8, 12], runs),
+                         [0, 4, 8, 12])
+
+    def test_boundary_outside_any_run_is_kept(self):
+        # Pas de répétition couvrante : rien à exiger, rien à supprimer.
+        self.assertEqual(_consistent_boundaries([0, 5, 9], [(8, 20, 8)]),
+                         [0, 5, 9])
 
     def test_labelling_splits_similar_but_distinct_material(self):
         """Régression v0.2 : le seuil absolu de 0.82 sur le cosinus des

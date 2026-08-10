@@ -139,20 +139,17 @@ def _self_similarity(features: list[list[float]]) -> list[list[float]]:
     return ssm
 
 
-def _repetition_edges(ssm: list[list[float]], min_len: int = 4,
-                      quantile: float = 0.94,
-                      scale_ratio: int = 3) -> set[int]:
-    """Bords des segments répétés, lus sur les diagonales de la matrice.
+def _repetition_runs(ssm: list[list[float]], min_len: int = 4,
+                     quantile: float = 0.94,
+                     scale_ratio: int = 3) -> list[tuple[int, int, int]]:
+    """Runs diagonaux de répétition (lag, début, longueur), à l'échelle des
+    sections.
 
     Une section rejouée plus loin forme un chemin de forte similarité
     parallèle à la diagonale principale : `ssm[i][i+lag]` reste élevé sur
-    toute sa durée. Là où ce chemin commence et finit, il y a une frontière —
-    y compris quand la nouveauté locale ne voit rien, cas typique d'un
-    couplet qui revient à l'identique après un refrain.
-
-    Le seuil est un quantile de la matrice elle-même : les valeurs absolues
-    de similarité dépendent trop du matériau pour qu'une constante tienne
-    d'un morceau à l'autre.
+    toute sa durée. Le seuil est un quantile de la matrice elle-même : les
+    valeurs absolues de similarité dépendent trop du matériau pour qu'une
+    constante tienne d'un morceau à l'autre.
 
     **Porte d'échelle.** Toutes les diagonales ne témoignent pas d'un retour
     de section : une pièce dont les sections partagent des phrases de quatre
@@ -162,7 +159,7 @@ def _repetition_edges(ssm: list[list[float]], min_len: int = 4,
     espacées de la longueur de phrase. Les vrais retours, eux, durent une
     section entière : sur les mêmes pièces, leurs runs faisaient 12 à 32
     mesures. Le plus long run de la pièce établit donc l'échelle des
-    sections, et un run n'émet des bords que s'il atteint le tiers de cette
+    sections, et un run ne survit que s'il atteint le tiers de cette
     échelle — assez lâche pour qu'un pont de 8 mesures survive à côté d'un
     couplet de 24, assez strict pour que les phrases meurent. Le tiers est
     réglé sur graine 7 (optimum intérieur du balayage 1/1.5..1/4) et validé
@@ -170,20 +167,29 @@ def _repetition_edges(ssm: list[list[float]], min_len: int = 4,
     trois corpus, F-mesure en hausse partout (+0.05, +0.09, +0.06)."""
     n = len(ssm)
     if n < 2 * min_len:
-        return set()
+        return []
     flat = sorted(ssm[i][j] for i in range(n) for j in range(i + min_len, n))
     if not flat:
-        return set()
+        return []
     # Plafond arithmétique du quantile : sur une petite matrice, le
     # quantile brut n'admet pas assez de cellules pour qu'un run de
-    # `min_len` puisse EXISTER. Un ternaire de 12 mesures (sections de 4)
+    # `min_len` puisse exister. Un ternaire de 12 mesures (sections de 4)
     # n'a que 36 paires hors bande : le quantile 0.94 n'en admet que 3, et
     # le retour A-A — 4 cellules, la définition même de la forme — était
-    # invisible quelle que soit sa netteté. Le plafond garantit qu'au
-    # moins `min_len` cellules passent ; il dérive de min_len et de la
-    # taille, aucune constante neuve. Sur les grandes matrices il est
-    # inactif (n=24 : 210 paires, 12 admises).
-    q_eff = min(quantile, 1.0 - min_len / len(flat))
+    # invisible quelle que soit sa netteté. Le budget est de 3 × min_len et
+    # non min_len : les cellules admises se partagent entre TOUTES les
+    # diagonales, et les alignements de phrase (lag 4, cellules à 0.98+)
+    # mangeaient le budget du vrai retour — sur deux ternaires de la graine
+    # 7, le run A-A perdait 1 à 2 cellules sur 4 et mourait. Facteur 3 :
+    # optimum intérieur du balayage 2..5 (plateau à 3-5), validé sur les
+    # graines 11/23/31 tenues à l'écart — F-mesure +0.02/+0.02/+0.00,
+    # comptes de sections exacts +0/+1/+0, jamais négatif. Sur les grandes
+    # matrices le plafond est inactif (n=24 : 210 paires, quantile 0.94
+    # déjà plus strict). Plancher à la moitié des paires : un budget plus
+    # grand que la matrice (loop de 8 mesures : 10 paires) rendrait le
+    # quantile négatif — on n'admet jamais plus d'une paire sur deux.
+    budget = min(3 * min_len, len(flat) // 2)
+    q_eff = min(quantile, 1.0 - budget / len(flat))
     threshold = flat[min(len(flat) - 1, int(len(flat) * q_eff))]
     runs: list[tuple[int, int, int]] = []
     for lag in range(min_len, n - min_len + 1):
@@ -198,12 +204,23 @@ def _repetition_edges(ssm: list[list[float]], min_len: int = 4,
         if run >= min_len:
             runs.append((lag, n - lag - run, run))
     if not runs:
-        return set()
+        return []
     scale = max(length for _, _, length in runs)
+    return [(lag, start, length) for lag, start, length in runs
+            if length * scale_ratio >= scale]
+
+
+def _repetition_edges(ssm: list[list[float]], min_len: int = 4,
+                      quantile: float = 0.94,
+                      scale_ratio: int = 3) -> set[int]:
+    """Bords des segments répétés : là où un chemin diagonal commence et
+    finit, il y a une frontière — y compris quand la nouveauté locale ne
+    voit rien, cas typique d'un couplet qui revient à l'identique après un
+    refrain. Voir _repetition_runs pour le seuil et la porte d'échelle."""
+    n = len(ssm)
     edges: set[int] = set()
-    for lag, start, length in runs:
-        if length * scale_ratio < scale:
-            continue
+    for lag, start, length in _repetition_runs(ssm, min_len, quantile,
+                                               scale_ratio):
         edges.update((start, start + length, start + lag, start + length + lag))
     return {b for b in edges if 0 < b < n}
 
@@ -263,8 +280,13 @@ def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: in
 
     # Au-delà, la matrice n×n coûte plus qu'elle ne rapporte (une pièce de
     # 600 mesures est déjà très longue).
-    repeats = _repetition_edges(_self_similarity(features), min_len=min_len) \
-        if n <= 600 else set()
+    runs = _repetition_runs(_self_similarity(features), min_len=min_len) \
+        if n <= 600 else []
+    repeats: set[int] = set()
+    for lag, start, length in runs:
+        repeats.update((start, start + length, start + lag,
+                        start + length + lag))
+    repeats = {b for b in repeats if 0 < b < n}
 
     candidates = list(range(min_len, n - min_len + 1))
     inner = [novelty[b] for b in candidates]
@@ -332,7 +354,48 @@ def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: in
     # d'une poignée de mesures : on la fusionne avec la section précédente.
     if len(boundaries) > 1 and n - boundaries[-1] < min_len:
         boundaries.pop()
-    return boundaries
+
+    return _consistent_boundaries(boundaries, runs)
+
+
+def _consistent_boundaries(boundaries: list[int],
+                           runs: list[tuple[int, int, int]]) -> list[int]:
+    """Cohérence des frontières à travers les répétitions.
+
+    Une frontière strictement à l'intérieur d'un run de répétition affirme
+    que le même matériau se coupe ici — alors il doit aussi se couper à
+    ±lag, dans l'autre copie du run. Jumelle absente (à ±1 mesure) dans
+    tous les runs couvrants : la frontière est contredite par la structure
+    même qui la contient, on la supprime. Le cas légitime AB|AB reste
+    sain — la coupure A|B de la première copie a sa jumelle dans la
+    seconde, chacune sauve l'autre. Typiquement : un refrain de 8 mesures
+    coupé en deux par un pic de nouveauté à la couture de phrase (mesure
+    16 d'un refrain 12-20 rejoué en 36-44) — la jumelle exigée en 40
+    n'existe pas, la coupure tombe.
+
+    Les jumelles se lisent dans les frontières d'AVANT filtrage : deux
+    coupures qui se répondent à ±lag se confirment l'une l'autre, même si
+    d'autres tombent autour d'elles.
+
+    Mesuré sur graine 7 : comptes exacts 9 → 11/23, F-mesure
+    0.824 → 0.838 ; validé sur 11/23/31 tenues à l'écart : comptes
+    +1/+2/+0, F-mesure +0.01/+0.01/+0.01, jamais négatif."""
+    if not runs or len(boundaries) < 2:
+        return boundaries
+    anchored = set(boundaries)
+    kept = [boundaries[0]]
+    for b in boundaries[1:]:
+        partners = []
+        for lag, start, length in runs:
+            if start < b < start + length:
+                partners.append(b + lag)
+            elif start + lag < b < start + length + lag:
+                partners.append(b - lag)
+        if not partners or any(
+                any(abs(b2 - p) <= 1 for b2 in anchored)
+                for p in partners):
+            kept.append(b)
+    return kept
 
 
 # Deux sections sont « le même matériau » quand leurs mesures se ressemblent
