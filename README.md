@@ -993,6 +993,26 @@ chargé** peuvent être poussés — pas de chemin arbitraire depuis la page.
 En CLI directe : `python3 -m libretto.cli reaper chanson.mid [--no-play]`, ou
 `library search "…" --lib lib.json --reaper` pour pousser le meilleur résultat.
 
+**Vers Korg Gadget — audition par MIDI virtuel.** Gadget n'expose aucune API de
+script : impossible d'y bâtir un pont comme dans REAPER. Le plus proche est un
+port MIDI virtuel (CoreMIDI / IAC) sur lequel une piste Gadget *armée* joue les
+notes en temps réel. `examples/play_gadget.py` ouvre un port « Libretto »,
+programme un `.mid` (tempo map respectée, comme le pont REAPER) et l'envoie —
+audition, pas arrangement : Gadget joue les notes, il ne reconstruit ni pistes
+ni marqueurs. Dépendance optionnelle, hors contrat stdlib :
+
+```
+pip install python-rtmidi
+python3 examples/play_gadget.py forge_winner.mid            # port virtuel « Libretto »
+python3 examples/play_gadget.py forge_winner.mid --channel 1 --loop
+python3 examples/play_gadget.py --list                      # ports de sortie MIDI
+python3 examples/play_gadget.py forge_winner.mid --dry-run  # plan de lecture, sans dépendance
+```
+
+Dans Gadget : choisir « Libretto » comme entrée MIDI de la piste, l'armer, puis
+lancer le script. Pour un vrai projet plutôt qu'une écoute, le bouton
+**« ↓ .mid »** de l'interface exporte le fichier — Gadget l'importe directement.
+
 ## Pipeline MIDI → Score
 
 `libretto/midi.py` : parseur SMF pur stdlib (running status, note-on vél. 0,
