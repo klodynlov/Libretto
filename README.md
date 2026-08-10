@@ -877,6 +877,19 @@ python3 -m libretto.cli library search "énergique et lumineux, rapide" --lib li
 python3 -m libretto.cli library list --lib lib.json
 ```
 
+**De l'intention au DAW, en une commande.** `--reaper` sur `search` pousse
+le meilleur résultat directement dans REAPER via le même pont que la commande
+`reaper` (piste nommée par l'intention trouvée, ReaSynth, lecture) — trouver
+une séquence par ce qu'elle évoque et l'entendre dans le projet sans passer
+par le disque. `--pick N` choisit un autre rang que le premier, `--no-play`
+pousse sans lancer la lecture.
+
+```bash
+python3 -m libretto.cli library search "mélancolique 8 mesures ~90 bpm" \
+    --lib lib.json --reaper           # → le meilleur résultat sonne dans REAPER
+python3 -m libretto.cli library search "planant" --lib lib.json --reaper --pick 2
+```
+
 **Ce qui est mesuré, pas inventé.** Chaque entrée porte la tonalité et le
 mode (estimés, avec leur source et leur marge — ou imposés par le
 générateur), le tempo, la longueur, le score SMS et sa fiabilité, l'empreinte

@@ -166,5 +166,106 @@ class TestIndexAndPersistence(unittest.TestCase):
             self.assertEqual(Library.load(Path(d) / "nope.json").entries, [])
 
 
+@unittest.skipUnless(SLOOPY.exists() and NAIJA.exists(), "MIDI d'exemple absent")
+class TestSearchToReaper(unittest.TestCase):
+    """`library search --reaper` : envoyer le résultat choisi dans REAPER
+    passe par le même `push_mididata` que la commande `reaper`. On le remplace
+    par un espion pour vérifier le fichier poussé, sans REAPER lancé."""
+
+    def _lib(self, d):
+        libpath = Path(d) / "lib.json"
+        lib = Library()
+        lib.add(analyze_entry(SLOOPY))
+        lib.add(analyze_entry(NAIJA))
+        lib.save(libpath)
+        return libpath
+
+    def test_reaper_pushes_top_pick(self):
+        from unittest import mock
+
+        import libretto.reaper as reaper
+        with tempfile.TemporaryDirectory() as d:
+            libpath = self._lib(d)
+            spy = mock.MagicMock(return_value={
+                "reaper": "test", "tracks": [{"track": "x", "notes": 3}],
+                "markers": 0, "playing": True, "total_notes": 3})
+            with mock.patch.object(reaper, "push_mididata", spy):
+                from libretto.cli import main as cli_main
+                rc = cli_main(["library", "search", "mélancolique",
+                               "--lib", str(libpath), "--reaper"])
+            self.assertEqual(rc, 0)
+            spy.assert_called_once()
+            # le meilleur résultat, avec lecture, une piste nommée par l'intention
+            _args, kwargs = spy.call_args
+            self.assertTrue(kwargs["play"])
+            self.assertEqual(len(kwargs["track_names"]), 1)
+
+    def test_reaper_no_play(self):
+        from unittest import mock
+
+        import libretto.reaper as reaper
+        with tempfile.TemporaryDirectory() as d:
+            libpath = self._lib(d)
+            spy = mock.MagicMock(return_value={
+                "reaper": "t", "tracks": [], "markers": 0,
+                "playing": False, "total_notes": 0})
+            with mock.patch.object(reaper, "push_mididata", spy):
+                from libretto.cli import main as cli_main
+                rc = cli_main(["library", "search", "mélancolique",
+                               "--lib", str(libpath), "--reaper", "--no-play"])
+            self.assertEqual(rc, 0)
+            self.assertFalse(spy.call_args.kwargs["play"])
+
+    def test_reaper_pick_selects_second(self):
+        from unittest import mock
+
+        import libretto.reaper as reaper
+        with tempfile.TemporaryDirectory() as d:
+            libpath = self._lib(d)
+            captured = {}
+
+            def _cap(md, **kw):
+                captured["notes"] = len(md.notes)
+                return {"reaper": "t", "tracks": [], "markers": 0,
+                        "playing": True, "total_notes": len(md.notes)}
+
+            with mock.patch.object(reaper, "push_mididata", _cap):
+                from libretto.cli import main as cli_main
+                rc = cli_main(["library", "search", "mélancolique",
+                               "--lib", str(libpath), "--reaper", "--pick", "2"])
+            self.assertEqual(rc, 0)
+            self.assertGreater(captured["notes"], 0)
+
+    def test_reaper_pick_out_of_range(self):
+        from unittest import mock
+
+        import libretto.reaper as reaper
+        with tempfile.TemporaryDirectory() as d:
+            libpath = self._lib(d)
+            spy = mock.MagicMock()
+            with mock.patch.object(reaper, "push_mididata", spy):
+                from libretto.cli import main as cli_main
+                rc = cli_main(["library", "search", "mélancolique",
+                               "--lib", str(libpath), "--reaper", "--pick", "99"])
+            self.assertEqual(rc, 1)
+            spy.assert_not_called()
+
+    def test_reaper_bridge_absent_fails_cleanly(self):
+        from unittest import mock
+
+        import libretto.reaper as reaper
+        with tempfile.TemporaryDirectory() as d:
+            libpath = self._lib(d)
+
+            def _boom(*a, **k):
+                raise reaper.BridgeError("pont injoignable")
+
+            with mock.patch.object(reaper, "push_mididata", _boom):
+                from libretto.cli import main as cli_main
+                rc = cli_main(["library", "search", "mélancolique",
+                               "--lib", str(libpath), "--reaper"])
+            self.assertEqual(rc, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

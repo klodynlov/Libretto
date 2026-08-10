@@ -10,6 +10,7 @@ Libretto — CLI.
   libretto calibrate corpus/ --min-auc 0.45      gate : échoue si un axe s'inverse
   libretto library add seq.mid --lib lib.json    indexer une séquence (émotion + axes)
   libretto library search "mélancolique 8 mesures ~90 bpm" --lib lib.json
+  libretto library search "planant" --lib lib.json --reaper   pousse le meilleur dans REAPER
 """
 
 from __future__ import annotations
@@ -130,9 +131,36 @@ def _library(args: argparse.Namespace) -> int:
         for rank, h in enumerate(hits, 1):
             e = h.entry
             dist = f"  d={h.distance:.3f}" if h.distance is not None else ""
-            print(f"{rank}. {e.path}{dist}")
+            mark = " ←" if (args.reaper and rank == args.pick) else ""
+            print(f"{rank}. {e.path}{dist}{mark}")
             print(f"     {', '.join(h.reasons)}  ·  fiabilité {e.confidence_level} "
                   f"·  SMS {e.global_score:.2f}")
+        if args.reaper:
+            if args.pick > len(hits):
+                print(f"libretto: --pick {args.pick} hors de portée "
+                      f"({len(hits)} résultat(s))", file=sys.stderr)
+                return 1
+            chosen = hits[args.pick - 1].entry
+            src = Path(chosen.path)
+            if not src.exists():
+                print(f"libretto: fichier introuvable pour l'envoi : {src} "
+                      f"(déplacé depuis l'indexation ?)", file=sys.stderr)
+                return 1
+            from .midi import parse_midi
+            from .reaper import BridgeError, push_mididata
+            # Une piste nommée par l'intention trouvée : on retrouve la séquence
+            # dans le projet sans deviner à quel «Libretto N» elle correspond.
+            label = ", ".join(chosen.emotion["descriptors"][:2]) or src.stem
+            try:
+                res = push_mididata(parse_midi(src), track_names=[label],
+                                    play=not args.no_play)
+            except (ValueError, BridgeError) as exc:
+                print(f"libretto: {exc}", file=sys.stderr)
+                return 1
+            print(f"→ REAPER {res['reaper']} : «{src.name}» poussé "
+                  f"({res['total_notes']} notes, {len(res['tracks'])} piste(s))"
+                  + (", lecture lancée" if res["playing"] else ""),
+                  file=sys.stderr)
         if args.json:
             payload = [{"path": h.entry.path, "distance": h.distance,
                         "emotion": h.entry.emotion, "bpm": h.entry.bpm,
@@ -286,6 +314,14 @@ def main(argv: list[str] | None = None) -> int:
                               help="tolérance de tempo en BPM (défaut 15)")
     p_lib_search.add_argument("--bars-tol", type=int, default=2,
                               help="tolérance de longueur en mesures (défaut 2)")
+    p_lib_search.add_argument("--reaper", action="store_true",
+                              help="pousser le meilleur résultat dans REAPER "
+                                   "(pont Klody :9000) et jouer")
+    p_lib_search.add_argument("--pick", type=int, default=1, metavar="N",
+                              help="rang du résultat à envoyer avec --reaper "
+                                   "(défaut 1 = le meilleur)")
+    p_lib_search.add_argument("--no-play", action="store_true",
+                              help="avec --reaper : pousser sans lancer la lecture")
     p_lib_search.add_argument("--json", metavar="OUT", help="écrire les résultats en JSON")
 
     p_lib_list = lib_sub.add_parser("list", help="lister le contenu de la bibliothèque")
