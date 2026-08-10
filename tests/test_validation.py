@@ -316,13 +316,13 @@ class TestRepetitionSegmentation(unittest.TestCase):
 
     def test_boundary_lands_on_the_transition_not_before(self):
         """Garde du recalage de pics. La nouveauté fenêtrée est lissée et
-        biaisée vers l'amont — sur trois corpus annotés, les frontières
-        appariées sortaient 2 mesures trop tôt quatre fois plus souvent que
-        trop tard (22 contre 6). Chaque pic est recalé sur l'argmax de la
-        nouveauté pas-à-pas : après recalage, 152 frontières exactes sur
-        204 appariées (contre 138). Ce test fige le comportement sur un cas
-        de remplissage : la frontière doit tomber SUR la bascule de
-        matériau, pas dans la dérive qui la précède."""
+        biaisée vers l'amont : une fin de section (cadence, remplissage)
+        diffère du corps de sa section, donc la courbe monte AVANT la
+        bascule. Le pic est recalé sur l'argmax de la nouveauté pas-à-pas
+        dans [b, b+1] — vers l'avant seulement, d'une mesure au plus. Ce
+        test fige le comportement sur un cas de remplissage : la frontière
+        doit tomber SUR la bascule de matériau (mesure 10), pas dans la
+        dérive qui la précède (mesures 8-9)."""
         from libretto.builder import _detect_boundaries
         b1 = [[1.0, 0.05 * (i % 3), 0.02 * (i % 2)] for i in range(8)]
         fill = [[0.85, 0.15, 0.1], [0.7, 0.3, 0.15]]

@@ -932,7 +932,22 @@ tempo/signatures/marqueurs ; SMPTE rejeté) + writer minimal.
   essayée : elle gagnait des comptes (+1, +2 selon la graine) mais
   retirait des frontières appariées à ±1 (F-mesure en baisse sur deux
   graines) et cascadait de façon instable au seuil — écartée. Bilan
-  quatre graines : comptes 42 → **46/80**, formes 30 → **33/80** ;
+  quatre graines : comptes 42 → **46/80**, formes 30 → **33/80**.
+  Enfin le **recalage des pics resserré, vers l'avant** : la nouveauté
+  fenêtrée est lissée et monte AVANT la bascule, d'où un recalage sur
+  l'argmax de la nouveauté pas-à-pas. Il balayait ±2 mesures dans les deux
+  sens ; sur des sections courtes, deux mesures vers l'arrière faisaient
+  s'entrechoquer deux pics voisins au même creux de pas — ils
+  fusionnaient et une vraie frontière mourait (10 disparitions sur quatre
+  corpus, première cause de sous-segmentation des formes longues à
+  sections courtes). Le biais amont qui justifiait un large rayon a
+  d'ailleurs fondu depuis l'ajout des dimensions de geste (décalage moyen
+  des frontières appariées : −2 mesures à l'époque, +0.045 aujourd'hui
+  sans recalage) : un rayon **avant de 1** suffit, et localise le mieux
+  (246 frontières pile justes sur 271 appariées, contre 244 à ±2 et 239
+  sans recalage). Réglé sur graine 7, validé sur 11/23/31 : comptes
+  46 → **50/80**, formes 33 → **37/80**, F-mesure agrégée +0.007 (jamais
+  pire que −0.009 sur une graine) ;
 - étiquetage par regroupement des sections sur la **similarité alignée
   mesure à mesure** (agglomératif à liaison moyenne, seuil absolu 0.975,
   pénalité de longueur). Deux seuils absolus ont existé et le premier a
@@ -998,14 +1013,14 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
   d'arpèges d'accompagnement.
 - Segmentation évaluée, mais encore approximative : F-mesure des frontières
-  **0.79-0.94** selon la graine (tolérance ±1 mesure), et surtout le **nombre
-  de sections** n'est exact que dans 57 % des cas (46/80, contre 29 avant le
+  **0.79-0.93** selon la graine (tolérance ±1 mesure), et surtout le **nombre
+  de sections** n'est exact que dans 63 % des cas (50/80, contre 29 avant le
   budget de concurrence, la cohérence des jumelles, l'admission des
-  intros/outros courts sur preuve de répétition et le plancher absolu de
-  run) — c'est lui qui
+  intros/outros courts sur preuve de répétition, le plancher absolu de
+  run et le recalage avant resserré) — c'est lui qui
   plafonne la forme : le regroupement par matériau, à frontières justes,
   est passé de 4/23 à 17/23 (validé sur trois graines écartées), et la
-  forme complète — frontières détectées puis partition — de 12/80 à 33/80.
+  forme complète — frontières détectées puis partition — de 12/80 à 37/80.
   Les axes qui lisent les étiquettes ont suivi le regroupement (AUC moyenne
   sur 3 graines : 03 0.50 → 0.58, 04 0.51 → 0.59, 06 0.44 → 0.73, ce
   dernier inversé sur une graine avant) ; le meilleur compte de sections,
@@ -1024,8 +1039,17 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
   historique « le gros des surplus vient de la nouveauté » reposait sur
   un diagnostic dont l'espion était branché sur une fonction morte —
   l'origine réelle était mixte, moitié nouveauté, moitié répétition de
-  phrase. Le gros des manques vient toujours des formes longues à
-  sections courtes.
+  phrase. Les manques, eux, se répartissaient en trois foyers mesurés :
+  le recalage arrière qui écrasait des pics voisins (première cause,
+  traitée par le rayon avant resserré), la nouveauté sous le seuil dans
+  les formes régulières à sections courtes où les frontières nombreuses
+  élèvent la médiane (foyer restant : le refrain qui suit un couplet de
+  même harmonie et énergie voisine — nouveauté 0.02, quasi invisible), et
+  le bloc entièrement répété d'un couplet-refrain court (VCVC = une seule
+  diagonale à lag n/2 dont les bords ne donnent que le milieu ; la
+  récursion locale et la propagation de jumelle ont été essayées puis
+  écartées — la nouveauté de la coupe interne est identique en local, et
+  aucune des deux copies ne la déclenche pour l'amorcer).
 - Esthétique pop inscrite dans les bandes de tolérance : un nocturne ou une
   pièce ambient scorent bas par construction. Les profils de poids
   (`weights_*.json`) atténuent, ils ne suppriment pas.
