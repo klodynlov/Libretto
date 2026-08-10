@@ -914,7 +914,25 @@ tempo/signatures/marqueurs ; SMPTE rejeté) + writer minimal.
   d'aaba invente un outro) contre deux fichiers réparés — le
   garde-fou « rupture locale en plus » a été essayé et réfuté, les
   outros du générateur baissent l'énergie sans changer de matière.
-  Bilan quatre graines : comptes 38 → **42/80**, F-mesure → 0.790-0.929 ;
+  Bilan quatre graines : comptes 38 → **42/80**, F-mesure → 0.790-0.929.
+  Dernier garde-fou, le **plancher absolu de run** : la porte d'échelle
+  est relative au plus long run de la pièce, et sur un travers-composé —
+  aucune section ne revient — le plus long run EST un alignement de
+  phrase (une section sans mélodie reboucle sa progression toutes les 4
+  mesures, cellules à 1.000, indiscernables en force d'un vrai retour) ;
+  ses bords semaient des frontières au milieu de sections d'un seul
+  tenant. Une répétition *de section* doit couvrir au moins **un dixième
+  de la pièce** — inactif sous 50 mesures, où le A-A d'un ternaire reste
+  une section de plein droit. Réglé sur la graine 7 (plateau 8-10 du
+  balayage, le 10 le moins invasif), validé sur trois graines écartées :
+  comptes +1/+2/+0, F-mesure jamais négative (le huitième, à égalité au
+  réglage, gagnait un compte mais dégradait la F-mesure de deux
+  graines — rejeté). La **fusion post-hoc** des frontières de nouveauté
+  dont les deux segments voisins sont quasi le même matériau a aussi été
+  essayée : elle gagnait des comptes (+1, +2 selon la graine) mais
+  retirait des frontières appariées à ±1 (F-mesure en baisse sur deux
+  graines) et cascadait de façon instable au seuil — écartée. Bilan
+  quatre graines : comptes 42 → **46/80**, formes 30 → **33/80** ;
 - étiquetage par regroupement des sections sur la **similarité alignée
   mesure à mesure** (agglomératif à liaison moyenne, seuil absolu 0.975,
   pénalité de longueur). Deux seuils absolus ont existé et le premier a
@@ -980,13 +998,14 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
   d'arpèges d'accompagnement.
 - Segmentation évaluée, mais encore approximative : F-mesure des frontières
-  **0.79-0.93** selon la graine (tolérance ±1 mesure), et surtout le **nombre
-  de sections** n'est exact que dans 52 % des cas (42/80, contre 29 avant le
-  budget de concurrence, la cohérence des jumelles et l'admission des
-  intros/outros courts sur preuve de répétition) — c'est lui qui
+  **0.79-0.94** selon la graine (tolérance ±1 mesure), et surtout le **nombre
+  de sections** n'est exact que dans 57 % des cas (46/80, contre 29 avant le
+  budget de concurrence, la cohérence des jumelles, l'admission des
+  intros/outros courts sur preuve de répétition et le plancher absolu de
+  run) — c'est lui qui
   plafonne la forme : le regroupement par matériau, à frontières justes,
   est passé de 4/23 à 17/23 (validé sur trois graines écartées), et la
-  forme complète — frontières détectées puis partition — de 12/80 à 30/80.
+  forme complète — frontières détectées puis partition — de 12/80 à 33/80.
   Les axes qui lisent les étiquettes ont suivi le regroupement (AUC moyenne
   sur 3 graines : 03 0.50 → 0.58, 04 0.51 → 0.59, 06 0.44 → 0.73, ce
   dernier inversé sur une graine avant) ; le meilleur compte de sections,
@@ -995,9 +1014,18 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
   croisée contrastive a suivi le premier étage (+0.012 en moyenne,
   0.963 → 0.978, 0.959 → 0.981, 0.966 → 0.966). L'axe 01 reste à 0.55.
   Le gate AUC reste calé à 0.42 : la marge avec le plancher de bruit
-  mesuré (0.448) est mince. Le gros des surplus restants vient de la
-  nouveauté sur les travers-composés ; le gros des manques, des formes
-  longues à sections courtes.
+  mesuré (0.448) est mince. Les surplus restants se partagent entre pics
+  de nouveauté intra-section (la ligne mélodique qui retombe après avoir
+  monté fait une vraie rupture locale — les discriminants essayés ne la
+  séparent pas d'une frontière : ni la force du pic, ni un vote par
+  sous-espaces chroma/énergie/geste, réfutés tous deux par mesure) et
+  bords de répétition de phrase dans les pièces de moins de 50 mesures,
+  où le plancher de run se tait par construction. L'attribution
+  historique « le gros des surplus vient de la nouveauté » reposait sur
+  un diagnostic dont l'espion était branché sur une fonction morte —
+  l'origine réelle était mixte, moitié nouveauté, moitié répétition de
+  phrase. Le gros des manques vient toujours des formes longues à
+  sections courtes.
 - Esthétique pop inscrite dans les bandes de tolérance : un nocturne ou une
   pièce ambient scorent bas par construction. Les profils de poids
   (`weights_*.json`) atténuent, ils ne suppriment pas.
