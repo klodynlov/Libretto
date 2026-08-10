@@ -245,9 +245,11 @@ def _degree_to_midi(deg: int, scale: tuple[int, ...], tonic: int, octave: int) -
     return 12 * (octave + 1) + tonic + scale[idx] + 12 * octaves
 
 
-def render(style: Style, rng: random.Random) -> tuple[list[list], list, list, int, list[int], list[str]]:
+def render(style: Style, rng: random.Random) -> tuple[
+        list[list], list, list, int, list[int], list[str], list[tuple[int, str]]]:
     """(pistes, marqueurs, changements de tempo, nb de mesures, frontières de
-    référence en index de mesure, étiquette de rôle par section).
+    référence en index de mesure, étiquette de rôle par section, accord vrai
+    par mesure).
 
     Les frontières sont la vérité terrain : le générateur sait exactement où
     il a coupé. C'est ce qui permet d'évaluer la segmentation par F-mesure
@@ -272,6 +274,7 @@ def render(style: Style, rng: random.Random) -> tuple[list[list], list, list, in
     markers: list[tuple[float, str]] = []
     tempo_changes: list[tuple[float, float]] = []
     truth_bars: list[int] = []      # frontières de référence, en mesures
+    truth_chords: list[tuple[int, str]] = []   # (classe de fondamentale, qualité) par mesure
     bar_cursor = 0
 
     beat = 0.0
@@ -301,6 +304,11 @@ def render(style: Style, rng: random.Random) -> tuple[list[list], list, list, in
         for bar in range(bars):
             degree, quality = prog[bar % len(prog)]
             root = 12 * 4 + tonic + degree
+            # Accord vrai de la mesure : sert de vérité terrain à la détection
+            # d'accords (scripts/mesure_accords.py). Une seule harmonie par
+            # mesure par construction — c'est justement la résolution que
+            # `_best_chord` doit retrouver.
+            truth_chords.append(((tonic + degree) % 12, quality))
             # accords : une attaque par pulsation, tenue jusqu'à la suivante
             n_pulses = max(1, int(round(bar_beats / pulse)))
             sub = 3 if pulse == 1.5 else 2
@@ -380,7 +388,7 @@ def render(style: Style, rng: random.Random) -> tuple[list[list], list, list, in
     if style.with_drums:
         tracks.append(drums_tr)
     return (tracks, markers, tempo_changes, int(round(beat / bar_beats)),
-            truth_bars, list(roles))
+            truth_bars, list(roles), truth_chords)
 
 
 def build_corpus(out_dir: str | Path, n: int = 60, seed: int = 7) -> list[Path]:
@@ -391,7 +399,8 @@ def build_corpus(out_dir: str | Path, n: int = 60, seed: int = 7) -> list[Path]:
     for i in range(n):
         rng = random.Random(f"{seed}:{i}")
         style = random_style(rng)
-        tracks, markers, tempo_changes, bars, truth_bars, roles = render(style, rng)
+        tracks, markers, tempo_changes, bars, truth_bars, roles, truth_chords = \
+            render(style, rng)
         num, den, _bb, _p = style.meter
         name = (f"{i:03d}_{style.form}_{style.mode}_{num}-{den}_"
                 f"{int(style.bpm)}bpm_{style.arc}.mid")
@@ -411,7 +420,10 @@ def build_corpus(out_dir: str | Path, n: int = 60, seed: int = 7) -> list[Path]:
                        # a pas une tonalité mais deux.
                        "tonic": style.tonic, "mode": style.mode,
                        "modulate_at": style.modulate_at,
-                       "modulate_by": style.modulate_by}
+                       "modulate_by": style.modulate_by,
+                       # Accord vrai par mesure : vérité terrain de la
+                       # détection d'accords (scripts/mesure_accords.py).
+                       "chords": truth_chords}
     # Vérité terrain à côté du corpus : c'est elle qui rend la segmentation
     # évaluable (F-mesure des frontières) au lieu de seulement observable.
     (out / "annotations.json").write_text(
