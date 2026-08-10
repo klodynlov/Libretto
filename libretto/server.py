@@ -5,12 +5,17 @@ Libretto — interface web locale (stdlib pure, aucun framework).
 si occupé — 8765 appartient au dashboard Library Brain sur cette machine) :
 - glisser-déposer des .mid → analyse SMS complète (radar + 29 axes) ;
 - comparateur : les analyses de la session s'empilent, triées par score ;
+- recherche par intention dans la bibliothèque (`serve --lib lib.json`) :
+  « mélancolique 8 mesures ~90 bpm » classe les séquences indexées ;
 - bouton « ▶ Reaper » : pousse le fichier dans REAPER via le pont Klody
-  (:9000) et lance la lecture.
+  (:9000) et lance la lecture — sur une analyse déposée comme sur un
+  résultat de recherche.
 
 API : GET /api/analyses · POST /api/analyze (corps = octets MIDI,
-en-tête X-Filename) · POST /api/reaper {"id": N}. Tout reste en mémoire,
-rien n'est écrit sur disque.
+en-tête X-Filename) · POST /api/search {"query": …} · POST /api/reaper
+{"id": N} (analyse en mémoire) ou {"path": …} (entrée de la bibliothèque).
+Les analyses déposées restent en mémoire ; la recherche lit le fichier
+d'index sur disque (rafraîchi à chaque requête).
 """
 
 from __future__ import annotations
@@ -29,11 +34,15 @@ MAX_UPLOAD = 8 * 1024 * 1024  # 8 Mio, très large pour du MIDI
 
 
 class _Store:
-    def __init__(self):
+    def __init__(self, lib_path: str | None = None):
         self.lock = threading.Lock()
         self.entries: list[dict] = []
         self.raw: dict[int, bytes] = {}
         self.next_id = 1
+        # Chemin du fichier d'index cherchable (None = onglet recherche masqué).
+        # On le relit à chaque requête pour refléter les ajouts hors interface
+        # (par ex. `forge_library.py` qui verse un run entre deux recherches).
+        self.lib_path = lib_path
 
     def add(self, entry: dict, raw: bytes) -> dict:
         with self.lock:
@@ -91,6 +100,54 @@ def analyze_bytes(data: bytes, filename: str) -> tuple[dict, "SenseOfMusicalStru
         "rows": rows,
     }
     return entry, sms
+
+
+def search_library(lib_path: str, query: str, *, limit: int = 8,
+                   bpm_tol: float = 15.0, bars_tol: int = 2) -> dict:
+    """Cherche dans la bibliothèque et sérialise les résultats pour l'UI.
+    Relit l'index à chaque appel (les ajouts hors interface comptent)."""
+    from pathlib import Path
+
+    from .library import Library, parse_query, search
+    lib = Library.load(lib_path)
+    q = parse_query(query, bpm_tol=bpm_tol, bars_tol=bars_tol)
+    if not lib.entries:
+        return {"query": q.describe(), "empty": True, "entries": [], "count": 0}
+    hits = search(lib.entries, query, limit=limit,
+                  bpm_tol=bpm_tol, bars_tol=bars_tol)
+    rows = []
+    for h in hits:
+        e = h.entry
+        emo = e.emotion
+        rows.append({
+            "path": e.path, "name": Path(e.path).name,
+            "distance": h.distance, "reasons": h.reasons,
+            "key": e.key, "bpm": e.bpm, "bars": e.bars,
+            "global_score": e.global_score, "confidence": e.confidence,
+            "confidence_level": e.confidence_level,
+            "descriptors": emo.get("descriptors", []),
+            "valence": emo.get("valence"), "energy": emo.get("energy"),
+            "tension": emo.get("tension"), "tags": e.tags,
+        })
+    return {"query": q.describe(), "empty": False,
+            "entries": rows, "count": len(rows)}
+
+
+def push_library_path(lib_path: str, path: str, *, play: bool = True) -> dict:
+    """Pousse dans REAPER une entrée de la bibliothèque, désignée par son
+    chemin. Le chemin DOIT appartenir à l'index chargé — on ne pousse pas un
+    fichier arbitraire du disque depuis le navigateur. La piste est nommée
+    par l'intention de l'entrée, comme `library search --reaper`."""
+    from .library import Library
+    from .midi import parse_midi
+    from .reaper import push_mididata
+    lib = Library.load(lib_path)
+    entry = next((e for e in lib.entries if e.path == path), None)
+    if entry is None:
+        raise ValueError("séquence absente de la bibliothèque")
+    label = ", ".join(entry.emotion.get("descriptors", [])[:2])
+    names = [label] if label else None
+    return push_mididata(parse_midi(entry.path), track_names=names, play=play)
 
 
 INDEX_HTML = """<!DOCTYPE html>
@@ -163,27 +220,65 @@ tr.dim .fill { background:var(--muted); }
 .banner b { color:#b4610d; }
 .radar svg { display:block; }
 footer { color:var(--muted); font-size:12.5px; margin-top:26px; }
+#searchpanel { margin:20px 0 8px; }
+.searchbar { display:flex; gap:8px; }
+.searchbar input { flex:1; font:inherit; padding:9px 13px; border:1px solid var(--border);
+  border-radius:10px; background:var(--card); color:var(--fg); }
+.searchbar input:focus { outline:none; border-color:var(--accent); }
+#searchmeta { min-height:19px; font-size:12.5px; color:var(--muted); margin:9px 2px 4px; }
+#searchmeta .err { color:var(--err); }
+#results { display:flex; flex-direction:column; gap:10px; }
+.hit { background:var(--card); border:1px solid var(--border); border-radius:12px;
+  padding:11px 14px; display:flex; gap:14px; align-items:center; }
+.hit .rank { font-size:19px; font-weight:700; color:var(--accent);
+  min-width:24px; text-align:center; }
+.hit .body { flex:1; min-width:0; }
+.hit .title { font-weight:600; }
+.hit .why { color:var(--muted); font-size:12.5px; margin-top:2px; }
+.hit .emo { display:flex; gap:5px; flex-wrap:wrap; margin-top:6px; }
+.tagpill { border:1px solid var(--border); border-radius:999px; padding:1px 9px;
+  font-size:11.5px; color:var(--muted); }
+.tagpill.intent { color:var(--accent); border-color:var(--accent-soft); }
 </style>
 </head>
 <body>
 <main>
   <h1>Libretto — Sense of Musical Structure
-    <small>dépose des fichiers .mid : analyse 29 axes, comparaison, écoute Reaper</small></h1>
+    <small>dépose des .mid : analyse 29 axes · cherche par intention · écoute dans Reaper</small></h1>
+  <section id="searchpanel" hidden>
+    <div class="searchbar">
+      <input id="q" type="search" autocomplete="off"
+             placeholder="mélancolique 8 mesures ~90 bpm en Dm">
+      <button class="primary" id="searchbtn">Chercher</button>
+    </div>
+    <div id="searchmeta"></div>
+    <div id="results"></div>
+  </section>
   <div id="drop">Glisse tes .mid ici (ou clique)
     <input id="file" type="file" accept=".mid,.midi" multiple hidden></div>
   <div id="status"></div>
   <div id="cards"></div>
   <footer>Libretto SMS — 100 % local. « ▶ Reaper » utilise le pont Klody sur 127.0.0.1:9000
-  (REAPER doit être lancé).</footer>
+  (REAPER doit être lancé). Recherche active avec <code>serve --lib&nbsp;lib.json</code>.</footer>
 </main>
 <script>
 const drop = document.getElementById('drop');
 const fileInput = document.getElementById('file');
 const cards = document.getElementById('cards');
 const statusEl = document.getElementById('status');
+const searchPanel = document.getElementById('searchpanel');
+const qInput = document.getElementById('q');
+const searchBtn = document.getElementById('searchbtn');
+const searchMeta = document.getElementById('searchmeta');
+const results = document.getElementById('results');
 
 function setStatus(msg, isErr) {
   statusEl.innerHTML = msg ? `<span class="${isErr ? 'err' : ''}">${msg}</span>` : '';
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
 function groupChips(groups, names) {
@@ -224,8 +319,72 @@ function render(entries, names) {
 async function refresh() {
   const r = await fetch('/api/analyses');
   const data = await r.json();
+  searchPanel.hidden = !data.has_library;
   render(data.entries, data.group_names);
 }
+
+function renderHits(data) {
+  if (data.empty) {
+    searchMeta.textContent =
+      'bibliothèque vide — indexe des séquences (library add / forge_library).';
+    results.innerHTML = ''; return;
+  }
+  searchMeta.textContent = `requête : ${data.query} — ${data.count} résultat(s)`;
+  if (!data.count) {
+    results.innerHTML = '<div class="hit"><div class="body why">aucune séquence '
+      + 'ne satisfait les contraintes (élargir la tolérance ?)</div></div>';
+    return;
+  }
+  results.innerHTML = data.entries.map((h, i) => {
+    const dist = h.distance != null ? ` · d=${h.distance.toFixed(3)}` : '';
+    const desc = h.descriptors.join(', ');
+    const tags = (h.tags || []).map(t => `<span class="tagpill">#${esc(t)}</span>`).join('');
+    const meta = [h.key || '?', (h.bpm ? Math.round(h.bpm) + ' BPM' : '? BPM'),
+                  h.bars + ' mes.'].join(' · ');
+    return `<div class="hit">
+      <div class="rank">${i + 1}</div>
+      <div class="body">
+        <div class="title">${esc(h.name)}<span class="why"> — ${esc(meta)}</span></div>
+        <div class="why">${esc(h.reasons.join('  ·  '))} · fiab. ${esc(h.confidence_level)}`
+      + ` · SMS ${h.global_score.toFixed(2)}${dist}</div>
+        <div class="emo">${desc ? `<span class="tagpill intent">${esc(desc)}</span>` : ''}${tags}</div>
+      </div>
+      <button class="primary" data-path="${esc(h.path)}">▶ Reaper</button>
+    </div>`;
+  }).join('');
+}
+
+async function doSearch() {
+  const query = qInput.value.trim();
+  if (!query) return;
+  searchMeta.textContent = 'recherche…';
+  const r = await fetch('/api/search', {method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify({query})});
+  const data = await r.json();
+  if (!r.ok) {
+    searchMeta.innerHTML = `<span class="err">${esc(data.error)}</span>`;
+    results.innerHTML = ''; return;
+  }
+  renderHits(data);
+}
+
+async function toReaperPath(path, btn) {
+  btn.disabled = true; btn.textContent = '…';
+  const r = await fetch('/api/reaper', {method: 'POST',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify({path})});
+  const data = await r.json();
+  if (r.ok) { btn.textContent = '▶ joue'; setStatus(
+    `Reaper : ${data.total_notes} notes sur ${data.tracks.length} pistes, lecture lancée`); }
+  else { btn.textContent = '▶ Reaper'; setStatus(`Reaper : ${data.error}`, true); }
+  btn.disabled = false;
+}
+
+searchBtn.addEventListener('click', doSearch);
+qInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+results.addEventListener('click', e => {
+  const btn = e.target.closest('button[data-path]');
+  if (btn) toReaperPath(btn.dataset.path, btn);
+});
 
 async function upload(files) {
   for (const f of files) {
@@ -286,7 +445,9 @@ def make_handler(store: _Store):
             if self.path in ("/", "/index.html"):
                 self._send(200, INDEX_HTML.encode(), "text/html; charset=utf-8")
             elif self.path == "/api/analyses":
-                self._json(200, {"entries": store.snapshot(), "group_names": GROUP_NAMES})
+                self._json(200, {"entries": store.snapshot(),
+                                 "group_names": GROUP_NAMES,
+                                 "has_library": store.lib_path is not None})
             else:
                 self._json(404, {"error": "introuvable"})
 
@@ -304,16 +465,38 @@ def make_handler(store: _Store):
                     data = self._read_body()
                     entry, _sms = analyze_bytes(data, name)
                     self._json(200, store.add(entry, data))
-                elif self.path == "/api/reaper":
-                    req = json.loads(self._read_body() or b"{}")
-                    raw = store.raw_for(int(req.get("id", -1)))
-                    if raw is None:
-                        self._json(404, {"error": "analyse inconnue"})
+                elif self.path == "/api/search":
+                    if store.lib_path is None:
+                        self._json(400, {"error": "aucune bibliothèque chargée "
+                                                  "(lancer `serve --lib lib.json`)"})
                         return
-                    from .midi import parse_midi_bytes as _parse
+                    req = json.loads(self._read_body() or b"{}")
+                    query = (req.get("query") or "").strip()
+                    if not query:
+                        self._json(400, {"error": "requête vide"})
+                        return
+                    self._json(200, search_library(
+                        store.lib_path, query,
+                        limit=int(req.get("limit", 8)),
+                        bpm_tol=float(req.get("bpm_tol", 15.0)),
+                        bars_tol=int(req.get("bars_tol", 2))))
+                elif self.path == "/api/reaper":
                     from .reaper import BridgeError, push_mididata
+                    req = json.loads(self._read_body() or b"{}")
                     try:
-                        self._json(200, push_mididata(_parse(raw)))
+                        if req.get("path"):     # entrée de la bibliothèque
+                            if store.lib_path is None:
+                                self._json(400, {"error": "aucune bibliothèque chargée"})
+                                return
+                            self._json(200, push_library_path(
+                                store.lib_path, str(req["path"])))
+                        else:                   # analyse déposée en mémoire
+                            raw = store.raw_for(int(req.get("id", -1)))
+                            if raw is None:
+                                self._json(404, {"error": "analyse inconnue"})
+                                return
+                            from .midi import parse_midi_bytes as _parse
+                            self._json(200, push_mididata(_parse(raw)))
                     except BridgeError as exc:
                         self._json(502, {"error": str(exc)})
                 else:
@@ -331,17 +514,19 @@ def make_handler(store: _Store):
 DEFAULT_PORT = 8787
 
 
-def serve(host: str = "127.0.0.1", port: int = DEFAULT_PORT) -> ThreadingHTTPServer:
+def serve(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
+          lib_path: str | None = None) -> ThreadingHTTPServer:
     """Crée le serveur (sans le lancer) — utilisé par la CLI et les tests."""
-    store = _Store()
+    store = _Store(lib_path=lib_path)
     return ThreadingHTTPServer((host, port), make_handler(store))
 
 
-def main(host: str = "127.0.0.1", port: int | None = None) -> int:
+def main(host: str = "127.0.0.1", port: int | None = None,
+         lib_path: str | None = None) -> int:
     import sys
     want = DEFAULT_PORT if port is None else port
     try:
-        httpd = serve(host, want)
+        httpd = serve(host, want, lib_path=lib_path)
     except OSError as exc:
         if port is not None:
             print(f"libretto: port {want} déjà occupé ({exc.strerror}) — un autre service "
@@ -349,8 +534,10 @@ def main(host: str = "127.0.0.1", port: int | None = None) -> int:
                   file=sys.stderr)
             return 1
         print(f"port {want} occupé — bascule sur un port libre", file=sys.stderr)
-        httpd = serve(host, 0)
+        httpd = serve(host, 0, lib_path=lib_path)
     real_port = httpd.server_address[1]
+    if lib_path:
+        print(f"bibliothèque cherchable : {lib_path}", file=sys.stderr)
     print(f"Libretto SMS — interface sur http://{host}:{real_port} (Ctrl-C pour quitter)")
     try:
         httpd.serve_forever()

@@ -8,6 +8,9 @@ Libretto — CLI.
   libretto demo                                  analyse de la partition de démo
   libretto calibrate corpus/ --out w.json        calibration contrastive des poids
   libretto calibrate corpus/ --min-auc 0.45      gate : échoue si un axe s'inverse
+  libretto library add seq.mid --lib lib.json    indexer une séquence (émotion + axes)
+  libretto library search "mélancolique 8 mesures ~90 bpm" --lib lib.json
+  libretto library search "planant" --lib lib.json --reaper   pousse le meilleur dans REAPER
 """
 
 from __future__ import annotations
@@ -59,6 +62,135 @@ def _add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--quiet", action="store_true", help="pas de rapport texte sur stdout")
 
 
+def _library(args: argparse.Namespace) -> int:
+    from .library import (Library, analyze_entry, parse_query, search,
+                          tonic_to_pc)
+
+    if args.lib_command == "add":
+        weights = None
+        if args.weights:
+            from .calibrate import load_weights
+            try:
+                weights = load_weights(args.weights)
+            except (ValueError, OSError, json.JSONDecodeError) as exc:
+                print(f"libretto: poids invalides : {exc}", file=sys.stderr)
+                return 1
+        tonic = None
+        if args.tonic:
+            try:
+                tonic = tonic_to_pc(args.tonic)
+            except ValueError as exc:
+                print(f"libretto: {exc}", file=sys.stderr)
+                return 1
+        lib = Library.load(args.lib)
+        added, updated, failed = 0, 0, 0
+        for raw in args.paths:
+            path = Path(raw)
+            if not path.exists():
+                print(f"libretto: fichier introuvable : {path}", file=sys.stderr)
+                failed += 1
+                continue
+            try:
+                entry = analyze_entry(path, weights=weights, tonic=tonic,
+                                      mode=args.mode, bpm=args.bpm, bars=args.bars,
+                                      tags=args.tag)
+            except ValueError as exc:
+                print(f"libretto: {path.name}: {exc}", file=sys.stderr)
+                failed += 1
+                continue
+            is_new = lib.add(entry)
+            added += is_new
+            updated += (not is_new)
+            emo = entry.emotion
+            print(f"  {'+ ' if is_new else '~ '}{path.name}  "
+                  f"[{entry.key or '?'} · {round(entry.bpm) if entry.bpm else '?'} BPM · "
+                  f"{entry.bars} mes.]  "
+                  f"{', '.join(emo['descriptors'])}  "
+                  f"(V {emo['valence']:.2f} · É {emo['energy']:.2f} · T {emo['tension']:.2f})")
+        lib.save(args.lib)
+        print(f"bibliothèque : {len(lib.entries)} séquences "
+              f"({added} ajoutée(s), {updated} mise(s) à jour"
+              + (f", {failed} échec(s)" if failed else "") + f") → {args.lib}",
+              file=sys.stderr)
+        return 1 if (failed and not added and not updated) else 0
+
+    if args.lib_command == "search":
+        lib = Library.load(args.lib)
+        if not lib.entries:
+            print(f"libretto: bibliothèque vide ou introuvable : {args.lib}",
+                  file=sys.stderr)
+            return 1
+        q = parse_query(args.query, bpm_tol=args.bpm_tol, bars_tol=args.bars_tol)
+        hits = search(lib.entries, args.query, limit=args.limit,
+                      bpm_tol=args.bpm_tol, bars_tol=args.bars_tol)
+        print(f"requête : {q.describe()}", file=sys.stderr)
+        if not hits:
+            print("aucune séquence ne satisfait les contraintes "
+                  "(élargir --bpm-tol / --bars-tol ?)", file=sys.stderr)
+            return 0
+        for rank, h in enumerate(hits, 1):
+            e = h.entry
+            dist = f"  d={h.distance:.3f}" if h.distance is not None else ""
+            mark = " ←" if (args.reaper and rank == args.pick) else ""
+            print(f"{rank}. {e.path}{dist}{mark}")
+            print(f"     {', '.join(h.reasons)}  ·  fiabilité {e.confidence_level} "
+                  f"·  SMS {e.global_score:.2f}")
+        if args.reaper:
+            if args.pick > len(hits):
+                print(f"libretto: --pick {args.pick} hors de portée "
+                      f"({len(hits)} résultat(s))", file=sys.stderr)
+                return 1
+            chosen = hits[args.pick - 1].entry
+            src = Path(chosen.path)
+            if not src.exists():
+                print(f"libretto: fichier introuvable pour l'envoi : {src} "
+                      f"(déplacé depuis l'indexation ?)", file=sys.stderr)
+                return 1
+            from .midi import parse_midi
+            from .reaper import BridgeError, push_mididata
+            # Une piste nommée par l'intention trouvée : on retrouve la séquence
+            # dans le projet sans deviner à quel «Libretto N» elle correspond.
+            label = ", ".join(chosen.emotion["descriptors"][:2]) or src.stem
+            try:
+                res = push_mididata(parse_midi(src), track_names=[label],
+                                    play=not args.no_play)
+            except (ValueError, BridgeError) as exc:
+                print(f"libretto: {exc}", file=sys.stderr)
+                return 1
+            print(f"→ REAPER {res['reaper']} : «{src.name}» poussé "
+                  f"({res['total_notes']} notes, {len(res['tracks'])} piste(s))"
+                  + (", lecture lancée" if res["playing"] else ""),
+                  file=sys.stderr)
+        if args.json:
+            payload = [{"path": h.entry.path, "distance": h.distance,
+                        "emotion": h.entry.emotion, "bpm": h.entry.bpm,
+                        "bars": h.entry.bars, "key": h.entry.key,
+                        "global_score": h.entry.global_score,
+                        "confidence": h.entry.confidence,
+                        "confidence_level": h.entry.confidence_level}
+                       for h in hits]
+            Path(args.json).write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            print(f"JSON  → {args.json}", file=sys.stderr)
+        return 0
+
+    if args.lib_command == "list":
+        lib = Library.load(args.lib)
+        if not lib.entries:
+            print(f"bibliothèque vide ou introuvable : {args.lib}", file=sys.stderr)
+            return 0
+        for e in lib.entries:
+            emo = e.emotion
+            tags = f"  #{' #'.join(e.tags)}" if e.tags else ""
+            print(f"{Path(e.path).name}  [{e.key or '?'} · "
+                  f"{round(e.bpm) if e.bpm else '?'} BPM · {e.bars} mes.]  "
+                  f"{', '.join(emo['descriptors'])}{tags}")
+        print(f"{len(lib.entries)} séquences", file=sys.stderr)
+        return 0
+
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="libretto",
@@ -75,10 +207,13 @@ def main(argv: list[str] | None = None) -> int:
     p_demo = sub.add_parser("demo", help="analyser la partition de démonstration intégrée")
     _add_common(p_demo)
 
-    p_serve = sub.add_parser("serve", help="interface web locale (drag & drop + Reaper)")
+    p_serve = sub.add_parser("serve", help="interface web locale (drag & drop + recherche + Reaper)")
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=None,
                          help="défaut 8787, bascule auto si occupé ; 0 = port automatique")
+    p_serve.add_argument("--lib", metavar="JSON", default=None,
+                         help="fichier d'index à rendre cherchable dans l'interface "
+                              "(active l'onglet recherche par intention)")
 
     p_reaper = sub.add_parser("reaper", help="pousser un MIDI dans REAPER (pont Klody :9000) et jouer")
     p_reaper.add_argument("path", help="fichier .mid/.midi")
@@ -150,7 +285,56 @@ def main(argv: list[str] | None = None) -> int:
                        help="doit être celle utilisée pour l'annotation")
     p_agr.add_argument("--json", metavar="OUT", help="écrire le rapport JSON")
 
+    p_lib = sub.add_parser(
+        "library",
+        help="bibliothèque de séquences cherchable par intention émotionnelle")
+    lib_sub = p_lib.add_subparsers(dest="lib_command", required=True)
+
+    p_lib_add = lib_sub.add_parser("add", help="indexer un ou plusieurs MIDI")
+    p_lib_add.add_argument("paths", nargs="+", help="fichiers .mid/.midi")
+    p_lib_add.add_argument("--lib", default="libretto_library.json",
+                           help="fichier d'index (défaut libretto_library.json)")
+    p_lib_add.add_argument("--weights", metavar="JSON",
+                           help="poids calibrés (sortie de `libretto calibrate`)")
+    p_lib_add.add_argument("--tonic", help="imposer la tonique (ex. D, F#, Bb) "
+                                           "au lieu de l'estimer")
+    p_lib_add.add_argument("--mode", choices=["maj", "min", "dorien", "mixolydien"],
+                           help="imposer le mode au lieu de l'estimer")
+    p_lib_add.add_argument("--bpm", type=float, help="imposer le tempo")
+    p_lib_add.add_argument("--bars", type=int, help="imposer la longueur en mesures")
+    p_lib_add.add_argument("--tag", action="append", default=[],
+                           help="étiquette libre (répétable)")
+
+    p_lib_search = lib_sub.add_parser("search", help="chercher par intention")
+    p_lib_search.add_argument("query",
+                              help="requête libre : « mélancolique 8 mesures "
+                                   "~90 bpm Dm »")
+    p_lib_search.add_argument("--lib", default="libretto_library.json",
+                              help="fichier d'index")
+    p_lib_search.add_argument("-n", "--limit", type=int, default=5,
+                              help="nombre de résultats (défaut 5)")
+    p_lib_search.add_argument("--bpm-tol", type=float, default=15.0,
+                              help="tolérance de tempo en BPM (défaut 15)")
+    p_lib_search.add_argument("--bars-tol", type=int, default=2,
+                              help="tolérance de longueur en mesures (défaut 2)")
+    p_lib_search.add_argument("--reaper", action="store_true",
+                              help="pousser le meilleur résultat dans REAPER "
+                                   "(pont Klody :9000) et jouer")
+    p_lib_search.add_argument("--pick", type=int, default=1, metavar="N",
+                              help="rang du résultat à envoyer avec --reaper "
+                                   "(défaut 1 = le meilleur)")
+    p_lib_search.add_argument("--no-play", action="store_true",
+                              help="avec --reaper : pousser sans lancer la lecture")
+    p_lib_search.add_argument("--json", metavar="OUT", help="écrire les résultats en JSON")
+
+    p_lib_list = lib_sub.add_parser("list", help="lister le contenu de la bibliothèque")
+    p_lib_list.add_argument("--lib", default="libretto_library.json",
+                            help="fichier d'index")
+
     args = parser.parse_args(argv)
+
+    if args.command == "library":
+        return _library(args)
 
     if args.command == "annotate":
         from .annotate import main as annotate_main
@@ -182,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "serve":
         from .server import main as serve_main
-        return serve_main(args.host, args.port)
+        return serve_main(args.host, args.port, args.lib)
 
     if args.command == "reaper":
         from .reaper import BridgeError, push_mididata
