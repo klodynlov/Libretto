@@ -16,4 +16,11 @@ keywords = ["music", "midi", "structure", "analysis", "mir"]
 libretto = "libretto.cli:main"
 
 [tool.setuptools]
-packages = ["libretto"]
+# `libretto._generators` embarque les scripts de `examples/` (Forge, Markov)
+# dans le paquet, pour que `libretto serve --generate` fonctionne après une
+# installation par wheel — quand l'arborescence source `examples/` est absente.
+# Le cœur `libretto` n'en dépend pas : ils ne sont importés qu'à la demande.
+packages = ["libretto", "libretto._generators"]
+
+[tool.setuptools.package-dir]
+"libretto._generators" = "examples"
