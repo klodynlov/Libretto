@@ -162,6 +162,123 @@ class TestSearchServer(unittest.TestCase):
             push_library_path(str(self.libpath), "/nope.mid")
 
 
+def _fake_generator(params, workdir):
+    """Générateur factice : écrit un vrai MIDI (make_demo) et renvoie le
+    contrat attendu par le serveur, sans lancer Forge."""
+    p = Path(workdir) / "gen_winner.mid"
+    build(p)
+    return {"results": [{"path": str(p), "name": p.name, "role": "winner",
+                         "score": 0.71, "confidence": 0.9,
+                         "confidence_level": "élevée", "form": "AABA"}],
+            "summary": {"n_generated": int(params.get("n", 1)),
+                        "n_eligible": 1, "n_rejected": 0}}
+
+
+class TestGenerateServer(unittest.TestCase):
+    """Panneau de génération : le serveur appelle un rappel `generator` fourni
+    de l'extérieur (le cœur ignore les générateurs), enregistre les fichiers
+    produits, et n'autorise download / Reaper / indexation QUE sur eux."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.libpath = Path(cls._tmp.name) / "lib.json"
+        Library().save(cls.libpath)
+        cls.httpd = serve(port=0, generator=_fake_generator,
+                          gen_modes=["procedural"], lib_path=str(cls.libpath))
+        cls.port = cls.httpd.server_address[1]
+        threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+        cls.httpd.server_close()
+        cls._tmp.cleanup()
+
+    def _conn(self):
+        return http.client.HTTPConnection("127.0.0.1", self.port, timeout=15)
+
+    def _post(self, path, payload):
+        c = self._conn()
+        c.request("POST", path, body=json.dumps(payload),
+                  headers={"Content-Type": "application/json"})
+        r = c.getresponse()
+        return r.status, json.loads(r.read())
+
+    def test_flags_and_modes(self):
+        c = self._conn()
+        c.request("GET", "/api/analyses")
+        d = json.loads(c.getresponse().read())
+        self.assertTrue(d["can_generate"])
+        self.assertEqual(d["gen_modes"], ["procedural"])
+
+    def test_generate_returns_results(self):
+        status, d = self._post("/api/generate",
+                               {"mode": "procedural", "n": 3, "shortlist": 2})
+        self.assertEqual(status, 200, d)
+        self.assertEqual(len(d["results"]), 1)
+        self.assertEqual(d["results"][0]["role"], "winner")
+        self.assertEqual(d["summary"]["n_generated"], 3)
+
+    def test_download_only_generated(self):
+        _s, d = self._post("/api/generate", {"n": 1})
+        path = d["results"][0]["path"]
+        c = self._conn()
+        from urllib.parse import quote
+        c.request("GET", "/api/download?path=" + quote(path))
+        r = c.getresponse()
+        body = r.read()
+        self.assertEqual(r.status, 200)
+        self.assertEqual(body[:4], b"MThd")
+        # chemin arbitraire refusé
+        c = self._conn()
+        c.request("GET", "/api/download?path=/etc/passwd")
+        self.assertEqual(c.getresponse().status, 404)
+
+    def test_library_add_generated(self):
+        _s, d = self._post("/api/generate", {"n": 1})
+        path = d["results"][0]["path"]
+        status, res = self._post("/api/library_add", {"path": path})
+        self.assertEqual(status, 200, res)
+        self.assertIn("descriptors", res)
+        # non généré → refusé
+        status, _ = self._post("/api/library_add", {"path": "/etc/passwd"})
+        self.assertEqual(status, 400)
+
+    def test_reaper_generated_reaches_bridge(self):
+        from unittest import mock
+
+        import libretto.reaper as reaper
+        _s, d = self._post("/api/generate", {"n": 1})
+        path = d["results"][0]["path"]
+        spy = mock.MagicMock(return_value={
+            "reaper": "t", "tracks": [], "markers": 0,
+            "playing": True, "total_notes": 0})
+        # le handler fait `from .reaper import push_mididata` à l'appel :
+        # patcher la source suffit à intercepter un push de fichier généré.
+        with mock.patch.object(reaper, "push_mididata", spy):
+            status, _res = self._post("/api/reaper", {"path": path})
+        self.assertEqual(status, 200)
+        spy.assert_called()
+
+
+class TestGenerateDisabled(unittest.TestCase):
+    def test_generate_disabled_without_generator(self):
+        httpd = serve(port=0)   # aucun generator
+        port = httpd.server_address[1]
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+            c.request("GET", "/api/analyses")
+            self.assertFalse(json.loads(c.getresponse().read())["can_generate"])
+            c.request("POST", "/api/generate", body=b"{}",
+                      headers={"Content-Type": "application/json"})
+            self.assertEqual(c.getresponse().status, 400)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+
 class TestSearchDisabledWithoutLibrary(unittest.TestCase):
     def test_no_library_disables_search(self):
         httpd = serve(port=0)   # sans --lib

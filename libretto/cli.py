@@ -191,6 +191,86 @@ def _library(args: argparse.Namespace) -> int:
     return 1
 
 
+def _report_to_results(report: dict, workdir) -> dict:
+    """Traduit un rapport Forge en résultats pour l'UI : gagnant + shortlist,
+    le gagnant dédoublonné de sa propre shortlist (par index de candidat)."""
+    def _row(name, role, c):
+        return {"path": str(Path(workdir) / name), "name": name, "role": role,
+                "score": c.get("score"), "confidence": c.get("confidence"),
+                "confidence_level": c.get("level"), "form": c.get("form")}
+    results, seen = [], set()
+    w, wf = report.get("winner"), report.get("winner_file")
+    if w and wf:
+        results.append(_row(wf, "winner", w))
+        seen.add(w.get("index"))
+    sl = report.get("shortlist")
+    if sl and sl.get("picks"):
+        for pick in sl["picks"]:
+            if pick.get("index") in seen:
+                continue
+            results.append(_row(pick["file_out"], "shortlist", pick))
+            seen.add(pick.get("index"))
+    return {"results": results,
+            "summary": {"n_generated": report.get("n_generated"),
+                        "n_eligible": report.get("n_eligible"),
+                        "n_rejected": report.get("n_rejected_confidence", 0)
+                        + report.get("n_rejected_score", 0)}}
+
+
+def _build_generator(corpus_dir: str | None):
+    """Construit le rappel de génération pour le serveur, en important les
+    générateurs depuis `examples/` (le cœur `libretto` en reste libre). Renvoie
+    (callback, modes). Entraîne le modèle appris UNE fois si `corpus_dir`."""
+    examples = Path(__file__).resolve().parent.parent / "examples"
+    for p in (str(examples.parent), str(examples)):
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    import forge as forge_mod  # noqa: F401
+
+    modes = ["procedural"]
+    model = None
+    if corpus_dir:
+        corpus = Path(corpus_dir)
+        if not corpus.is_dir():
+            raise ValueError(f"corpus introuvable : {corpus}")
+        import markov_gen
+        paths = sorted(p for p in corpus.rglob("*")
+                       if p.suffix.lower() in (".mid", ".midi"))
+        if not paths:
+            raise ValueError(f"aucun .mid dans {corpus}")
+        model, _skipped = markov_gen.train_from_paths(paths)
+        if not model.tracks:
+            raise ValueError("corpus illisible (aucune matière apprise)")
+        modes.append("markov")
+
+    def generate(params: dict, workdir) -> dict:
+        from forge import forge as run_forge
+        from forge import forge_from_dir
+        n = max(1, int(params.get("n", 12)))
+        seed = int(params.get("seed", 1))
+        shortlist = max(0, int(params.get("shortlist", 4)))
+        bars = max(4, int(params.get("bars", 24)))
+        mode = params.get("mode", "procedural")
+        if mode == "markov":
+            if model is None:
+                raise ValueError("mode « appris » indisponible (relancer avec --corpus DIR)")
+            from forge_markov import generate_candidates
+            cand = generate_candidates(model, Path(workdir) / "candidates",
+                                       n, seed, bars, None)
+            if not cand:
+                raise ValueError("le modèle n'a produit aucun candidat")
+            report = forge_from_dir(Path(workdir) / "candidates", workdir,
+                                    shortlist=shortlist)
+        else:
+            report = run_forge(workdir, n, seed, shortlist=shortlist)
+        if not report.get("winner"):
+            raise ValueError("aucun candidat fiable (gate) — augmenter le nombre "
+                             "de candidats, ou changer de graine")
+        return _report_to_results(report, workdir)
+
+    return generate, modes
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="libretto",
@@ -214,6 +294,11 @@ def main(argv: list[str] | None = None) -> int:
     p_serve.add_argument("--lib", metavar="JSON", default=None,
                          help="fichier d'index à rendre cherchable dans l'interface "
                               "(active l'onglet recherche par intention)")
+    p_serve.add_argument("--generate", action="store_true",
+                         help="activer le panneau de génération (Forge procédural)")
+    p_serve.add_argument("--corpus", metavar="DIR", default=None,
+                         help="dossier de .mid pour le modèle appris (active en plus "
+                              "le mode « appris » dans le panneau de génération)")
 
     p_reaper = sub.add_parser("reaper", help="pousser un MIDI dans REAPER (pont Klody :9000) et jouer")
     p_reaper.add_argument("path", help="fichier .mid/.midi")
@@ -366,7 +451,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "serve":
         from .server import main as serve_main
-        return serve_main(args.host, args.port, args.lib)
+        generator, gen_modes = (None, [])
+        if args.generate or args.corpus:
+            try:
+                generator, gen_modes = _build_generator(args.corpus)
+            except (ValueError, OSError) as exc:
+                print(f"libretto: génération indisponible : {exc}", file=sys.stderr)
+                return 1
+        return serve_main(args.host, args.port, args.lib, generator, gen_modes)
 
     if args.command == "reaper":
         from .reaper import BridgeError, push_mididata

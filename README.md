@@ -953,8 +953,10 @@ python3 -m libretto.cli library search "planant 8 mesures" --lib lib.json
 ## Interface web locale
 
 ```bash
-python3 -m libretto.cli serve                    # http://127.0.0.1:8787
-python3 -m libretto.cli serve --lib lib.json     # + recherche par intention
+python3 -m libretto.cli serve                       # http://127.0.0.1:8787
+python3 -m libretto.cli serve --lib lib.json        # + recherche par intention
+python3 -m libretto.cli serve --generate            # + panneau de génération
+python3 -m libretto.cli serve --generate --corpus corpus/ --lib lib.json   # tout
 ```
 
 Glisser-déposer des `.mid` → analyse complète (radar 6 groupes + 29 axes),
@@ -962,6 +964,21 @@ les analyses de la session s'empilent triées par score (comparateur de
 fichiers/packs), et **« ▶ Reaper »** pousse le fichier dans REAPER via le
 pont Klody (`127.0.0.1:9000` — pistes nommées, ReaSynth, marqueurs, lecture).
 Stdlib pure (`http.server`), tout en mémoire, rien d'écrit sur disque.
+
+**Générer depuis l'interface.** Avec `--generate`, un panneau s'ouvre en haut :
+on choisit le nombre de candidats, de variantes, la longueur et la graine, on
+clique **Générer**, et Forge produit puis trie — le panneau affiche le gagnant
+et les variantes avec leur forme, leur score SMS et leur fiabilité (et combien
+le gate a recalés, sans fard). Chaque séquence a trois boutons : **▶ Reaper**
+(écoute immédiate), **⬇ .mid** (téléchargement pour le DAW), **+ Bibliothèque**
+(indexation en un clic, cherchable ensuite par intention). Le mode par défaut
+est le générateur procédural (aucune préparation) ; `--corpus DIR` ajoute le
+**modèle appris** (chaîne de Markov entraînée sur ce dossier, cf. `forge_markov`)
+comme second choix dans le menu. Le cœur `libretto` ne dépend pas des
+générateurs — la CLI les injecte, le serveur les appelle sans les connaître ;
+sans `--generate`, le panneau reste masqué. Par sûreté, seuls les fichiers
+**réellement générés** dans la session peuvent être téléchargés, poussés ou
+indexés — jamais un chemin arbitraire du disque.
 
 **Recherche par intention dans l'interface.** Avec `--lib`, un champ de
 recherche s'ouvre en haut de la page : taper « mélancolique 8 mesures ~90 bpm
