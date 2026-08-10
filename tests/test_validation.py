@@ -368,6 +368,35 @@ class TestRepetitionSegmentation(unittest.TestCase):
         self.assertEqual(avec_porte, {16, 20, 36},
                          "seuls les bords du retour de section survivent")
 
+    def test_lone_vamp_dies_in_large_piece_only(self):
+        """Garde du plancher absolu. Sur une pièce à travers-composé, aucune
+        section ne revient : le plus long run est un alignement de phrase
+        (une section sans mélodie reboucle sa progression toutes les 4
+        mesures, cellules à 1.000), et la porte d'échelle — relative au
+        plus long run — le laissait régner. Le plancher ancre le verdict
+        sur la pièce : une répétition de section couvre au moins n // 10.
+
+        Même matériau dans les deux moitiés du test : un vamp de 4 cellules
+        à lag 4, seul run de la matrice. Dans une pièce de 39 mesures le
+        plancher (3) reste sous min_len et le vamp émet ses bords — c'est
+        l'échelle d'un ternaire, où un retour de 4 mesures est une section.
+        Dans une pièce de 60 mesures le plancher (6) le tue : à cette
+        échelle, 4 mesures répétées sont une phrase, pas une section."""
+        def matrix(n):
+            ssm = [[0.2 if min(i, j) % 7 == 3 else 0.1 for j in range(n)]
+                   for i in range(n)]
+            for i in range(n):
+                ssm[i][i] = 1.0
+            for i in range(8, 12):              # vamp : phrase qui boucle
+                ssm[i][i + 4] = ssm[i + 4][i] = 0.99
+            return ssm
+
+        self.assertEqual(_repetition_edges(matrix(39), min_len=4),
+                         {8, 12, 16},
+                         "petite pièce : le retour court est une section")
+        self.assertEqual(_repetition_edges(matrix(60), min_len=4), set(),
+                         "grande pièce : le vamp seul ne fait pas autorité")
+
     def test_small_matrix_return_survives_phrase_competition(self):
         """Plafond arithmétique du quantile, version budget de concurrence.
         Sur un ternaire de 12 mesures (sections de 4), la matrice n'a que

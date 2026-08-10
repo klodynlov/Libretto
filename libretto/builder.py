@@ -141,7 +141,8 @@ def _self_similarity(features: list[list[float]]) -> list[list[float]]:
 
 def _repetition_runs(ssm: list[list[float]], min_len: int = 4,
                      quantile: float = 0.94,
-                     scale_ratio: int = 3) -> list[tuple[int, int, int]]:
+                     scale_ratio: int = 3,
+                     floor_ratio: int = 10) -> list[tuple[int, int, int]]:
     """Runs diagonaux de répétition (lag, début, longueur), à l'échelle des
     sections.
 
@@ -164,7 +165,25 @@ def _repetition_runs(ssm: list[list[float]], min_len: int = 4,
     couplet de 24, assez strict pour que les phrases meurent. Le tiers est
     réglé sur graine 7 (optimum intérieur du balayage 1/1.5..1/4) et validé
     sur graines 11/13 tenues à l'écart : frontières en trop 101 → 53 sur les
-    trois corpus, F-mesure en hausse partout (+0.05, +0.09, +0.06)."""
+    trois corpus, F-mesure en hausse partout (+0.05, +0.09, +0.06).
+
+    **Plancher absolu.** La porte d'échelle est relative au plus long run —
+    et sur une pièce à travers-composé, où AUCUNE section ne revient, le
+    plus long run EST un alignement de phrase : une section sans mélodie
+    (accords + basse) reboucle sa progression toutes les 4 mesures avec des
+    cellules à 1.000, indiscernables en force d'un vrai retour. La porte,
+    n'ayant que lui pour étalon, le laissait régner : ses bords semaient
+    des frontières au milieu de sections d'un seul tenant. D'où une
+    deuxième porte, ancrée sur la pièce et non sur les runs : une
+    répétition DE SECTION couvre au moins un dixième du morceau
+    (`length >= n // 10`). Inactive sous 50 mesures (le plancher passe
+    sous `min_len`), elle y laisse vivre les retours courts des petites
+    formes — le A-A d'un ternaire de 12 mesures. Le dixième est réglé sur
+    graine 7 (plateau 8-10 du balayage 6..12, le 10 étant le moins
+    invasif) et validé sur graines 11/23/31 tenues à l'écart : comptes de
+    sections exacts +1/+2/+0, F-mesure +0.007/0.000/0.000 — jamais
+    négatif. Le huitième, à égalité au réglage, gagnait un compte de plus
+    mais dégradait la F-mesure de deux graines (−0.010, −0.004) : rejeté."""
     n = len(ssm)
     if n < 2 * min_len:
         return []
@@ -206,21 +225,24 @@ def _repetition_runs(ssm: list[list[float]], min_len: int = 4,
     if not runs:
         return []
     scale = max(length for _, _, length in runs)
+    floor = n // floor_ratio
     return [(lag, start, length) for lag, start, length in runs
-            if length * scale_ratio >= scale]
+            if length * scale_ratio >= scale and length >= floor]
 
 
 def _repetition_edges(ssm: list[list[float]], min_len: int = 4,
                       quantile: float = 0.94,
-                      scale_ratio: int = 3) -> set[int]:
+                      scale_ratio: int = 3,
+                      floor_ratio: int = 10) -> set[int]:
     """Bords des segments répétés : là où un chemin diagonal commence et
     finit, il y a une frontière — y compris quand la nouveauté locale ne
     voit rien, cas typique d'un couplet qui revient à l'identique après un
-    refrain. Voir _repetition_runs pour le seuil et la porte d'échelle."""
+    refrain. Voir _repetition_runs pour le seuil, la porte d'échelle et le
+    plancher absolu."""
     n = len(ssm)
     edges: set[int] = set()
     for lag, start, length in _repetition_runs(ssm, min_len, quantile,
-                                               scale_ratio):
+                                               scale_ratio, floor_ratio):
         edges.update((start, start + length, start + lag, start + length + lag))
     return {b for b in edges if 0 < b < n}
 
