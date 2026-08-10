@@ -19,6 +19,7 @@ from pathlib import Path
 from libretto.axes import SenseOfMusicalStructure
 from libretto.builder import (
     _assign_letters,
+    _best_chord,
     _consistent_boundaries,
     _cosine_dist,
     _detect_boundaries,
@@ -177,6 +178,24 @@ class TestRepairedAxes(unittest.TestCase):
         ax = {a.id: a for a in SenseOfMusicalStructure(score).calculate()}
         self.assertGreater(ax["12_harmonic_rhythm"].score, 0.6,
                            "un accord par mesure est un rythme harmonique régulier")
+
+    def test_chord_root_not_mistaken_for_its_relative(self):
+        """Garde du bonus de fondamentale de `_best_chord`. Un fa# majeur dont
+        la mélodie appuie la sixte et dont la quinte (do#) est jouée plus fort
+        que la fondamentale partage deux notes sur trois avec son relatif
+        ré# mineur — seule la fondamentale les sépare, et c'est la basse qui la
+        porte. Sous l'ancien bonus (0.5) le chroma ci-dessous, capturé sur le
+        corpus, ressortait en ré# min7 ; le bonus porté à 2.0 rend la
+        fondamentale fa#. Mesuré : exactitude 87 % → 99 % sur quatre graines.
+
+        Poids par classe de hauteur (do=0) : do#(quinte) 8, ré#(sixte) 2,
+        fa#(fondamentale) 7, sol#(tierce ornementale) 2, la#(tierce) 5."""
+        weights = [0, 8, 0, 2, 0, 0, 7, 0, 2, 0, 5, 0]
+        chord = _best_chord(weights)
+        self.assertIsNotNone(chord)
+        self.assertEqual(chord.root_pc, 6,
+                         "la basse énonce fa#, pas le relatif ré#")
+        self.assertEqual(chord.quality, "maj")
 
     def test_axis14_accepts_bass_moving_every_chord(self):
         """v2 : band(..., 0.9, 1.01) plaçait un mouvement permanent (ratio

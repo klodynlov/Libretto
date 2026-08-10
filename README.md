@@ -996,8 +996,23 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
 - Symbolique uniquement : pas d'audio (coupler avec une transcription type
   basic-pitch pour analyser des rendus Local Suno).
 - Détection d'accords par gabarits diatoniques : un accord par mesure au
-  maximum, renversements fusionnés, rien au-delà des 7èmes. L'axe 12 est
-  plafonné par cette résolution.
+  maximum, renversements fusionnés, rien au-delà des 7èmes. À **cette**
+  résolution, elle est désormais mesurée contre vérité terrain — le
+  générateur écrit l'accord vrai de chaque mesure, `scripts/mesure_accords.py`
+  le confronte à `_best_chord`. Le défaut n'était pas la résolution mais
+  l'**exactitude** : fondamentale et qualité justes dans 87 % des mesures
+  seulement, l'erreur étant à 90 % la confusion d'un accord majeur avec son
+  relatif mineur (deux notes communes sur trois — do majeur lu la mineur
+  quand la mélodie appuie la sixte). Un accord et son relatif ne se séparent
+  que par la fondamentale, et c'est la basse qui la porte : porter le bonus
+  de fondamentale de `_best_chord` de 0.5 à 2.0 monte l'exactitude à **99 %**
+  (réglé sur graine 7, confirmé 98.8-99.4 % sur 11/23/31). L'axe 12 (rythme
+  harmonique) lit maintenant des fondamentales justes : sur les morceaux
+  assemblés, son AUC contrastive passe de 0.85 à **0.97** ; sur le corpus
+  synthétique elle ne bouge pas (0.78 — la confusion frappait l'original et
+  sa version dégradée symétriquement, comme pour le compte de sections).
+  Restent hors de portée, par construction : le sous-mesure, les
+  renversements, les enrichissements au-delà de la 7ème.
 - **Quatre profils tonaux, plus deux arbitrages.** Aux deux profils de
   Krumhansl-Kessler s'ajoutent un dorien (réglé : 58/58) et un mixolydien
   (21/54 par profil seul, **38/54** avec l'arbitrage de la paire de

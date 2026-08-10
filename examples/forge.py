@@ -389,7 +389,8 @@ def generate_and_score(index: int, seed: int, out_dir: Path,
     style: Style = random_style(rng)
     if constraints is not None and not constraints.is_empty():
         style = apply_constraints(style, constraints, rng)
-    tracks, markers, tempo_changes, bars, _truth, _roles = render(style, rng)
+    tracks, markers, tempo_changes, bars, _truth, _roles, _chords = \
+        render(style, rng)
     num, den, _bar_beats, _pulse = style.meter
 
     path = out_dir / f"candidate_{index:03d}.mid"
