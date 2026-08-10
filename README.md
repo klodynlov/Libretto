@@ -521,6 +521,34 @@ corrélation disait l'inverse, et le chiffre le dit. Calibration complète
 des deux côtés, trois graines : validation croisée 0.978 / 0.978 /
 0.966 → 0.969 — l'arbitrage ne coûte rien à la tâche contrastive.
 
+### L'arbitrage de la paire relative
+
+Restait la confusion la plus banale : **la mineur lu do majeur** — 10 des
+11 erreurs mineures de la graine de réglage, à collection identique elle
+aussi. L'ancre de masse du mixolydien ne s'y transpose pas : la tonique
+d'un mineur n'est presque jamais la classe la plus lourde (l'harmonie
+i-III-VI disperse vers le relatif), et l'ancrage global avait déjà été
+réfuté pour cette raison. Deux preuves, à deux étages :
+
+- **écart serré** (≤ 0.04) : le flip ne demande rien d'autre — sur les
+  deux graines de réglage (11 et 7), tous les vrais majeurs à rival
+  mineur proche restent au-dessus de 0.050 d'écart ;
+- **écart moyen** (≤ 0.09) : le flip exige la **sensible du relatif** —
+  sol# n'appartient pas à la gamme de do majeur mais au mineur harmonique
+  de la ; sa présence (le V majeur du mineur) est unilatérale, 0/23
+  vrais majeurs contre 14/22 vrais mineurs, parts de 0.010 à 0.035 quand
+  elle est là (plancher 0.005 contre la poussière numérique).
+
+Réglé sur 11 et 7 (zéro majeur perdu sur les deux), et le trajet de
+validation est dit tel qu'il s'est passé : une première règle plate à un
+seuil, validée sur 23/31, y gagnait 15 mineurs mais coûtait 7 majeurs ;
+la règle à deux étages a été construite en réponse — 23/31 sont donc un
+**second regard** (mineur +8, majeur −2) — et la graine 47, jamais
+consultée par personne, confirme : **mineur +7/52, majeur intact**.
+Cumul hors réglage : mineur 101/154 → 116/154, majeur −2/143.
+Calibration contrastive : validation croisée 0.978 → 0.981 / 0.978 /
+0.969 → 0.975 — rien cédé là non plus.
+
 Deux résultats nuls, du même lot : sur les **loops** isolés, les profils
 modaux ne changent rien (0.400 avant, 0.400 après — une boucle de quatre
 mesures ne contient pas de quoi trancher, un meilleur profil n'y peut rien) ;
@@ -937,14 +965,18 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
 - Détection d'accords par gabarits diatoniques : un accord par mesure au
   maximum, renversements fusionnés, rien au-delà des 7èmes. L'axe 12 est
   plafonné par cette résolution.
-- **Quatre profils tonaux, plus un arbitrage.** Aux deux profils de
+- **Quatre profils tonaux, plus deux arbitrages.** Aux deux profils de
   Krumhansl-Kessler s'ajoutent un dorien (réglé : 58/58) et un mixolydien
   (21/54 par profil seul, **38/54** avec l'arbitrage de la paire de
   quinte — masse de la tonique rivale et médiante affamée, contre 2
-  majeurs sur 97). Le tiers restant des mixolydiens tombe hors des
-  conditions d'arbitrage (tonique pas dominante en masse, ou écart de
-  corrélation > 0.15). Les modes plus rares (phrygien, lydien) sont
-  absents faute de vérité terrain pour les valider. Voir *Tonalité*.
+  majeurs sur 97). L'arbitrage de la paire relative fait le même travail
+  pour **la mineur contre do majeur** (écart serré, ou sensible du
+  relatif présente) : mineur 101 → 116/154 hors graines de réglage,
+  majeur intact sur la graine de confirmation vierge. Ce qui reste tombe
+  hors des conditions d'arbitrage — mixolydiens sans tonique dominante en
+  masse, mineurs naturels à écart de corrélation > 0.04 sans sol#. Les
+  modes plus rares (phrygien, lydien) sont absents faute de vérité
+  terrain pour les valider. Voir *Tonalité*.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
   d'arpèges d'accompagnement.
 - Segmentation évaluée, mais encore approximative : F-mesure des frontières

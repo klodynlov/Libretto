@@ -162,6 +162,30 @@ MINOR_SCALE = {0, 2, 3, 5, 7, 8, 10, 11}  # mineur naturel + sensible
 FIFTH_PAIR_EPS = 0.15    # écart de corrélation maximal pour être arbitrable
 MEDIANT_RATIO = 0.6      # médiante « affamée » : < 0.6 × la tonique rivale
 
+# Arbitrage de la paire RELATIVE maj/min — la mineur contre do majeur,
+# l'autre confusion à collection identique, et la plus banale (10 des 11
+# erreurs mineures de la graine 11). L'ancre de masse du mixolydien ne
+# s'applique pas : la tonique d'un mineur n'est presque jamais la classe
+# la plus lourde (rang 1-2, l'harmonie i-III-VI disperse vers le relatif).
+# Deux preuves, à deux étages :
+#   · un écart de corrélation SERRÉ suffit seul — sur les deux graines de
+#     réglage, tous les vrais majeurs à rival mineur proche restent
+#     au-dessus de 0.050 d'écart, tous les vrais mineurs sauf la queue
+#     sont en dessous de 0.04 ;
+#   · au-delà, la SENSIBLE DU RELATIF tranche : sol# n'appartient pas à
+#     la gamme de do majeur mais au mineur harmonique de la — sa présence
+#     (V majeur du mineur) est unilatérale, 0/23 vrais majeurs contre
+#     14/22 vrais mineurs sur les graines de réglage, parts de 0.010 à
+#     0.035 quand elle est là ; le plancher de 0.005 écarte la poussière
+#     numérique.
+# Réglé sur graines 11 et 7 (zéro majeur perdu sur les deux), validé sur
+# 23/31 (second regard — la règle plate à un seuil y coûtait 7 majeurs,
+# celle-ci 2) et CONFIRMÉ sur la graine 47, jamais consultée : mineur
+# +7/52, majeur intact. Cumul hors réglage : mineur +15, majeur −2.
+RELATIVE_TIGHT = 0.04    # écart serré : le flip ne demande pas d'autre preuve
+RELATIVE_EPS = 0.09      # écart moyen : le flip exige la sensible du relatif
+LEADING_MIN = 0.005      # part de masse minimale de cette sensible
+
 
 def estimate_key(hist: list[float],
                  profiles: dict[str, list[float]] | None = None
@@ -205,6 +229,19 @@ def estimate_key(hist: list[float],
             rival = next((r for r in results
                           if r[1] == rival_root and r[2] == "mixolydien"), None)
             if rival is not None and best_corr - rival[0] <= FIFTH_PAIR_EPS:
+                best_corr, best_root, best_mode = rival
+    # Le témoin KEY_PROFILES reste inerte : les deux arbitrages
+    # n'existent qu'avec le vocabulaire étendu, dont « mixolydien » est
+    # le marqueur — sans quoi les mesures antérieures changeraient.
+    if best_mode == "maj" and "min" in profiles and "mixolydien" in profiles:
+        rel_root = (best_root + 9) % 12
+        rival = next((r for r in results
+                      if r[1] == rel_root and r[2] == "min"), None)
+        if rival is not None:
+            gap = best_corr - rival[0]
+            leading = hist[(best_root + 8) % 12] / sum(hist)
+            if gap <= RELATIVE_TIGHT \
+                    or (gap <= RELATIVE_EPS and leading > LEADING_MIN):
                 best_corr, best_root, best_mode = rival
     margin = 0.0
     for corr, root, _mode in results:
