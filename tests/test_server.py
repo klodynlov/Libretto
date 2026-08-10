@@ -10,8 +10,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "examples"))
 
 from make_demo import build  # noqa: E402
 
+from libretto.library import Library, analyze_entry  # noqa: E402
 from libretto.reaper import tick_to_seconds  # noqa: E402
-from libretto.server import analyze_bytes, serve  # noqa: E402
+from libretto.server import (analyze_bytes, push_library_path,  # noqa: E402
+                             search_library, serve)
 
 
 class TestServer(unittest.TestCase):
@@ -77,6 +79,105 @@ class TestServer(unittest.TestCase):
         entry, sms = analyze_bytes(self.mid_bytes, "demo.mid")
         self.assertEqual(len(sms.axes), 29)
         self.assertEqual(entry["key"], "C")
+
+
+class TestSearchServer(unittest.TestCase):
+    """Interface web avec bibliothèque : l'onglet recherche s'active, la
+    recherche classe les entrées, et « ▶ Reaper » pousse une entrée désignée
+    par son chemin — jamais un fichier arbitraire hors de l'index."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        base = Path(cls._tmp.name)
+        mid = base / "demo.mid"
+        build(mid)
+        cls.mid_path = str(mid.resolve())
+        cls.libpath = base / "lib.json"
+        lib = Library()
+        lib.add(analyze_entry(mid, tags=["demo"]))
+        lib.save(cls.libpath)
+
+        cls.httpd = serve(port=0, lib_path=str(cls.libpath))
+        cls.port = cls.httpd.server_address[1]
+        cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
+        cls.thread.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+        cls.httpd.server_close()
+        cls._tmp.cleanup()
+
+    def _conn(self):
+        return http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+
+    def _post(self, path, payload):
+        c = self._conn()
+        c.request("POST", path, body=json.dumps(payload),
+                  headers={"Content-Type": "application/json"})
+        r = c.getresponse()
+        return r.status, json.loads(r.read())
+
+    def test_search_panel_and_flag(self):
+        c = self._conn()
+        c.request("GET", "/")
+        self.assertIn("searchpanel", c.getresponse().read().decode())
+        c.request("GET", "/api/analyses")
+        self.assertTrue(json.loads(c.getresponse().read())["has_library"])
+
+    def test_search_returns_ranked_hits(self):
+        status, data = self._post("/api/search", {"query": "mélancolique"})
+        self.assertEqual(status, 200, data)
+        self.assertFalse(data["empty"])
+        self.assertEqual(data["count"], 1)
+        hit = data["entries"][0]
+        self.assertTrue(hit["name"].endswith("demo.mid"))
+        self.assertIsNotNone(hit["distance"])   # intention exprimée → distance
+        self.assertIn("descriptors", hit)
+
+    def test_search_empty_query_rejected(self):
+        status, _ = self._post("/api/search", {"query": "   "})
+        self.assertEqual(status, 400)
+
+    def test_reaper_path_must_be_in_library(self):
+        status, data = self._post("/api/reaper", {"path": "/pas/dans/index.mid"})
+        self.assertEqual(status, 400)
+        self.assertIn("error", data)
+
+    def test_reaper_known_path_reaches_bridge(self):
+        # chemin valide de l'index : on dépasse la validation, seul le pont
+        # manque (REAPER non lancé en test) → 502, pas 400.
+        status, data = self._post("/api/reaper", {"path": self.mid_path})
+        self.assertEqual(status, 502, data)
+        self.assertIn("error", data)
+
+    def test_search_library_direct(self):
+        res = search_library(str(self.libpath), "joyeux lumineux")
+        self.assertEqual(res["count"], 1)
+        self.assertFalse(res["empty"])
+
+    def test_push_unknown_path_raises(self):
+        with self.assertRaises(ValueError):
+            push_library_path(str(self.libpath), "/nope.mid")
+
+
+class TestSearchDisabledWithoutLibrary(unittest.TestCase):
+    def test_no_library_disables_search(self):
+        httpd = serve(port=0)   # sans --lib
+        port = httpd.server_address[1]
+        t = threading.Thread(target=httpd.serve_forever, daemon=True)
+        t.start()
+        try:
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+            c.request("GET", "/api/analyses")
+            self.assertFalse(json.loads(c.getresponse().read())["has_library"])
+            c.request("POST", "/api/search", body=json.dumps({"query": "x"}),
+                      headers={"Content-Type": "application/json"})
+            self.assertEqual(c.getresponse().status, 400)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
 
 
 class TestTickToSeconds(unittest.TestCase):

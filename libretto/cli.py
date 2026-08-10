@@ -207,10 +207,13 @@ def main(argv: list[str] | None = None) -> int:
     p_demo = sub.add_parser("demo", help="analyser la partition de démonstration intégrée")
     _add_common(p_demo)
 
-    p_serve = sub.add_parser("serve", help="interface web locale (drag & drop + Reaper)")
+    p_serve = sub.add_parser("serve", help="interface web locale (drag & drop + recherche + Reaper)")
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=None,
                          help="défaut 8787, bascule auto si occupé ; 0 = port automatique")
+    p_serve.add_argument("--lib", metavar="JSON", default=None,
+                         help="fichier d'index à rendre cherchable dans l'interface "
+                              "(active l'onglet recherche par intention)")
 
     p_reaper = sub.add_parser("reaper", help="pousser un MIDI dans REAPER (pont Klody :9000) et jouer")
     p_reaper.add_argument("path", help="fichier .mid/.midi")
@@ -363,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "serve":
         from .server import main as serve_main
-        return serve_main(args.host, args.port)
+        return serve_main(args.host, args.port, args.lib)
 
     if args.command == "reaper":
         from .reaper import BridgeError, push_mididata

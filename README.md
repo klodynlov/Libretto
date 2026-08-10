@@ -933,7 +933,8 @@ python3 -m libretto.cli library search "planant 8 mesures" --lib lib.json
 ## Interface web locale
 
 ```bash
-python3 -m libretto.cli serve          # http://127.0.0.1:8787
+python3 -m libretto.cli serve                    # http://127.0.0.1:8787
+python3 -m libretto.cli serve --lib lib.json     # + recherche par intention
 ```
 
 Glisser-déposer des `.mid` → analyse complète (radar 6 groupes + 29 axes),
@@ -942,7 +943,18 @@ fichiers/packs), et **« ▶ Reaper »** pousse le fichier dans REAPER via le
 pont Klody (`127.0.0.1:9000` — pistes nommées, ReaSynth, marqueurs, lecture).
 Stdlib pure (`http.server`), tout en mémoire, rien d'écrit sur disque.
 
-En CLI directe : `python3 -m libretto.cli reaper chanson.mid [--no-play]`.
+**Recherche par intention dans l'interface.** Avec `--lib`, un champ de
+recherche s'ouvre en haut de la page : taper « mélancolique 8 mesures ~90 bpm
+en Dm » classe les séquences de la bibliothèque (mêmes filtres durs et même
+distance affective que `library search`), et chaque résultat porte son propre
+bouton **« ▶ Reaper »** — trouver une séquence par ce qu'elle évoque et
+l'entendre dans le projet, sans quitter le navigateur. L'index est relu à
+chaque recherche (un run versé par `forge_library.py` entre deux requêtes
+apparaît aussitôt). Par sûreté, seuls les fichiers **présents dans l'index
+chargé** peuvent être poussés — pas de chemin arbitraire depuis la page.
+
+En CLI directe : `python3 -m libretto.cli reaper chanson.mid [--no-play]`, ou
+`library search "…" --lib lib.json --reaper` pour pousser le meilleur résultat.
 
 ## Pipeline MIDI → Score
 
