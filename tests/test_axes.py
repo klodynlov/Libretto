@@ -58,6 +58,31 @@ class TestProfilsModaux(unittest.TestCase):
         # le vocabulaire élargi ne doit pas voler les pièces qu'on lisait bien
         self.assertEqual(estimate_key(DO_MAJEUR)[:2], (0, "maj"))
 
+    def test_vamp_mixolydien_arbitre_contre_la_sous_dominante(self):
+        """La confusion de sous-dominante en vraie grandeur : un vamp
+        I-bVII-IV en sol mixolydien (sol lourd, ré affamé, mi simple
+        couleur) correlle MIEUX en do majeur — c'est l'arbitrage de la
+        paire de quinte qui rend sol, sur preuve de masse : tonique rivale
+        la plus lourde, médiante du gagnant affamée. La marge retournée
+        est négative : verdict rendu contre la corrélation, et dit tel
+        quel."""
+        vamp = _hist({7: 0.25, 0: 0.18, 5: 0.15, 11: 0.10, 4: 0.08,
+                      9: 0.08, 2: 0.05})
+        root, mode, _corr, margin = estimate_key(vamp)
+        self.assertEqual((root, mode), (7, "mixolydien"))
+        self.assertLess(margin, 0.0)
+        # le témoin KK, sans mixolydien au vocabulaire, n'arbitre pas
+        self.assertEqual(estimate_key(vamp, KEY_PROFILES)[:2], (0, "maj"))
+
+    def test_majeur_tonal_a_dominante_lourde_non_renverse(self):
+        """Le garde-fou de l'arbitrage : dans un do majeur tonal, même à
+        dominante plus lourde que la tonique, la médiante (mi, tierce de
+        l'accord de tonique) est un pilier — la lecture mixolydienne de
+        sol n'est pas crue."""
+        tonal = _hist({7: 0.22, 0: 0.20, 4: 0.16, 5: 0.10, 2: 0.08,
+                       9: 0.08, 11: 0.08})
+        self.assertEqual(estimate_key(tonal)[:2], (0, "maj"))
+
     def test_les_axes_qui_deduisent_une_gamme_passent_par_le_parent(self):
         """Les axes 9 et 14 transforment le mode en gamme. Depuis la bascule,
         ce mode peut valoir « dorien » : sans `PARENT_MODE`, un morceau

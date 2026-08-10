@@ -140,6 +140,28 @@ PARENT_MODE = {"maj": "maj", "min": "min", "dorien": "min", "mixolydien": "maj"}
 MAJOR_SCALE = {0, 2, 4, 5, 7, 9, 11}
 MINOR_SCALE = {0, 2, 3, 5, 7, 8, 10, 11}  # mineur naturel + sensible
 
+# Arbitrage de la paire de quinte maj/mixolydien. Une pièce en sol
+# mixolydien emprunte les hauteurs de do majeur : les deux lectures sont à
+# collection IDENTIQUE, et Pearson préfère do majeur — son profil place
+# 5.19 sur la dominante, que les vamps mixolydiens (I-bVII-IV) affament,
+# et aucune chirurgie de profil ne s'en sort : échanger V et bVII coûte
+# les vrais mixolydiens (9 → 4/22), partager la dominante coûte les vrais
+# majeurs (57 → 50/57), mesuré graine 11. L'information qui départage est
+# ailleurs, dans la masse : la lecture mixolydienne n'est crue que si (1)
+# sa tonique est la classe de hauteur la plus lourde de la pièce — les
+# modes sont centrés sur leur tonique, 44/49 des pièces modales du corpus
+# de réglage contre 46/108 des tonales — et (2) la MÉDIANTE de la lecture
+# majeure est affamée : mi est un pilier si do majeur est vrai (tierce de
+# l'accord de tonique) mais une simple couleur si sol mixolydien est vrai
+# (sixte) — mesuré 0.166 contre 0.113 de part de masse ; le si, tierce de
+# sol ET sensible de do, ne sépare rien (0.113 des deux côtés). Réglés
+# sur la graine 11 (plateau : maj 57/57 intact pour c = 0.6 à tout ε,
+# mixo maximal dès ε = 0.15), validés sur 23/31 jamais consultées :
+# mixolydien 21/54 → 38/54, majeur −2/97, mineur et dorien intouchés par
+# construction (l'arbitrage ne s'applique qu'à un gagnant majeur).
+FIFTH_PAIR_EPS = 0.15    # écart de corrélation maximal pour être arbitrable
+MEDIANT_RATIO = 0.6      # médiante « affamée » : < 0.6 × la tonique rivale
+
 
 def estimate_key(hist: list[float],
                  profiles: dict[str, list[float]] | None = None
@@ -155,6 +177,13 @@ def estimate_key(hist: list[float],
     Le mode retourné peut donc valoir « dorien » ou « mixolydien » : tout
     consommateur qui en déduit une gamme doit passer par `PARENT_MODE`.
 
+    Quand le vocabulaire contient le mixolydien, un gagnant majeur peut
+    être renversé par l'arbitrage de la paire de quinte (voir
+    FIFTH_PAIR_EPS) : la corrélation retournée est alors celle de la
+    lecture mixolydienne, et la marge — recalculée face au reste du
+    classement — peut être NÉGATIVE, signant un verdict arbitré par la
+    masse contre la corrélation.
+
     L'ordre du dictionnaire départage les ex aequo (tri stable) : le
     résultat reste déterministe, mais dépend de cet ordre.
     """
@@ -168,8 +197,17 @@ def estimate_key(hist: list[float],
             results.append((pearson(rotated, hist), root, mode))
     results.sort(key=lambda r: r[0], reverse=True)
     best_corr, best_root, best_mode = results[0]
+    if best_mode == "maj" and "mixolydien" in profiles:
+        rival_root = (best_root + 7) % 12
+        argmax = max(range(12), key=lambda pc: hist[pc])
+        if argmax == rival_root \
+                and hist[(best_root + 4) % 12] < MEDIANT_RATIO * hist[rival_root]:
+            rival = next((r for r in results
+                          if r[1] == rival_root and r[2] == "mixolydien"), None)
+            if rival is not None and best_corr - rival[0] <= FIFTH_PAIR_EPS:
+                best_corr, best_root, best_mode = rival
     margin = 0.0
-    for corr, root, _mode in results[1:]:
+    for corr, root, _mode in results:
         if root != best_root:
             margin = best_corr - corr
             break

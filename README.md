@@ -479,6 +479,48 @@ réponse. Le solde reste franchement positif (+6.5 points de tonique), et le
 mode suit la tonique : sur `brut+modes`, **toute erreur de mode est déjà une
 erreur de tonique**, jamais l'inverse.
 
+### L'arbitrage de la paire de quinte
+
+La moitié restante ne se gagne pas par les profils. Un sol mixolydien et un
+do majeur partagent leurs sept hauteurs — deux lectures à collection
+identique — et Pearson préfère do : son profil met 5.19 sur la dominante,
+que les vamps mixolydiens (I-bVII-IV) affament. La chirurgie de profil a été
+essayée et réfutée des deux côtés, sur la graine de réglage (11) : échanger
+V et bVII tue les vrais mixolydiens (9 → 4/22), partager la fonction de
+dominante entre les deux tue les vrais majeurs (57 → 50/57) — aplatir un
+profil, c'est tout matcher. Un ancrage global sur la masse (préférer la
+lecture dont la tonique est la classe de hauteur la plus lourde) a été
+essayé et réfuté aussi : les mineurs saignent immédiatement, leur tonique
+n'étant la plus lourde que 12 fois sur 51.
+
+Ce qui départage vraiment tient en deux faits mesurés. Les pièces
+**modales** portent leur tonique en masse maximale (44/49 sur le réglage,
+dorien 27/27) — un mode est centré sur son bourdon — quand l'harmonie
+fonctionnelle disperse vers la dominante (majeur : 34/57 seulement). Et la
+**médiante de la lecture majeure** sépare ce que le si ne sépare pas : mi
+est un pilier si do majeur est vrai (tierce de l'accord de tonique, 0.166
+de part de masse) mais une simple couleur si sol mixolydien est vrai
+(sixte, 0.113) ; le si — sensible de do ET tierce de sol — est identique
+des deux côtés (0.113 contre 0.112). `estimate_key` n'accorde donc la
+lecture mixolydienne d'un gagnant majeur que sur trois preuves cumulées :
+corrélations proches (ε = 0.15), tonique rivale la plus lourde, médiante
+affamée (< 0.6 × la tonique rivale). Réglé sur la graine 11 (plateau : le
+majeur reste à 57/57 pour c = 0.6 quel que soit ε), validé sur 23 et 31
+jamais consultées :
+
+| tonique juste (`brut`) | graines 23+31, avant | après |
+|---|---|---|
+| mixolydien | 21/54 | **38/54** |
+| majeur | 91/97 | 89/97 |
+| mineur, dorien | — | inchangés par construction |
+
+L'arbitrage ne s'applique qu'à un gagnant majeur contre son propre
+dominant : mineur et dorien sont hors de son chemin. Sur un verdict
+renversé, la marge retournée est **négative** — le classement par
+corrélation disait l'inverse, et le chiffre le dit. Calibration complète
+des deux côtés, trois graines : validation croisée 0.978 / 0.978 /
+0.966 → 0.969 — l'arbitrage ne coûte rien à la tâche contrastive.
+
 Deux résultats nuls, du même lot : sur les **loops** isolés, les profils
 modaux ne changent rien (0.400 avant, 0.400 après — une boucle de quatre
 mesures ne contient pas de quoi trancher, un meilleur profil n'y peut rien) ;
@@ -895,11 +937,14 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
 - Détection d'accords par gabarits diatoniques : un accord par mesure au
   maximum, renversements fusionnés, rien au-delà des 7èmes. L'axe 12 est
   plafonné par cette résolution.
-- **Quatre profils tonaux, et le mixolydien reste à moitié manqué.** Aux deux
-  profils de Krumhansl-Kessler s'ajoutent un dorien (réglé : 58/58) et un
-  mixolydien (21/54, contre 9/54 sans lui) — le second reste le trou. Les
-  modes plus rares (phrygien, lydien) sont absents faute de vérité terrain
-  pour les valider. Voir *Tonalité*.
+- **Quatre profils tonaux, plus un arbitrage.** Aux deux profils de
+  Krumhansl-Kessler s'ajoutent un dorien (réglé : 58/58) et un mixolydien
+  (21/54 par profil seul, **38/54** avec l'arbitrage de la paire de
+  quinte — masse de la tonique rivale et médiante affamée, contre 2
+  majeurs sur 97). Le tiers restant des mixolydiens tombe hors des
+  conditions d'arbitrage (tonique pas dominante en masse, ou écart de
+  corrélation > 0.15). Les modes plus rares (phrygien, lydien) sont
+  absents faute de vérité terrain pour les valider. Voir *Tonalité*.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
   d'arpèges d'accompagnement.
 - Segmentation évaluée, mais encore approximative : F-mesure des frontières
