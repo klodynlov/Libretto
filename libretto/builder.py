@@ -328,23 +328,38 @@ def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: in
     strong = [b for b in candidates
               if novelty[b] >= threshold and novelty[b] == max(novelty[max(0, b - 2):b + 3])]
 
-    # Recalage du pic sur la transition exacte. La nouveauté FENÊTRÉE est
-    # lissée sur `window` mesures et biaisée vers l'amont : une fin de
-    # section (cadence, creux, remplissage) diffère du corps de sa section,
-    # donc la courbe monte AVANT la frontière — mesuré sur trois corpus,
-    # les frontières appariées sortaient 2 mesures trop tôt quatre fois
-    # plus souvent que trop tard (22 contre 6). La nouveauté PAS-À-PAS
-    # (distance entre deux mesures consécutives), elle, est maximale à la
-    # transition même : chaque pic fenêtré est recalé sur son argmax local.
-    # Les bords de répétition ne sont pas recalés — leurs positions sont
-    # exactes par construction (débuts et fins de chemins diagonaux).
+    # Recalage du pic sur la transition exacte, **vers l'avant seulement,
+    # d'une mesure au plus**. La nouveauté FENÊTRÉE est lissée sur `window`
+    # mesures et biaisée vers l'amont : une fin de section (cadence, creux,
+    # remplissage) diffère du corps de sa section, donc la courbe monte
+    # AVANT la frontière. La nouveauté PAS-À-PAS (distance entre deux
+    # mesures consécutives) est maximale à la transition même : le pic
+    # fenêtré est recalé sur l'argmax du pas dans [b, b+1].
+    #
+    # Le rayon était ±2 dans les deux sens. Deux mesures balayées vers
+    # l'arrière, sur des sections courtes, faisaient s'entrechoquer deux
+    # pics voisins au même creux de pas : ils fusionnaient, et une vraie
+    # frontière mourait (10 disparitions mesurées sur quatre corpus, la
+    # première cause de sous-segmentation des formes longues à sections
+    # courtes). Le biais amont qui justifiait un large rayon a par ailleurs
+    # fondu depuis l'ajout des dimensions de geste aux features : sans
+    # recalage, les frontières appariées sortent désormais centrées
+    # (décalage moyen +0.045, contre −2 mesures à l'époque du réglage). Un
+    # rayon avant de 1 suffit donc à la localisation — il place le plus de
+    # frontières pile juste (246 exactes sur 271 appariées, contre 244 à
+    # ±2 et 239 sans recalage) — sans la casse des collisions arrière.
+    # Réglé sur graine 7, validé sur 11/23/31 : comptes exacts 46 → 50/80,
+    # formes 33 → 37/80, F-mesure agrégée +0.007 (jamais pire que −0.009
+    # sur une graine). Les bords de répétition ne sont pas recalés — leurs
+    # positions sont exactes par construction (débuts et fins de chemins
+    # diagonaux).
     step = [0.0] * n
     for b in range(1, n):
         step[b] = _cosine_dist(features[b - 1], features[b])
     lo_c, hi_c = candidates[0], candidates[-1]
     snapped = []
     for b in strong:
-        zone = range(max(lo_c, b - 2), min(hi_c, b + 2) + 1)
+        zone = range(b, min(hi_c, b + 1) + 1)
         snapped.append(max(zone, key=lambda x: step[x]))
     strong = snapped
     nov_set = set(strong)
