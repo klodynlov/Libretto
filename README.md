@@ -1039,17 +1039,35 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
   historique « le gros des surplus vient de la nouveauté » reposait sur
   un diagnostic dont l'espion était branché sur une fonction morte —
   l'origine réelle était mixte, moitié nouveauté, moitié répétition de
-  phrase. Les manques, eux, se répartissaient en trois foyers mesurés :
-  le recalage arrière qui écrasait des pics voisins (première cause,
-  traitée par le rayon avant resserré), la nouveauté sous le seuil dans
-  les formes régulières à sections courtes où les frontières nombreuses
-  élèvent la médiane (foyer restant : le refrain qui suit un couplet de
-  même harmonie et énergie voisine — nouveauté 0.02, quasi invisible), et
-  le bloc entièrement répété d'un couplet-refrain court (VCVC = une seule
-  diagonale à lag n/2 dont les bords ne donnent que le milieu ; la
-  récursion locale et la propagation de jumelle ont été essayées puis
-  écartées — la nouveauté de la coupe interne est identique en local, et
-  aucune des deux copies ne la déclenche pour l'amorcer).
+  phrase. Les manques, eux : le recalage arrière qui écrasait des pics
+  voisins fut la première cause, traitée par le rayon avant resserré. Le
+  reste — 45 frontières à ±1 sur les quatre graines, travers-composés
+  42 %, couplet-refrain 51 % — tient à une **limite mesurée, non à un
+  seuil mal réglé** : dans les formes régulières à sections courtes, la
+  nouveauté fenêtrée est *décalée du grille métrique de 1 à 2 mesures et
+  bruitée*, parce que le matériau change graduellement (le motif se
+  transpose diatoniquement au fil de la section, l'énergie suit un arc)
+  et non net à la barre de mesure. Le vrai pic tombe à côté de la vraie
+  frontière, un pic parasite voisin le devance à la sélection, et l'écart
+  se propage : mal placée, la frontière rate ensuite sa jumelle et le
+  filtre de cohérence l'achève. **Six leviers essayés, tous réfutés par
+  la mesure** (réglés sur graine 7, mesurés sur 11/23/31) : (1) grille
+  métrique comblée sur période détectée — gain nul, la période est
+  introuvable justement quand la détection est cassée ; (2) période par
+  autocorrélation de la nouveauté — trouvée 6 fois sur 12, avec erreurs
+  d'octave fréquentes ; (3) seuil abaissé (k de 1.5 à 0.9) — récupère
+  2 manques contre 7 surplus, F-mesure en baisse ; (4) canal de nouveauté
+  de geste séparé — le geste change à chaque mesure en travers, surplus
+  de 58 à 115, rappel inchangé ; (5) relaxation du filtre de jumelles
+  quand les moitiés du run diffèrent — garde des frontières mal placées,
+  comptes 50 → 44 ; (6) fenêtre de nouveauté (2 à 5 mesures) — 4 est
+  déjà l'optimum intérieur. Le couplet-refrain court entièrement répété
+  (VCVC = une seule diagonale à lag n/2, dont les bords ne donnent que le
+  milieu) reste le cas le plus net de cette famille ; la récursion locale
+  et la propagation de jumelle y échouent aussi, faute d'amorce (la
+  nouveauté de la coupe interne est identique calculée en local). C'est
+  le mur actuel de la segmentation, et il est en amont : dans le signal
+  de nouveauté lui-même, pas dans son seuil.
 - Esthétique pop inscrite dans les bandes de tolérance : un nocturne ou une
   pièce ambient scorent bas par construction. Les profils de poids
   (`weights_*.json`) atténuent, ils ne suppriment pas.
