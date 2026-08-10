@@ -217,12 +217,37 @@ def _report_to_results(report: dict, workdir) -> dict:
                         + report.get("n_rejected_score", 0)}}
 
 
+def _find_generators_dir(pkg_dir: Path) -> Path | None:
+    """Dossier des modules générateurs (forge, make_corpus, markov_gen, …).
+
+    Deux emplacements, essayés dans l'ordre :
+    - `examples/` à côté du paquet — cas source ou installation éditable ;
+    - `libretto/_generators/` embarqué dans le paquet — cas d'une wheel
+      installée, où l'arborescence source `examples/` est absente.
+    Renvoie le premier qui contient réellement les modules, sinon `None`.
+    """
+    for d in (pkg_dir.parent / "examples", pkg_dir / "_generators"):
+        if (d / "forge.py").is_file():
+            return d
+    return None
+
+
 def _build_generator(corpus_dir: str | None):
     """Construit le rappel de génération pour le serveur, en important les
-    générateurs depuis `examples/` (le cœur `libretto` en reste libre). Renvoie
-    (callback, modes). Entraîne le modèle appris UNE fois si `corpus_dir`."""
-    examples = Path(__file__).resolve().parent.parent / "examples"
-    for p in (str(examples.parent), str(examples)):
+    générateurs (Forge, Markov). Renvoie (callback, modes). Entraîne le modèle
+    appris UNE fois si `corpus_dir`.
+
+    Les générateurs vivent dans `examples/` — le cœur `libretto` en reste libre,
+    ils ne sont importés qu'ici, à la demande — et sont aussi embarqués sous
+    `libretto/_generators/` pour qu'une wheel installée fonctionne sans les
+    sources. On ajoute au `sys.path` le dossier trouvé, puis on importe par nom.
+    """
+    gen_dir = _find_generators_dir(Path(__file__).resolve().parent)
+    if gen_dir is None:
+        raise ValueError(
+            "générateurs introuvables (ni examples/ ni libretto/_generators/) — "
+            "réinstaller le paquet, ou lancer depuis les sources")
+    for p in (str(gen_dir.parent), str(gen_dir)):
         if p not in sys.path:
             sys.path.insert(0, p)
     import forge as forge_mod  # noqa: F401
@@ -455,7 +480,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.generate or args.corpus:
             try:
                 generator, gen_modes = _build_generator(args.corpus)
-            except (ValueError, OSError) as exc:
+            except (ValueError, OSError, ImportError) as exc:
                 print(f"libretto: génération indisponible : {exc}", file=sys.stderr)
                 return 1
         return serve_main(args.host, args.port, args.lib, generator, gen_modes)
