@@ -904,6 +904,19 @@ promesse d'écoute : deux séquences voisines dans l'espace affectif sont
 construites de façon voisine ; que la seconde « sonne » aussi mélancolique
 que la première reste à l'oreille de le confirmer (`annotate`/`agreement`).
 
+**Boucler la chaîne depuis Forge.** `examples/forge_library.py` verse les
+livrables d'un run Forge (gagnant + shortlist) directement dans la
+bibliothèque, en **imposant** la tonalité, le mode, le tempo et la longueur
+que Forge a demandés — pas en les laissant estimer. Le gagnant est
+dédoublonné de sa propre shortlist, et chaque entrée reçoit les étiquettes
+`forge` / `forge:<rôle>`.
+
+```bash
+python3 examples/forge.py sortie/ 24 1 --shortlist 5     # génère + trie
+python3 examples/forge_library.py sortie/ --lib lib.json # verse dans l'index
+python3 -m libretto.cli library search "planant 8 mesures" --lib lib.json
+```
+
 ## Interface web locale
 
 ```bash
