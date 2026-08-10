@@ -857,6 +857,53 @@ gagnant s'entend mieux.
 Rien du pack n'entre dans le dépôt : l'index ne contient que des chemins, et
 le dossier reste où il est.
 
+## Bibliothèque cherchable par intention
+
+Forge génère et trie ; `loop_index` range un pack par tonalité et tempo. Le
+dernier maillon manquait : une **bibliothèque** où déposer les séquences
+retenues, et un moyen de les **retrouver par ce qu'elles évoquent** — « une
+nappe mélancolique de 8 mesures autour de 90 BPM en ré mineur » — pour les
+glisser ensuite dans n'importe quel DAW (le `.mid` est standard ; REAPER a
+en plus le pont `reaper.py`).
+
+```bash
+# indexer des séquences (Forge peut imposer ce qu'il a demandé)
+python3 -m libretto.cli library add sortie/forge_best.mid --lib lib.json \
+    --mode min --bpm 90 --bars 8 --tag pad
+
+# chercher par intention — requête en langage libre
+python3 -m libretto.cli library search "mélancolique 8 mesures ~90 bpm en Dm" --lib lib.json
+python3 -m libretto.cli library search "énergique et lumineux, rapide" --lib lib.json -n 3
+python3 -m libretto.cli library list --lib lib.json
+```
+
+**Ce qui est mesuré, pas inventé.** Chaque entrée porte la tonalité et le
+mode (estimés, avec leur source et leur marge — ou imposés par le
+générateur), le tempo, la longueur, le score SMS et sa fiabilité, l'empreinte
+des 29 axes, et un **profil émotionnel** : trois coordonnées lisibles dans
+[0, 1] — **valence** (sombre ↔ lumineux), **énergie** (calme ↔ intense),
+**tension** (stable ↔ instable). Ce profil n'est pas un modèle entraîné sur
+des annotations affectives ; c'est une projection **transparente et
+déterministe** des axes que Libretto sait déjà mesurer, calée sur ce que la
+théorie tient pour acquis — le mode majeur tire la valence vers le haut, le
+tempo et la densité rythmique tirent l'énergie, la complexité harmonique et
+l'instabilité tonale tirent la tension. Chaque contribution est nommée
+(`emotion.rationale`), pour qu'un désaccord porte sur une pondération et non
+sur une boîte noire.
+
+Les descripteurs (« mélancolique », « planant », « tendu »…) sont des points
+fixes de cet espace : étiqueter une pièce, c'est nommer les points les plus
+proches de sa position ; chercher, c'est viser le point des mots de la
+requête et classer par distance. La requête accepte aussi des contraintes
+**dures** — tonalité, mode, tempo (± tolérance), longueur — appliquées avant
+le classement. Sans mot affectif, la recherche retombe sur le tri
+**fiabilité d'abord** de Forge, pas sur le score brut.
+
+Comme partout dans Libretto, ce profil décrit une *structure*, pas une
+promesse d'écoute : deux séquences voisines dans l'espace affectif sont
+construites de façon voisine ; que la seconde « sonne » aussi mélancolique
+que la première reste à l'oreille de le confirmer (`annotate`/`agreement`).
+
 ## Interface web locale
 
 ```bash
