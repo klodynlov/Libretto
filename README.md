@@ -689,10 +689,30 @@ deux niveaux :
 # source déposés dans un dossier (n et seed ignorés, sources jamais effacées).
 python3 examples/forge.py sortie/ --from-dir mes_candidats/ --axes --shortlist 5
 
-# Niveau 2 — un vrai modèle : MusicLang (transformer symbolique open source).
+# Niveau 2 — un vrai modèle APPRIS, toujours 100 % stdlib : une chaîne de
+# Markov entraînée sur un corpus MIDI (MAESTRO, vos morceaux, ou make_corpus).
+python3 examples/forge_markov.py corpus/ sortie/ 12 1 --bars 24 --shortlist 4
+
+# Niveau 3 — un modèle lourd : MusicLang (transformer symbolique open source).
 # pip install musiclang-predict "numpy<2"   (hors contrat stdlib, pont optionnel)
 python3 examples/forge_musiclang.py sortie/ 8 1 --axes
 ```
+
+`forge_markov.py` est la première brique génératrice « réelle » qui tient
+dans le contrat stdlib et **tourne partout** — sans réseau, sans GPU, sans
+poids à télécharger. Le modèle (`markov_gen.py`) n'a aucune table
+d'accords ni de gammes : il **apprend** son matériau du corpus. Trois soins
+le rendent musical sans coder de théorie — normalisation tonale (on apprend
+des intervalles en demi-tons, donc le mode est appris et non déclaré ;
+`estimate_key` ramène chaque fichier en tonique 0, et la génération
+retranspose toutes les voix par une seule tonique), **voicings appris** (on
+ré-empile les accords réellement observés sous la ligne supérieure générée,
+pas un catalogue de triades), et rythme appris (intervalle inter-attaques et
+durées bucketés). Même honnêteté que le niveau 3 : une chaîne locale produit
+une cohérence de proche en proche mais pas de forme longue — attendez des
+scores de forme modestes et un gate qui recale des candidats, c'est le juge
+qui travaille. La sortie se verse ensuite dans la bibliothèque cherchable
+(`forge_library.py`), bouclant génération → tri → bibliothèque → intention.
 
 Avec `--from-dir`, la « forme » de chaque candidat est la **signature de
 sections jugée par Libretto** (intro-verse-chorus-verse → `IVCV`) — personne
