@@ -327,9 +327,19 @@ def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: in
     strong = snapped
     nov_set = set(strong)
 
+    # Les bords de répétition ont aussi le droit aux zones que `candidates`
+    # interdit aux pics de nouveauté : une intro de 2 ou 3 mesures place la
+    # première frontière SOUS min_len, où aucun pic n'est admis — mais si un
+    # run démarre exactement là, le matériau répété commence là, preuve
+    # exacte par construction. Symétrique en queue : un run qui s'arrête à
+    # 2 mesures de la fin borne un outro court. Le plancher de 2 écarte les
+    # sections d'une mesure, que rien dans le corpus ne justifie.
+    head_zone = range(2, min_len)
+    tail_zone = range(n - min_len + 1, n - 1)
     rep_set: set[int] = set()
     for b in sorted(repeats):
-        if b in candidates and b not in strong:
+        if (b in candidates or b in head_zone or b in tail_zone) \
+                and b not in strong:
             strong.append(b)
             rep_set.add(b)
 
@@ -346,13 +356,20 @@ def _detect_boundaries(features: list[list[float]], window: int = 4, min_len: in
     for b in sorted(set(strong)):
         if b - boundaries[-1] >= min_len:
             boundaries.append(b)
+        elif b in rep_set and len(boundaries) == 1 and b >= 2:
+            # Première frontière sous min_len : l'intro courte, admise
+            # uniquement sur preuve de répétition (le run démarre là).
+            boundaries.append(b)
         elif b in rep_set and boundaries[-1] in nov_set:
             prev = boundaries[-2] if len(boundaries) > 1 else None
             if prev is None or b - prev >= min_len:
                 boundaries[-1] = b
     # Une note qui sonne au-delà de la dernière mesure pleine crée une queue
-    # d'une poignée de mesures : on la fusionne avec la section précédente.
-    if len(boundaries) > 1 and n - boundaries[-1] < min_len:
+    # d'une poignée de mesures : on la fusionne avec la section précédente —
+    # sauf preuve de répétition : un run qui s'arrête là borne un outro
+    # court, ce n'est pas un sillage.
+    if len(boundaries) > 1 and n - boundaries[-1] < min_len \
+            and boundaries[-1] not in rep_set:
         boundaries.pop()
 
     return _consistent_boundaries(boundaries, runs)

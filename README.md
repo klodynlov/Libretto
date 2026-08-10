@@ -831,7 +831,20 @@ tempo/signatures/marqueurs ; SMPTE rejeté) + writer minimal.
   ±lag dans l'autre copie (un refrain coupé en deux à la couture de
   phrase tombe ; AB|AB survit, chaque coupure sauvant sa jumelle).
   Cumul des deux, quatre graines : F-mesure 0.775-0.892 →
-  **0.790-0.921**, comptes de sections exacts 29 → 38/80 ;
+  **0.790-0.921**, comptes de sections exacts 29 → 38/80. Les bords de
+  répétition ont enfin accès aux deux zones que `min_len` interdit aux
+  pics de nouveauté : une **intro de 2-3 mesures** est admise quand un
+  run démarre exactement là (le matériau répété commence là — preuve
+  exacte par construction), un **outro court** quand un run s'y arrête
+  et échappe alors à la fusion de queue. L'ablation dit que les deux
+  moitiés sont solidaires : tête seule ne répare aucun compte (les
+  fichiers malades ont intro ET outro courts), tête + queue en répare
+  quatre sur la graine de réglage. Coût mesuré et assumé : un faux
+  positif sur les trois graines écartées (un retour final tronqué
+  d'aaba invente un outro) contre deux fichiers réparés — le
+  garde-fou « rupture locale en plus » a été essayé et réfuté, les
+  outros du générateur baissent l'énergie sans changer de matière.
+  Bilan quatre graines : comptes 38 → **42/80**, F-mesure → 0.790-0.929 ;
 - étiquetage par regroupement des sections sur la **similarité alignée
   mesure à mesure** (agglomératif à liaison moyenne, seuil absolu 0.975,
   pénalité de longueur). Deux seuils absolus ont existé et le premier a
@@ -890,23 +903,24 @@ majeur, marqueurs français, batterie syncopée) — sert de fixture e2e.
 - Mélodie = voix supérieure échantillonnée par temps : attrape les sommets
   d'arpèges d'accompagnement.
 - Segmentation évaluée, mais encore approximative : F-mesure des frontières
-  **0.79-0.92** selon la graine (tolérance ±1 mesure), et surtout le **nombre
-  de sections** n'est exact que dans 48 % des cas (38/80, contre 29 avant le
-  budget de concurrence et la cohérence des jumelles) — c'est lui qui
+  **0.79-0.93** selon la graine (tolérance ±1 mesure), et surtout le **nombre
+  de sections** n'est exact que dans 52 % des cas (42/80, contre 29 avant le
+  budget de concurrence, la cohérence des jumelles et l'admission des
+  intros/outros courts sur preuve de répétition) — c'est lui qui
   plafonne la forme : le regroupement par matériau, à frontières justes,
   est passé de 4/23 à 17/23 (validé sur trois graines écartées), et la
-  forme complète — frontières détectées puis partition — de 12/80 à 29/80.
+  forme complète — frontières détectées puis partition — de 12/80 à 30/80.
   Les axes qui lisent les étiquettes ont suivi le regroupement (AUC moyenne
   sur 3 graines : 03 0.50 → 0.58, 04 0.51 → 0.59, 06 0.44 → 0.73, ce
   dernier inversé sur une graine avant) ; le meilleur compte de sections,
-  lui, n'a pas bougé ces AUC (±0.003 — il améliore l'original et sa
-  version dégradée symétriquement) mais relève la validation croisée
-  contrastive de +0.012 en moyenne (0.963 → 0.978, 0.959 → 0.981,
-  0.966 → 0.966). L'axe 01 reste à 0.55. Le gate AUC reste calé à 0.42 :
-  la marge avec le plancher de bruit mesuré (0.448) est mince, et le
-  remonter suppose de stabiliser d'abord ce qui reste du compte de
-  sections — les intros de deux mesures, sous `min_len`, restent
-  indétectables par construction.
+  lui, n'a pas bougé ces AUC (±0.003 par mécanisme — il améliore
+  l'original et sa version dégradée symétriquement) mais la validation
+  croisée contrastive a suivi le premier étage (+0.012 en moyenne,
+  0.963 → 0.978, 0.959 → 0.981, 0.966 → 0.966). L'axe 01 reste à 0.55.
+  Le gate AUC reste calé à 0.42 : la marge avec le plancher de bruit
+  mesuré (0.448) est mince. Le gros des surplus restants vient de la
+  nouveauté sur les travers-composés ; le gros des manques, des formes
+  longues à sections courtes.
 - Esthétique pop inscrite dans les bandes de tolérance : un nocturne ou une
   pièce ambient scorent bas par construction. Les profils de poids
   (`weights_*.json`) atténuent, ils ne suppriment pas.

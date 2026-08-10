@@ -21,6 +21,7 @@ from libretto.builder import (
     _assign_letters,
     _consistent_boundaries,
     _cosine_dist,
+    _detect_boundaries,
     _repetition_edges,
     _self_similarity,
     build_score,
@@ -396,6 +397,31 @@ class TestRepetitionSegmentation(unittest.TestCase):
         edges = _repetition_edges(ssm, min_len=4)
         self.assertEqual(edges, {4, 8},
                          "le retour A-A doit survivre aux phrases plus nettes")
+
+    def test_short_intro_found_when_repetition_starts_there(self):
+        """Une intro de 2 mesures place la première frontière sous min_len,
+        où aucun pic de nouveauté n'est admis — mais si le matériau répété
+        démarre exactement là (bord de début de run), la preuve est exacte
+        par construction et la frontière est admise."""
+        intro = [0.0, 0.0, 1.0]
+        a = [[1.0, 0.1 * k, 0.0] for k in range(4)]
+        b = [[0.5, 1.0, 0.1 * k] for k in range(4)]
+        features = [intro] * 2 + a + b + a + b
+        boundaries = _detect_boundaries(features)
+        self.assertIn(2, boundaries,
+                      "le run qui démarre en 2 prouve l'intro courte")
+
+    def test_short_outro_kept_when_repetition_ends_there(self):
+        """Symétrique : un outro de 2 mesures tombe sous la fusion de
+        queue — sauf si un run s'arrête exactement là : le matériau répété
+        se termine, ce n'est pas un sillage."""
+        a = [[1.0, 0.1 * k, 0.0] for k in range(4)]
+        b = [[0.5, 1.0, 0.1 * k] for k in range(4)]
+        outro = [0.0, 0.0, 1.0]
+        features = a + b + a + b + [outro] * 2
+        boundaries = _detect_boundaries(features)
+        self.assertIn(16, boundaries,
+                      "le run qui s'arrête en 16 prouve l'outro court")
 
     def test_boundary_inside_run_without_twin_is_dropped(self):
         """Un refrain 12-20 rejoué en 36-44 (run lag 24, longueur 8) coupé
