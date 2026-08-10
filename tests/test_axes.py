@@ -74,6 +74,28 @@ class TestProfilsModaux(unittest.TestCase):
         # le témoin KK, sans mixolydien au vocabulaire, n'arbitre pas
         self.assertEqual(estimate_key(vamp, KEY_PROFILES)[:2], (0, "maj"))
 
+    def test_mineur_naturel_arbitre_contre_le_relatif_majeur(self):
+        """La confusion la plus banale : la mineur naturel lu do majeur —
+        même collection, corrélations presque égales (écart 0.02 ici).
+        L'étage serré de l'arbitrage relatif rend la ; le témoin KK, sans
+        vocabulaire étendu, garde do."""
+        nat = _hist({0: 0.198, 2: 0.096, 4: 0.156, 5: 0.114, 7: 0.148,
+                     9: 0.176, 11: 0.097})
+        self.assertEqual(estimate_key(nat)[:2], (9, "min"))
+        self.assertEqual(estimate_key(nat, KEY_PROFILES)[:2], (0, "maj"))
+
+    def test_sensible_du_relatif_etend_l_arbitrage(self):
+        """À écart moyen (0.08), le flip exige la preuve chromatique : le
+        sol# du V majeur de la mineur n'appartient pas à la gamme de do —
+        présent, il tranche pour le mineur ; absent, à écart identique,
+        do majeur tient."""
+        harm = _hist({0: 0.206, 2: 0.100, 4: 0.160, 5: 0.110, 7: 0.155,
+                      8: 0.016, 9: 0.156, 11: 0.099})
+        self.assertEqual(estimate_key(harm)[:2], (9, "min"))
+        sans = _hist({0: 0.206, 2: 0.100, 4: 0.160, 5: 0.110, 7: 0.155,
+                      9: 0.156, 11: 0.099})
+        self.assertEqual(estimate_key(sans)[:2], (0, "maj"))
+
     def test_majeur_tonal_a_dominante_lourde_non_renverse(self):
         """Le garde-fou de l'arbitrage : dans un do majeur tonal, même à
         dominante plus lourde que la tonique, la médiante (mi, tierce de
