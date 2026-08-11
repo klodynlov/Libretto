@@ -348,12 +348,72 @@ footer { color:var(--muted); font-size:12.5px; margin-top:26px; }
   border-radius:9px; background:var(--card); font-size:12.5px; color:var(--muted);
   display:flex; align-items:center; gap:9px; }
 #gadgetbar button { font:inherit; }
+/* ——— refonte visuelle ——— */
+h1.display { font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  font-size:30px; font-weight:600; letter-spacing:-.005em; }
+.gen { align-items:center; gap:16px; padding:13px 16px; }
+.gen .body { flex:0 1 210px; }
+.gen .viz { flex:1; display:flex; align-items:center; gap:14px; min-width:200px; }
+.gauge { position:relative; width:60px; height:60px; flex:none; }
+.gauge svg { display:block; }
+.gauge .num { position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; font-size:15px; font-weight:700;
+  font-variant-numeric:tabular-nums; }
+.gauge .num small { font-size:8px; font-weight:600; color:var(--muted);
+  text-transform:uppercase; letter-spacing:.07em; margin-top:-1px; }
+.vmeter { width:8px; height:52px; border-radius:5px; background:var(--grid);
+  overflow:hidden; display:flex; flex-direction:column-reverse; flex:none; }
+.vmeter i { display:block; border-radius:5px; transition:height .7s cubic-bezier(.2,.8,.2,1); }
+.scorewrap { flex:1; min-width:110px; }
+.scorebar { height:9px; border-radius:6px; background:var(--grid); overflow:hidden; }
+.scorebar i { display:block; height:100%; width:0; border-radius:6px;
+  transition:width .8s cubic-bezier(.2,.8,.2,1); }
+.scoreval { font-variant-numeric:tabular-nums; font-weight:700; font-size:12.5px;
+  margin-top:4px; display:block; text-align:right; }
+.grade-hi { color:var(--ok); } .grade-mid { color:#c79a1e; } .grade-lo { color:var(--err); }
+.bg-hi { background:var(--ok); } .bg-mid { background:#e0b23a; } .bg-lo { background:var(--err); }
+/* barre de transport */
+#transport { position:fixed; left:0; right:0; bottom:0; z-index:40;
+  background:color-mix(in srgb, var(--card) 90%, transparent);
+  -webkit-backdrop-filter:saturate(1.5) blur(9px); backdrop-filter:saturate(1.5) blur(9px);
+  border-top:1px solid var(--border); padding:9px 18px;
+  display:flex; align-items:center; gap:14px; }
+#transport .tbtns { display:flex; gap:7px; }
+#transport button.t { width:40px; height:40px; padding:0; border-radius:11px; font-size:15px;
+  display:inline-flex; align-items:center; justify-content:center; }
+#transport button.t.play { background:var(--accent); border-color:var(--accent); color:#fff; }
+#transport button.t.loopon { background:var(--accent-soft); border-color:var(--accent);
+  color:var(--accent); }
+#transport .now { flex:1; text-align:center; font-size:13px; color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#transport .now b { color:var(--fg); font-weight:650; }
+#transport .now .dot { display:inline-block; width:7px; height:7px; border-radius:50%;
+  background:var(--ok); margin-right:6px; vertical-align:middle;
+  animation:pulse 1.3s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+#transport[hidden] { display:none; }
+body.hastransport { padding-bottom:74px; }
+/* checklist d'analyse */
+.analyzing { background:var(--card); border:1px solid var(--border); border-radius:16px;
+  padding:20px; text-align:center; }
+.analyzing h3 { font-size:15px; margin-bottom:3px; }
+.analyzing .hint { color:var(--muted); font-size:12.5px; }
+.analyzing .steps { display:inline-flex; flex-direction:column; gap:6px; margin-top:13px;
+  text-align:left; font-size:13.5px; min-width:210px; }
+.analyzing .steps div { color:var(--muted); display:flex; align-items:center; gap:8px;
+  transition:color .2s; }
+.analyzing .steps div .ic { width:16px; text-align:center; }
+.analyzing .steps div.run { color:var(--fg); }
+.analyzing .steps div.done { color:var(--ok); }
+.spin { display:inline-block; width:12px; height:12px; border:2px solid var(--grid);
+  border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
 <main>
-  <h1>Libretto — Sense of Musical Structure
-    <small>génère · analyse 29 axes · cherche par intention · écoute dans Reaper</small></h1>
+  <h1 class="display">Libretto — Sense of Musical Structure
+    <small>génère · analyse 29 axes · cherche par intention · écoute dans Reaper &amp; Gadget</small></h1>
   <section id="genpanel" hidden>
     <h2>Générer des séquences</h2>
     <div class="hint">Libretto génère des candidats et garde les mieux
@@ -386,8 +446,15 @@ footer { color:var(--muted); font-size:12.5px; margin-top:26px; }
   <div id="drop">Glisse tes .mid ici (ou clique)
     <input id="file" type="file" accept=".mid,.midi" multiple hidden></div>
   <div id="status"></div>
-  <div id="gadgetbar" hidden>🎹 Gadget : <span id="gadgetinfo"></span>
-    <button id="gadgetstop">⏹ stop</button></div>
+  <div id="transport" hidden>
+    <div class="tbtns">
+      <button class="t play" id="tplay" title="rejouer">▶</button>
+      <button class="t" id="tstop" title="stop">⏹</button>
+      <button class="t" id="tloop" title="boucle">🔁</button>
+    </div>
+    <div class="now" id="tnow"></div>
+    <div class="tbtns"><button class="t" id="tclose" title="fermer">✕</button></div>
+  </div>
   <div id="cards"></div>
   <footer>Libretto SMS — 100 % local. « ▶ Reaper » utilise le pont Klody sur 127.0.0.1:9000
   (REAPER doit être lancé). « ▶ Gadget » envoie le MIDI sur un port virtuel
@@ -410,12 +477,17 @@ const genMode = document.getElementById('genmode');
 const genBtn = document.getElementById('genbtn');
 const genMeta = document.getElementById('genmeta');
 const genResults = document.getElementById('genresults');
-const gadgetBar = document.getElementById('gadgetbar');
-const gadgetInfo = document.getElementById('gadgetinfo');
-const gadgetStop = document.getElementById('gadgetstop');
+const transport = document.getElementById('transport');
+const transNow = document.getElementById('tnow');
+const tPlay = document.getElementById('tplay');
+const tStop = document.getElementById('tstop');
+const tLoop = document.getElementById('tloop');
+const tClose = document.getElementById('tclose');
 let hasLibrary = false;
 let canGadget = false;
 let genModesFilled = false;
+let nowPlaying = null;   // {body, name} de la dernière séquence envoyée à Gadget
+let nowLoop = true;
 
 function setStatus(msg, isErr) {
   statusEl.innerHTML = msg ? `<span class="${isErr ? 'err' : ''}">${msg}</span>` : '';
@@ -451,8 +523,8 @@ function render(entries, names) {
           <div class="chips">${groupChips(e.groups, names)}</div>
         </div>
         <div class="actions">
-          <button class="primary" onclick="toReaper(${e.id}, this)">▶ Reaper</button>
-          ${canGadget ? `<button onclick="playGadget({id: ${e.id}}, this)">▶ Gadget</button>` : ''}
+          <button class="primary" data-reaperid="${e.id}">▶ Reaper</button>
+          ${canGadget ? `<button data-gadgetid="${e.id}" data-name="${esc(e.name)}">▶ Gadget</button>` : ''}
         </div>
       </div>
       ${e.interpretable ? '' : `<div class="banner"><b>Score non interprétable</b> — ${e.diagnosis}</div>`}
@@ -491,15 +563,18 @@ function renderGen(data) {
                   g.score != null ? `SMS ${g.score.toFixed(2)}` : null,
                   `fiab. ${esc(g.confidence_level || '?')} ${conf}`]
                  .filter(Boolean).join(' · ');
+    const sc = g.score != null ? g.score : 0;
+    const cf = g.confidence != null ? g.confidence : 0;
     const dl = `/api/download?path=${encodeURIComponent(g.path)}`;
     const addBtn = hasLibrary
-      ? `<button data-add="${esc(g.path)}">+ Bibliothèque</button>` : '';
+      ? `<button data-add="${esc(g.path)}">+ Biblio</button>` : '';
     return `<div class="gen">
       <span class="badge${win ? ' win' : ''}">${win ? '🏆 gagnant' : 'variante'}</span>
       <div class="body">
         <div class="title">${esc(g.name)}</div>
         <div class="why">${esc(meta)}</div>
       </div>
+      <div class="viz">${gauge(cf)}${vmeter(sc)}${scoreBar(sc)}</div>
       <div class="acts">
         <button class="primary" data-genpath="${esc(g.path)}">▶ Reaper</button>
         ${gadgetButton('gadgetpath', g.path)}
@@ -508,6 +583,7 @@ function renderGen(data) {
       </div>
     </div>`;
   }).join('');
+  animateBars(genResults);
 }
 
 async function doGenerate() {
@@ -546,27 +622,81 @@ function gadgetButton(attr, val) {
   return canGadget ? ` <button data-${attr}="${esc(val)}">▶ Gadget</button>` : '';
 }
 
-async function playGadget(body, btn) {
-  const prev = btn.textContent; btn.disabled = true; btn.textContent = '…';
-  try {
-    const r = await fetch('/api/gadget', {method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({channel: 1, loop: true, ...body})});
-    const data = await r.json();
-    if (r.ok) {
-      gadgetInfo.textContent = `${data.notes} notes sur « ${data.port} »`
-        + (data.loop ? ' — en boucle' : '');
-      gadgetBar.hidden = false;
-      setStatus(`Gadget : arme une piste sur l'entrée MIDI « ${data.port} »`);
-    } else setStatus(`Gadget : ${data.error}`, true);
-  } finally { btn.textContent = prev; btn.disabled = false; }
+// —— visualisations : jauge de fiabilité, VU-mètre + barre de score ——
+function grade(v) { return v >= 0.8 ? 'hi' : v >= 0.6 ? 'mid' : 'lo'; }
+const GRADEC = {hi: 'var(--ok)', mid: '#e0b23a', lo: 'var(--err)'};
+function gauge(v) {
+  v = Math.max(0, Math.min(1, v));
+  const g = grade(v), r = 24, C = 2 * Math.PI * r, arc = 0.75, rot = 'rotate(135 30 30)';
+  return `<div class="gauge"><svg width="60" height="60" viewBox="0 0 60 60">
+    <circle transform="${rot}" cx="30" cy="30" r="${r}" fill="none" stroke="var(--grid)"
+      stroke-width="7" stroke-linecap="round" stroke-dasharray="${arc * C} ${C}"/>
+    <circle transform="${rot}" cx="30" cy="30" r="${r}" fill="none" stroke="${GRADEC[g]}"
+      stroke-width="7" stroke-linecap="round" stroke-dasharray="${v * arc * C} ${C}"/>
+  </svg><div class="num grade-${g}">${Math.round(v * 100)}<small>fiab</small></div></div>`;
+}
+function vmeter(v) {
+  v = Math.max(0, Math.min(1, v));
+  return `<div class="vmeter"><i class="bg-${grade(v)}" data-h="${Math.round(v * 100)}"></i></div>`;
+}
+function scoreBar(v) {
+  v = Math.max(0, Math.min(1, v));
+  const g = grade(v);
+  return `<div class="scorewrap"><div class="scorebar">`
+    + `<i class="bg-${g}" data-w="${(v * 100).toFixed(1)}"></i></div>`
+    + `<span class="scoreval grade-${g}">${(v * 100).toFixed(1)}%</span></div>`;
+}
+function animateBars(root) {
+  requestAnimationFrame(() => {
+    root.querySelectorAll('.scorebar i[data-w]').forEach(el => el.style.width = el.dataset.w + '%');
+    root.querySelectorAll('.vmeter i[data-h]').forEach(el => el.style.height = el.dataset.h + '%');
+  });
 }
 
-async function stopGadget() {
-  await fetch('/api/gadget_stop', {method: 'POST'});
-  gadgetBar.hidden = true; setStatus('Gadget : lecture arrêtée');
+// —— lecture Gadget + barre de transport ——
+function basename(p) { return String(p).split('/').pop(); }
+async function doPlay(body, loop, name) {
+  const r = await fetch('/api/gadget', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({channel: 1, loop, ...body})});
+  const data = await r.json();
+  if (r.ok) {
+    nowPlaying = {body, name: name || (body.path ? basename(body.path) : 'séquence')};
+    nowLoop = !!data.loop;
+    showTransport(data.notes, data.port);
+    setStatus(`Gadget : arme une piste sur l'entrée MIDI « ${data.port} »`);
+  } else setStatus(`Gadget : ${data.error}`, true);
+  return {ok: r.ok, data};
 }
-gadgetStop.addEventListener('click', stopGadget);
+function showTransport(notes, port) {
+  if (!nowPlaying) return;
+  transNow.innerHTML = `<span class="dot"></span><b>${esc(nowPlaying.name)}</b> · `
+    + `${notes} notes · port « ${esc(port || 'Libretto')} »`;
+  tLoop.classList.toggle('loopon', nowLoop);
+  transport.hidden = false;
+  document.body.classList.add('hastransport');
+}
+async function playGadget(body, btn, name) {
+  const prev = btn.textContent; btn.disabled = true; btn.textContent = '…';
+  try { await doPlay(body, nowLoop, name); }
+  finally { btn.textContent = prev; btn.disabled = false; }
+}
+tPlay.addEventListener('click', () => {
+  if (nowPlaying) doPlay(nowPlaying.body, nowLoop, nowPlaying.name);
+});
+tStop.addEventListener('click', async () => {
+  await fetch('/api/gadget_stop', {method: 'POST'});
+  const d = transNow.querySelector('.dot'); if (d) d.remove();
+  setStatus('Gadget : lecture arrêtée');
+});
+tLoop.addEventListener('click', () => {
+  nowLoop = !nowLoop; tLoop.classList.toggle('loopon', nowLoop);
+  if (nowPlaying) doPlay(nowPlaying.body, nowLoop, nowPlaying.name);
+});
+tClose.addEventListener('click', async () => {
+  await fetch('/api/gadget_stop', {method: 'POST'});
+  transport.hidden = true; document.body.classList.remove('hastransport'); nowPlaying = null;
+});
 
 async function genToLibrary(path, btn) {
   btn.disabled = true; const t = btn.textContent; btn.textContent = '…';
@@ -586,6 +716,12 @@ genResults.addEventListener('click', e => {
   if (gb) { playGadget({path: gb.dataset.gadgetpath}, gb); return; }
   const ab = e.target.closest('button[data-add]');
   if (ab) genToLibrary(ab.dataset.add, ab);
+});
+cards.addEventListener('click', e => {
+  const rb = e.target.closest('button[data-reaperid]');
+  if (rb) { toReaper(+rb.dataset.reaperid, rb); return; }
+  const gb = e.target.closest('button[data-gadgetid]');
+  if (gb) playGadget({id: +gb.dataset.gadgetid}, gb, gb.dataset.name);
 });
 
 function renderHits(data) {
@@ -653,13 +789,31 @@ results.addEventListener('click', e => {
   if (gb) playGadget({path: gb.dataset.gadgetpath}, gb);
 });
 
+const ANALYSIS_STEPS = ['Harmonie', 'Rythme', 'Structure & sections',
+                        'Mélodie & contour', 'Cohérence globale'];
+function showAnalyzing(name) {
+  cards.innerHTML = `<div class="analyzing"><h3>Analyse : ${esc(name)}</h3>
+    <div class="hint">29 axes structurels en cours de calcul…</div>
+    <div class="steps">${ANALYSIS_STEPS.map((s, i) =>
+      `<div id="astep${i}"><span class="ic"></span>${esc(s)}</div>`).join('')}</div></div>`;
+  let i = 0;
+  (function tick() {
+    if (i > 0) { const p = document.getElementById('astep' + (i - 1));
+      if (p) { p.className = 'done'; p.querySelector('.ic').textContent = '✓'; } }
+    const c = document.getElementById('astep' + i);
+    if (c) { c.className = 'run'; c.querySelector('.ic').innerHTML = '<span class="spin"></span>';
+      i++; setTimeout(tick, 260); }
+  })();
+}
 async function upload(files) {
   for (const f of files) {
+    showAnalyzing(f.name);
     setStatus(`analyse de ${f.name}…`);
     const r = await fetch('/api/analyze', {
       method: 'POST', headers: {'X-Filename': encodeURIComponent(f.name)},
       body: await f.arrayBuffer()});
-    if (!r.ok) { setStatus(`${f.name} : ${(await r.json()).error}`, true); continue; }
+    if (!r.ok) { cards.innerHTML = '';
+      setStatus(`${f.name} : ${(await r.json()).error}`, true); continue; }
     setStatus('');
   }
   refresh();
