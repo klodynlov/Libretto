@@ -40,38 +40,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from libretto.gadget import (  # noqa: E402  — cœur partagé (schedule + constantes)
+    ALL_NOTES_OFF, DEFAULT_PORT_NAME, NOTE_OFF, NOTE_ON, PIP_HINT,
+    schedule_events)
 from libretto.midi import parse_midi  # noqa: E402
-from libretto.reaper import tick_to_seconds  # noqa: E402
-
-PIP_HINT = "pip install python-rtmidi"
-DEFAULT_PORT_NAME = "Libretto"
-NOTE_ON = 0x90
-NOTE_OFF = 0x80
-ALL_NOTES_OFF = 123  # CC
-
-
-def schedule_events(md, channel: int | None = None) -> list[tuple[float, list[int]]]:
-    """Notes -> messages MIDI datés en secondes, triés pour l'envoi.
-
-    `channel` (1-16) force toutes les notes sur un même canal — pratique : un
-    Gadget = une piste = un canal. `None` garde les canaux d'origine. La tempo
-    map est respectée via `tick_to_seconds` (partagé avec le pont REAPER). À
-    instant égal, les note-off passent avant les note-on : on ne coupe pas une
-    note re-frappée au même tick.
-    """
-    to_sec = tick_to_seconds(md.tempos, md.ppq)
-    forced = None if channel is None else max(0, min(15, channel - 1))
-    events: list[tuple[float, int, list[int]]] = []
-    for n in md.notes:
-        ch = n.channel if forced is None else forced
-        pitch = max(0, min(127, n.pitch))
-        vel = max(1, min(127, n.velocity))
-        on = to_sec(n.start)
-        off = max(on + 0.01, to_sec(n.end))  # durée plancher : jamais nulle
-        events.append((on, 1, [NOTE_ON | ch, pitch, vel]))
-        events.append((off, 0, [NOTE_OFF | ch, pitch, 0]))
-    events.sort(key=lambda e: (e[0], e[1]))  # off (0) avant on (1) à t égal
-    return [(t, msg) for t, _, msg in events]
 
 
 def _import_rtmidi():

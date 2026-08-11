@@ -63,6 +63,9 @@ class _Store:
         self.generated: set[str] = set()
         self._gen_root: str | None = None
         self._gen_seq = 0
+        # Lecteur Gadget (port MIDI virtuel), créé à la première lecture — aucune
+        # dépendance rtmidi tant qu'on ne joue pas.
+        self._gadget = None
 
     def add(self, entry: dict, raw: bytes) -> dict:
         with self.lock:
@@ -99,6 +102,19 @@ class _Store:
     def is_generated(self, path: str) -> bool:
         with self.lock:
             return str(Path(path).resolve()) in self.generated
+
+    def gadget_player(self):
+        """Lecteur Gadget partagé (singleton), créé paresseusement — importer
+        `.gadget` reste sûr sans rtmidi (le port n'est ouvert qu'à la lecture)."""
+        with self.lock:
+            if self._gadget is None:
+                from .gadget import GadgetPlayer
+                self._gadget = GadgetPlayer()
+            return self._gadget
+
+    def gadget_player_existing(self):
+        with self.lock:
+            return self._gadget
 
 
 def analyze_bytes(data: bytes, filename: str) -> tuple[dict, "SenseOfMusicalStructure"]:
@@ -328,6 +344,10 @@ footer { color:var(--muted); font-size:12.5px; margin-top:26px; }
 .gen .why { color:var(--muted); font-size:12.5px; margin-top:2px; }
 .gen .acts { display:flex; gap:6px; flex-wrap:wrap; }
 .gen a.btn { text-decoration:none; display:inline-block; }
+#gadgetbar { margin:8px 2px; padding:7px 11px; border:1px solid var(--accent-soft);
+  border-radius:9px; background:var(--card); font-size:12.5px; color:var(--muted);
+  display:flex; align-items:center; gap:9px; }
+#gadgetbar button { font:inherit; }
 </style>
 </head>
 <body>
@@ -366,9 +386,13 @@ footer { color:var(--muted); font-size:12.5px; margin-top:26px; }
   <div id="drop">Glisse tes .mid ici (ou clique)
     <input id="file" type="file" accept=".mid,.midi" multiple hidden></div>
   <div id="status"></div>
+  <div id="gadgetbar" hidden>🎹 Gadget : <span id="gadgetinfo"></span>
+    <button id="gadgetstop">⏹ stop</button></div>
   <div id="cards"></div>
   <footer>Libretto SMS — 100 % local. « ▶ Reaper » utilise le pont Klody sur 127.0.0.1:9000
-  (REAPER doit être lancé). Génération avec <code>serve --generate</code>,
+  (REAPER doit être lancé). « ▶ Gadget » envoie le MIDI sur un port virtuel
+  <code>« Libretto »</code> (python-rtmidi) — arme une piste Gadget dessus.
+  Génération avec <code>serve --generate</code>,
   recherche avec <code>serve --lib&nbsp;lib.json</code>.</footer>
 </main>
 <script>
@@ -386,7 +410,11 @@ const genMode = document.getElementById('genmode');
 const genBtn = document.getElementById('genbtn');
 const genMeta = document.getElementById('genmeta');
 const genResults = document.getElementById('genresults');
+const gadgetBar = document.getElementById('gadgetbar');
+const gadgetInfo = document.getElementById('gadgetinfo');
+const gadgetStop = document.getElementById('gadgetstop');
 let hasLibrary = false;
+let canGadget = false;
 let genModesFilled = false;
 
 function setStatus(msg, isErr) {
@@ -424,6 +452,7 @@ function render(entries, names) {
         </div>
         <div class="actions">
           <button class="primary" onclick="toReaper(${e.id}, this)">▶ Reaper</button>
+          ${canGadget ? `<button onclick="playGadget({id: ${e.id}}, this)">▶ Gadget</button>` : ''}
         </div>
       </div>
       ${e.interpretable ? '' : `<div class="banner"><b>Score non interprétable</b> — ${e.diagnosis}</div>`}
@@ -439,6 +468,7 @@ async function refresh() {
   const r = await fetch('/api/analyses');
   const data = await r.json();
   hasLibrary = data.has_library;
+  canGadget = data.can_gadget;
   searchPanel.hidden = !data.has_library;
   genPanel.hidden = !data.can_generate;
   if (data.can_generate && !genModesFilled) {
@@ -472,6 +502,7 @@ function renderGen(data) {
       </div>
       <div class="acts">
         <button class="primary" data-genpath="${esc(g.path)}">▶ Reaper</button>
+        ${gadgetButton('gadgetpath', g.path)}
         <a class="btn" href="${dl}"><button>⬇ .mid</button></a>
         ${addBtn}
       </div>
@@ -511,6 +542,32 @@ async function genToReaper(path, btn) {
   btn.disabled = false;
 }
 
+function gadgetButton(attr, val) {
+  return canGadget ? ` <button data-${attr}="${esc(val)}">▶ Gadget</button>` : '';
+}
+
+async function playGadget(body, btn) {
+  const prev = btn.textContent; btn.disabled = true; btn.textContent = '…';
+  try {
+    const r = await fetch('/api/gadget', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({channel: 1, loop: true, ...body})});
+    const data = await r.json();
+    if (r.ok) {
+      gadgetInfo.textContent = `${data.notes} notes sur « ${data.port} »`
+        + (data.loop ? ' — en boucle' : '');
+      gadgetBar.hidden = false;
+      setStatus(`Gadget : arme une piste sur l'entrée MIDI « ${data.port} »`);
+    } else setStatus(`Gadget : ${data.error}`, true);
+  } finally { btn.textContent = prev; btn.disabled = false; }
+}
+
+async function stopGadget() {
+  await fetch('/api/gadget_stop', {method: 'POST'});
+  gadgetBar.hidden = true; setStatus('Gadget : lecture arrêtée');
+}
+gadgetStop.addEventListener('click', stopGadget);
+
 async function genToLibrary(path, btn) {
   btn.disabled = true; const t = btn.textContent; btn.textContent = '…';
   const r = await fetch('/api/library_add', {method: 'POST',
@@ -525,6 +582,8 @@ genBtn.addEventListener('click', doGenerate);
 genResults.addEventListener('click', e => {
   const rb = e.target.closest('button[data-genpath]');
   if (rb) { genToReaper(rb.dataset.genpath, rb); return; }
+  const gb = e.target.closest('button[data-gadgetpath]');
+  if (gb) { playGadget({path: gb.dataset.gadgetpath}, gb); return; }
   const ab = e.target.closest('button[data-add]');
   if (ab) genToLibrary(ab.dataset.add, ab);
 });
@@ -555,7 +614,7 @@ function renderHits(data) {
       + ` · SMS ${h.global_score.toFixed(2)}${dist}</div>
         <div class="emo">${desc ? `<span class="tagpill intent">${esc(desc)}</span>` : ''}${tags}</div>
       </div>
-      <button class="primary" data-path="${esc(h.path)}">▶ Reaper</button>
+      <button class="primary" data-path="${esc(h.path)}">▶ Reaper</button>${gadgetButton('gadgetpath', h.path)}
     </div>`;
   }).join('');
 }
@@ -589,7 +648,9 @@ searchBtn.addEventListener('click', doSearch);
 qInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 results.addEventListener('click', e => {
   const btn = e.target.closest('button[data-path]');
-  if (btn) toReaperPath(btn.dataset.path, btn);
+  if (btn) { toReaperPath(btn.dataset.path, btn); return; }
+  const gb = e.target.closest('button[data-gadgetpath]');
+  if (gb) playGadget({path: gb.dataset.gadgetpath}, gb);
 });
 
 async function upload(files) {
@@ -653,11 +714,13 @@ def make_handler(store: _Store):
             if parsed.path in ("/", "/index.html"):
                 self._send(200, INDEX_HTML.encode(), "text/html; charset=utf-8")
             elif parsed.path == "/api/analyses":
+                from .gadget import available as gadget_available
                 self._json(200, {"entries": store.snapshot(),
                                  "group_names": GROUP_NAMES,
                                  "has_library": store.lib_path is not None,
                                  "can_generate": store.generator is not None,
-                                 "gen_modes": store.gen_modes})
+                                 "gen_modes": store.gen_modes,
+                                 "can_gadget": gadget_available()})
             elif parsed.path == "/api/download":
                 path = (parse_qs(parsed.query).get("path") or [""])[0]
                 if not store.is_generated(path):
@@ -679,6 +742,29 @@ def make_handler(store: _Store):
             if length <= 0 or length > MAX_UPLOAD:
                 raise ValueError(f"taille de corps invalide ({length} octets)")
             return self.rfile.read(length)
+
+        def _gadget_mididata(self, req):
+            """Résout la MidiData à jouer, MÊME règle de sûreté que Reaper :
+            un fichier généré, une entrée de la bibliothèque chargée, ou une
+            analyse déposée en mémoire — jamais un chemin arbitraire du disque.
+            Répond 404 et renvoie None si le chemin n'est pas autorisé."""
+            from .midi import parse_midi, parse_midi_bytes
+            if req.get("path"):
+                path = str(req["path"])
+                if store.is_generated(path):
+                    return parse_midi(path)
+                if store.lib_path is not None:
+                    from .library import Library
+                    lib = Library.load(store.lib_path)
+                    if any(e.path == path for e in lib.entries):
+                        return parse_midi(path)
+                self._json(404, {"error": "chemin non autorisé"})
+                return None
+            raw = store.raw_for(int(req.get("id", -1)))
+            if raw is None:
+                self._json(404, {"error": "analyse inconnue"})
+                return None
+            return parse_midi_bytes(raw)
 
         def do_POST(self):
             try:
@@ -745,6 +831,29 @@ def make_handler(store: _Store):
                             self._json(200, push_mididata(_parse(raw)))
                     except BridgeError as exc:
                         self._json(502, {"error": str(exc)})
+                elif self.path == "/api/gadget":
+                    from . import gadget as gadget_mod
+                    req = json.loads(self._read_body() or b"{}")
+                    if not gadget_mod.available():
+                        self._json(503, {"error": "python-rtmidi requis pour "
+                                         f"Gadget — {gadget_mod.PIP_HINT}"})
+                        return
+                    md = self._gadget_mididata(req)
+                    if md is None:
+                        return  # _gadget_mididata a déjà répondu (404)
+                    try:
+                        info = store.gadget_player().play(
+                            md, channel=req.get("channel", 1),
+                            loop=bool(req.get("loop", False)))
+                    except gadget_mod.GadgetError as exc:
+                        self._json(400, {"error": str(exc)})
+                        return
+                    self._json(200, {"playing": True, **info})
+                elif self.path == "/api/gadget_stop":
+                    player = store.gadget_player_existing()
+                    if player is not None:
+                        player.stop()
+                    self._json(200, {"stopped": True})
                 else:
                     self._json(404, {"error": "introuvable"})
             except (ValueError, json.JSONDecodeError) as exc:
