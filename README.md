@@ -969,9 +969,12 @@ Stdlib pure (`http.server`), tout en mémoire, rien d'écrit sur disque.
 on choisit le nombre de candidats, de variantes, la longueur et la graine, on
 clique **Générer**, et Forge produit puis trie — le panneau affiche le gagnant
 et les variantes avec leur forme, leur score SMS et leur fiabilité (et combien
-le gate a recalés, sans fard). Chaque séquence a trois boutons : **▶ Reaper**
-(écoute immédiate), **⬇ .mid** (téléchargement pour le DAW), **+ Bibliothèque**
-(indexation en un clic, cherchable ensuite par intention). Le mode par défaut
+le gate a recalés, sans fard). Chaque séquence porte ses boutons : **▶ Reaper**
+(écoute immédiate dans REAPER), **▶ Gadget** (audition sur un port MIDI virtuel
+« Libretto » — présent si `python-rtmidi` est installé ; arme une piste Gadget
+dessus, cf. `examples/play_gadget.py`), **⬇ .mid** (téléchargement pour le DAW),
+**+ Bibliothèque** (indexation en un clic, cherchable ensuite par intention).
+Le mode par défaut
 est le générateur procédural (aucune préparation) ; `--corpus DIR` ajoute le
 **modèle appris** (chaîne de Markov entraînée sur ce dossier, cf. `forge_markov`)
 comme second choix dans le menu. Le cœur `libretto` ne dépend pas des
