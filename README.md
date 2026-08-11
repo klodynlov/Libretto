@@ -590,6 +590,82 @@ mode. Le parseur lui-même est testé (`tests/test_mesure_tonalite.py`) :
 une règle trop large et le chiffre ne mesure plus le moteur mais le bruit
 qu'on lui a servi.
 
+## Accords et groove : la vérité terrain des packs du commerce
+
+La tonalité n'est pas la seule étiquette que les packs annoncent sans que le
+moteur l'ait écrite. Les packs EZKeys nomment **chaque accord** —
+`Gb_MAJ7TH_HIT.mid`, `A_MIN7TH_RHY.mid` — et EZDrummer range ses grooves par
+**genre** (`BY TYPE/HIP-HOP`, `.../JAZZ`…). Deux vérités terrain de plus,
+humaines et gratuites, sur ~177 000 fichiers. Deux harnais les rejouent, sur
+le chemin d'un pack passé en argument (rien de commercial n'entre au dépôt) :
+
+```bash
+python3 scripts/mesure_accords_packs.py "~/…/Toontrack - EZKeys MIDI Loops"
+python3 scripts/sonde_genre_batterie.py  "~/…/EZDrummer MIDI loops/BY TYPE"
+```
+
+**Accords — première vérification externe du détecteur.** `_best_chord` avait
+été mesuré à 99 % contre le corpus généré (`scripts/mesure_accords.py`), mais
+la vérité terrain y était celle qu'on venait d'écrire, et le bonus de
+fondamentale a été réglé sur ces graines. EZKeys est de la matière commerciale
+que la calibration n'a jamais vue. Sur les cinq qualités que les six gabarits
+du moteur couvrent sans ambiguïté (MAJOR, MINOR, MAJ7TH, MIN7TH, 7TH) :
+
+| jeu | comparés | fondamentale | qualité | **fond.+qualité** |
+|---|---|---|---|---|
+| `HIT` (accord bloc) | 2880 | 100.0 % | 99.1 % | **99.1 %** |
+| `RHY` (accord rythmé, 1 mesure) | 2858 | 99.7 % | 99.4 % | **99.3 %** |
+
+Le 99 % **généralise** : il ne tenait pas au corpus. Seul résidu dans le
+vocabulaire, min7→min (26 des 576 min7 en `HIT`, la 7e mineure trop brève
+retombe sur le triade). Hors gabarit, le moteur ne peut que ramener au plus
+proche, et il le fait sainement — DIM7TH→dim (le bon sous-ensemble), SUS et
+AUG→maj, 7SUS4/13TH/sharp9→dom7, la fondamentale presque toujours juste.
+`scripts/mesure_accords_packs.py` détaille cette dégradation label par label.
+
+**Tonalité — le même verdict, confirmé sur un répertoire plus grand.** Agréger
+les loops d'une même chanson EZKeys (234 chansons, tonique au dossier
+`…_Key-C_…`) donne un test à l'échelle du morceau, là où une boucle isolée
+« ne vaut rien » (voir la section précédente). La tonique y remonte à **73 %**
+avec les deux profils d'origine (Krumhansl-Kessler maj/min) ; l'erreur reste
+le voisinage de quinte (I↔IV↔V), plafond connu de KK sur un sac d'accords sans
+cadence ni basse. Fait notable : le vocabulaire **modal** par défaut (KK +
+dorien + mixolydien) *abaisse* ce chiffre à **61 %** sur ce répertoire pop à
+dominante majeure — l'arbitrage de la paire de quinte du mixolydien
+(`FIFTH_PAIR_EPS`) bascule des majeurs corrects vers leur dominante :
+**82 % des erreurs en trop (27/33) sont ce flip quinte**.
+
+**Une règle de bascule modale a été mesurée, puis écartée.** La question :
+garder le mixolydien là où il existe tout en épargnant le pop ? Trois
+discriminants (triade tonique vs dominante, saillance de la tonique, rang de la
+tonique), réglés sur graines 7/11, validés sur 23/31/47 — `scripts/mesure_bascule_modale.py` :
+
+| variante (validation) | maj | min | dorien | mixo | pack EZKeys |
+|---|---|---|---|---|---|
+| MODAL (défaut) | 93 % | 77 % | 100 % | **71 %** | 61 % |
+| meilleur gate | 95 % | 77 % | 100 % | 40 % | 67 % |
+| KK maj/min seul | 99 % | 66 % | 80 % | 19 % | **73 %** |
+
+Les cinq designs convergent vers **un seul point de Pareto** : +6 pts de pack
+pour −30 pts de mixolydien. Pack et vrai mixolydien partagent la collection (do
+majeur = sol mixolydien), indiscernables en masse — tout gate qui bloque la
+moitié des faux positifs bloque autant de vrais modes. **Verdict : ne pas gater
+le défaut.** Le moteur garde MODAL (il sert ses sept axes, où mineur 95 % et
+dorien 100 % pèsent autant que le pack). Le correctif est chez l'appelant :
+`libretto.axes.estimate_key_tonal` (KK seul) pour une matière connue tonale et
+sans étiquette — c'est « croire l'étiquette du pack » quand il n'y en a pas.
+
+**Groove — un signal, pas encore un axe.** Une boucle de batterie n'a « ni
+forme, ni harmonie, ni mélodie à mesurer » : elle n'est pas matière à SMS.
+Mais ce que Libretto ne modélise pas encore — le groove — porte-t-il de quoi
+mériter un axe ? Une empreinte rythmique naïve (onsets sur 16 pas × 3 voix GM,
+aucune hauteur ni tempo) et un plus-proche-centroïde en leave-one-out séparent
+**10 genres à 35.6 %** (700 loops), soit **3,6× le hasard**. Les confusions
+sont musicalement justes — BLUES↔JAZZ (le shuffle), DISCO→FUNK, REGGAE→LATIN,
+POP→HIP-HOP : les voisins se mélangent, les lointains se séparent. Ce plancher
+(sonde volontairement bête) dit qu'un axe de groove serait fondé sur des
+données. `scripts/sonde_genre_batterie.py`.
+
 ## Corpus de validation
 
 Valider demande des morceaux, et les packs du commerce n'en contiennent pas.
