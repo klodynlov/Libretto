@@ -630,11 +630,30 @@ les loops d'une même chanson EZKeys (234 chansons, tonique au dossier
 avec les deux profils d'origine (Krumhansl-Kessler maj/min) ; l'erreur reste
 le voisinage de quinte (I↔IV↔V), plafond connu de KK sur un sac d'accords sans
 cadence ni basse. Fait notable : le vocabulaire **modal** par défaut (KK +
-dorien + mixolydien) *abaisse* ce chiffre à **60 %** sur ce répertoire pop à
+dorien + mixolydien) *abaisse* ce chiffre à **61 %** sur ce répertoire pop à
 dominante majeure — l'arbitrage de la paire de quinte du mixolydien
-(`FIFTH_PAIR_EPS`) bascule des majeurs corrects vers leur dominante. Le
-mixolydien reste nécessaire là où il manque (contrôle : 3/22 sans lui) ; son
-coût sur du majeur franc est maintenant chiffré.
+(`FIFTH_PAIR_EPS`) bascule des majeurs corrects vers leur dominante :
+**82 % des erreurs en trop (27/33) sont ce flip quinte**.
+
+**Une règle de bascule modale a été mesurée, puis écartée.** La question :
+garder le mixolydien là où il existe tout en épargnant le pop ? Trois
+discriminants (triade tonique vs dominante, saillance de la tonique, rang de la
+tonique), réglés sur graines 7/11, validés sur 23/31/47 — `scripts/mesure_bascule_modale.py` :
+
+| variante (validation) | maj | min | dorien | mixo | pack EZKeys |
+|---|---|---|---|---|---|
+| MODAL (défaut) | 93 % | 77 % | 100 % | **71 %** | 61 % |
+| meilleur gate | 95 % | 77 % | 100 % | 40 % | 67 % |
+| KK maj/min seul | 99 % | 66 % | 80 % | 19 % | **73 %** |
+
+Les cinq designs convergent vers **un seul point de Pareto** : +6 pts de pack
+pour −30 pts de mixolydien. Pack et vrai mixolydien partagent la collection (do
+majeur = sol mixolydien), indiscernables en masse — tout gate qui bloque la
+moitié des faux positifs bloque autant de vrais modes. **Verdict : ne pas gater
+le défaut.** Le moteur garde MODAL (il sert ses sept axes, où mineur 95 % et
+dorien 100 % pèsent autant que le pack). Le correctif est chez l'appelant :
+`libretto.axes.estimate_key_tonal` (KK seul) pour une matière connue tonale et
+sans étiquette — c'est « croire l'étiquette du pack » quand il n'y en a pas.
 
 **Groove — un signal, pas encore un axe.** Une boucle de batterie n'a « ni
 forme, ni harmonie, ni mélodie à mesurer » : elle n'est pas matière à SMS.

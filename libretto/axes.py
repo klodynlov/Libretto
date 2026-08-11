@@ -251,6 +251,33 @@ def estimate_key(hist: list[float],
     return best_root, best_mode, best_corr, margin
 
 
+def estimate_key_tonal(hist: list[float]) -> tuple[int, str, float, float]:
+    """`estimate_key` restreint à Krumhansl-Kessler (maj/min) — pour une matière
+    qu'on SAIT tonale et dont on n'a pas l'étiquette, typiquement indexer un pack
+    pop sans clé annotée.
+
+    Le défaut du moteur est le vocabulaire modal (dorien + mixolydien), et il le
+    reste : il sert les sept axes du groupe B, où reconnaître un mode vaut mieux
+    que le manquer — sur le corpus de contrôle, tonique juste à 71 % en
+    mixolydien, 95 % en mineur, 100 % en dorien, contre 19/71/80 % sans les modes.
+    Mais sur du pop à dominante majeure, ce même vocabulaire COÛTE : l'arbitrage
+    de la paire de quinte (voir `FIFTH_PAIR_EPS`) bascule un vrai majeur vers son
+    mixolydien sur la dominante. Mesuré sur 234 chansons EZKeys, la tonique tombe
+    de ~73 % (KK seul) à ~61 %, et **82 % des erreurs en trop (27/33) sont ce flip
+    quinte**. Aucune règle de bascule ne récupère l'écart : pack et vrai
+    mixolydien partagent la collection (do majeur = sol mixolydien), donc tout
+    gate assez strict pour bloquer la moitié des faux positifs bloque autant de
+    vrais mixolydiens — cinq designs mesurés, un seul point de Pareto, pack
+    61→67 % contre mixolydien 71→40 % (`scripts/mesure_bascule_modale.py`).
+
+    Le correctif est donc chez l'appelant, pas dans le moteur : quand la matière
+    est connue tonale, retirer le vocabulaire modal rend les ~12 points sans rien
+    coûter, puisqu'il n'y a pas de mode à trouver. À n'employer QUE là — sur une
+    matière possiblement modale, c'est le défaut modal qu'il faut, et cette
+    fonction lirait un vrai mixolydien à sa sous-dominante."""
+    return estimate_key(hist, KEY_PROFILES)
+
+
 def fifths_distance(pc1: int, pc2: int) -> int:
     """Distance sur le cycle des quintes (0-6). C→G = 1, C→F# = 6."""
     p1, p2 = (pc1 * 7) % 12, (pc2 * 7) % 12

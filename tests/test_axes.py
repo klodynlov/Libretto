@@ -1,7 +1,8 @@
 import unittest
 
 from libretto.axes import (KEY_PROFILES, KK_MAJOR, KK_MINOR, MODAL_PROFILES,
-                           PARENT_MODE, SenseOfMusicalStructure, estimate_key)
+                           PARENT_MODE, SenseOfMusicalStructure, estimate_key,
+                           estimate_key_tonal)
 from libretto.demo import demo_score
 from libretto.model import Chord, NoteType, Pitch, Score, Section
 
@@ -135,6 +136,35 @@ class TestProfilsModaux(unittest.TestCase):
 
     def test_histogramme_vide(self):
         self.assertEqual(estimate_key([0.0] * 12, MODAL_PROFILES), (0, "maj", 0.0, 0.0))
+
+
+class TestBasculeTonale(unittest.TestCase):
+    """`estimate_key_tonal` — le vocabulaire modal retiré pour une matière qu'on
+    sait tonale. Mesuré sur 234 chansons EZKeys : le défaut modal fait −12 pts de
+    tonique sur du pop (flip quinte maj→mixo), et aucune règle de bascule ne le
+    récupère sans coûter autant de vrais mixolydiens
+    (`scripts/mesure_bascule_modale.py`). Le contrat garde ici que le helper
+    restitue bien la lecture KK, sans toucher au défaut du moteur."""
+
+    def test_equivaut_a_kk(self):
+        for hist in (DO_MAJEUR, RE_DORIEN, SOL_MIXOLYDIEN):
+            self.assertEqual(estimate_key_tonal(hist), estimate_key(hist, KEY_PROFILES))
+
+    def test_jamais_de_mode_modal(self):
+        # par construction (KEY_PROFILES) : ni dorien ni mixolydien ne sortent
+        for hist in (DO_MAJEUR, RE_DORIEN, SOL_MIXOLYDIEN):
+            self.assertIn(estimate_key_tonal(hist)[1], ("maj", "min"))
+
+    def test_recupere_le_pop_que_le_defaut_bascule(self):
+        # le vamp que l'arbitrage de quinte rend à sol mixolydien : sans les
+        # modes, la tonique majeure (do) est rendue — c'est tout l'intérêt
+        vamp = _hist({7: 0.25, 0: 0.18, 5: 0.15, 11: 0.10, 4: 0.08, 9: 0.08, 2: 0.05})
+        self.assertEqual(estimate_key(vamp)[:2], (7, "mixolydien"))   # défaut modal
+        self.assertEqual(estimate_key_tonal(vamp)[:2], (0, "maj"))    # helper tonal
+
+    def test_le_defaut_du_moteur_ne_bouge_pas(self):
+        # garde-fou : le helper n'est PAS le défaut — RE_DORIEN reste dorien
+        self.assertEqual(estimate_key(RE_DORIEN)[1], "dorien")
 
 
 def _chord(note: NoteType, quality: str = "maj") -> Chord:
