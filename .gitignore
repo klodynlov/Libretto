@@ -15,3 +15,7 @@ corpus_ecoute/
 # et cache du zip MAESTRO — jamais commités (CC BY-NC-SA, et 58 Mo)
 corpus_humain/
 .cache/
+
+# corpus bkmaf : MIDI non redistribués (cf corpus_bkmaf/PROVENANCE.md) — seul le manifest est commité
+corpus_bkmaf/*.mid
+corpus_bkmaf/*.kar
