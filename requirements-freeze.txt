@@ -1,0 +1,14 @@
+# Libretto — chaîne d'appro (C5 du contrat d'organe). Figé 2026-08-29 (P2).
+#
+# CŒUR = 100 % stdlib (Python >=3.10). La promesse — analyse structurelle sur 29
+# axes — ne dépend d'AUCUN paquet tiers. `scripts/gate.sh` passe sans rien installer
+# (mesuré 2026-08-29 : 29 axes, global_score 0.795, 0.15 s).
+#
+# Dépendance OPTIONNELLE — feature « Gadget » live-play UNIQUEMENT (libretto/gadget.py) :
+#   python-rtmidi   # backend CoreMIDI ; import gardé try/except ImportError
+#                   # → absent = feature désactivée proprement, cœur intact.
+# NON installée sur la machine (vérifié 2026-08-29) → périmètre pip-audit VIDE,
+# 0 CVE par construction. À l'installer un jour : l'épingler ici en `==` et
+# l'ajouter à la section supply du nightly.
+#
+# Runtime : python3 système (3.11.15). Le .venv du repo est inutile pour le cœur.
