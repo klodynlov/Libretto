@@ -38,13 +38,16 @@ from .builder import build_score
 from .midi import parse_midi_bytes
 from .model import PC_NAMES
 from .report import _radar_svg
+from .groove import analyze_groove
+from .listening import ListeningStore, preview_notes
 
 MAX_UPLOAD = 8 * 1024 * 1024  # 8 Mio, très large pour du MIDI
 
 
 class _Store:
     def __init__(self, lib_path: str | None = None,
-                 generator=None, gen_modes: list[str] | None = None):
+                 generator=None, gen_modes: list[str] | None = None,
+                 preferences_path: str | Path | None = None):
         self.lock = threading.Lock()
         self.entries: list[dict] = []
         self.raw: dict[int, bytes] = {}
@@ -66,6 +69,8 @@ class _Store:
         # Lecteur Gadget (port MIDI virtuel), créé à la première lecture — aucune
         # dépendance rtmidi tant qu'on ne joue pas.
         self._gadget = None
+        self.listening = ListeningStore(preferences_path or (
+            Path.home() / "Library/Application Support/Libretto/preferences.json"))
 
     def add(self, entry: dict, raw: bytes) -> dict:
         with self.lock:
@@ -154,6 +159,7 @@ def analyze_bytes(data: bytes, filename: str) -> tuple[dict, "SenseOfMusicalStru
         "n_notes": len(md.notes),
         "radar": _radar_svg(payload["groups"], size=240),
         "rows": rows,
+        "groove": analyze_groove(md),
     }
     return entry, sms
 
@@ -408,6 +414,34 @@ body.hastransport { padding-bottom:74px; }
 .spin { display:inline-block; width:12px; height:12px; border:2px solid var(--grid);
   border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
+[hidden] { display:none !important; }
+#listeningpanel { margin:14px 0; padding:18px; border:1px solid var(--accent-soft);
+  border-radius:14px; background:var(--bg); }
+#listeningchoices { display:flex; gap:12px; margin:16px 0; }
+.auditionchoice { flex:1; display:flex; flex-direction:column; gap:10px;
+  padding:14px; border:1px solid var(--border); border-radius:12px; background:var(--card); }
+.auditionchoice strong { font:600 26px Georgia,serif; }
+.listeninghint, #listeningstatus, #preferencecount { font-size:12.5px; color:var(--muted); }
+#listeningstatus { margin:10px 0; }
+.listeningactions { display:flex; gap:8px; flex-wrap:wrap; }
+.isplaying { outline:3px solid var(--accent-soft); }
+button:disabled { opacity:.5; cursor:default; }
+.groove { margin-top:12px; font-size:13px; }
+.groovevoices { display:flex; flex-wrap:wrap; gap:12px; margin:12px 0; }
+.groovevoices>div { flex:1 1 180px; padding:12px; border:1px solid var(--border); border-radius:10px; }
+.groovevoices b, .groovevoices span, .groovevoices small { display:block; }
+.groovevoices span { font-size:20px; margin:6px 0; font-variant-numeric:tabular-nums; }
+.groovegrid { display:grid; gap:2px; margin-top:10px; }
+.groovegrid i { height:14px; border-radius:2px; background:var(--accent); }
+.gen .body { flex:1; }
+@media(max-width:680px) { #listeningchoices { flex-direction:column; }
+  .gen { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
+  .gen .badge { justify-self:start; }
+  .gen .viz { min-width:0; }
+  .gen .title { overflow-wrap:anywhere; }
+  .groovevoices { flex-direction:column; }
+  .groovevoices>div { flex:auto; }
+  .gen .acts { gap:8px; } }
 </style>
 </head>
 <body>
@@ -416,15 +450,15 @@ body.hastransport { padding-bottom:74px; }
     <small>génère · analyse 29 axes · cherche par intention · écoute dans Reaper &amp; Gadget</small></h1>
   <section id="genpanel" hidden>
     <h2>Générer des séquences</h2>
-    <div class="hint">Libretto génère des candidats et garde les mieux
-      construits (gate de fiabilité, tri fiabilité-d'abord).</div>
+    <div class="hint">Forge propose des séquences structurées. Écoute les propositions
+      avant de choisir : le score SMS ne prédit pas ta préférence musicale.</div>
     <div class="genform">
       <div class="genfield"><label for="genmode">modèle</label>
         <select id="genmode"></select></div>
       <div class="genfield"><label for="genn">candidats</label>
         <input id="genn" type="number" min="1" max="64" value="12"></div>
       <div class="genfield"><label for="genshort">variantes</label>
-        <input id="genshort" type="number" min="0" max="12" value="4"></div>
+        <input id="genshort" type="number" min="0" max="12" value="3"></div>
       <div class="genfield"><label for="genbars">mesures</label>
         <input id="genbars" type="number" min="4" max="128" value="24"></div>
       <div class="genfield"><label for="genseed">graine</label>
@@ -432,6 +466,21 @@ body.hastransport { padding-bottom:74px; }
       <div class="genfield"><button class="primary" id="genbtn">Générer</button></div>
     </div>
     <div id="genmeta"></div>
+    <section id="listeningpanel" hidden aria-label="Comparaison à l'écoute">
+      <h2>À toi de choisir</h2>
+      <p class="listeninghint">Même synthèse pour tous, extraits de 20 secondes maximum.
+        Timing et vélocités conservés ; timbres approximatifs, sans reproduction des pédales.
+        Les noms et scores se révèlent après ton choix.</p>
+      <div id="listeningchoices"></div>
+      <div class="listeningactions">
+        <button id="auditionstop">⏹ Arrêter</button>
+        <button id="preferSame" data-prefer="same" disabled>Aucune préférence</button>
+        <button id="skipcomparison">Voir les propositions sans voter</button>
+      </div>
+      <p id="listeningstatus" role="status" aria-live="polite"></p>
+      <p id="preferencecount"></p>
+      <p class="listeninghint">Tes choix restent sur ce Mac. Aucun ajustement automatique du score.</p>
+    </section>
     <div id="genresults"></div>
   </section>
   <section id="searchpanel" hidden>
@@ -462,6 +511,7 @@ body.hastransport { padding-bottom:74px; }
   Génération avec <code>serve --generate</code>,
   recherche avec <code>serve --lib&nbsp;lib.json</code>.</footer>
 </main>
+<script src="/listening.js"></script>
 <script>
 const drop = document.getElementById('drop');
 const fileInput = document.getElementById('file');
@@ -517,7 +567,7 @@ function render(entries, names) {
         </div>
         <div class="radar">${e.radar}</div>
         <div class="meta">
-          <div class="fname">${e.name}</div>
+          <div class="fname">${esc(e.name)}</div>
           <div class="sub">tonalité ${e.key} · ${e.n_notes} notes ·
             ${e.sections.length} sections : ${e.sections.join(' · ')}</div>
           <div class="chips">${groupChips(e.groups, names)}</div>
@@ -528,6 +578,7 @@ function render(entries, names) {
         </div>
       </div>
       ${e.interpretable ? '' : `<div class="banner"><b>Score non interprétable</b> — ${e.diagnosis}</div>`}
+      ${renderGroove(e.groove)}
       <details><summary>les 29 axes</summary>
         <div class="axes-wrap"><table><tbody>${e.rows}</tbody></table></div>
       </details>
@@ -556,8 +607,7 @@ function renderGen(data) {
   genMeta.textContent = `${s.n_generated} généré(s) · ${s.n_eligible} éligible(s)`
     + (s.n_rejected ? ` · ${s.n_rejected} recalé(s) par le gate` : '')
     + ` — ${data.results.length} livré(s)`;
-  genResults.innerHTML = data.results.map(g => {
-    const win = g.role === 'winner';
+  genResults.innerHTML = data.results.map((g, index) => {
     const conf = g.confidence != null ? g.confidence.toFixed(2) : '?';
     const meta = [g.form ? `forme ${g.form}` : null,
                   g.score != null ? `SMS ${g.score.toFixed(2)}` : null,
@@ -569,10 +619,11 @@ function renderGen(data) {
     const addBtn = hasLibrary
       ? `<button data-add="${esc(g.path)}">+ Biblio</button>` : '';
     return `<div class="gen">
-      <span class="badge${win ? ' win' : ''}">${win ? '🏆 gagnant' : 'variante'}</span>
+      <span class="badge">proposition ${index + 1}</span>
       <div class="body">
         <div class="title">${esc(g.name)}</div>
         <div class="why">${esc(meta)}</div>
+        ${renderGroove(g.groove)}
       </div>
       <div class="viz">${gauge(cf)}${vmeter(sc)}${scoreBar(sc)}</div>
       <div class="acts">
@@ -584,9 +635,11 @@ function renderGen(data) {
     </div>`;
   }).join('');
   animateBars(genResults);
+  startComparison(data.comparison);
 }
 
 async function doGenerate() {
+  startComparison(null);
   genBtn.disabled = true;
   const prev = genBtn.textContent; genBtn.textContent = 'génération…';
   genMeta.textContent = 'génération en cours (quelques secondes)…';
@@ -867,6 +920,14 @@ def make_handler(store: _Store):
             parsed = urlparse(self.path)
             if parsed.path in ("/", "/index.html"):
                 self._send(200, INDEX_HTML.encode(), "text/html; charset=utf-8")
+            elif parsed.path == "/listening.js":
+                self._send(200, Path(__file__).with_name("listening.js").read_bytes(),
+                           "text/javascript; charset=utf-8")
+            elif parsed.path == "/api/preferences":
+                try:
+                    self._json(200, {"count": store.listening.count()})
+                except (ValueError, OSError) as exc:
+                    self._json(400, {"error": str(exc)})
             elif parsed.path == "/api/analyses":
                 from .gadget import available as gadget_available
                 self._json(200, {"entries": store.snapshot(),
@@ -952,7 +1013,23 @@ def make_handler(store: _Store):
                     workdir = store.new_workdir()
                     result = store.generator(req, workdir)
                     store.register_generated(g["path"] for g in result["results"])
+                    from .midi import parse_midi
+                    for g in result["results"]:
+                        g["groove"] = analyze_groove(parse_midi(g["path"]))
+                    result["comparison"] = store.listening.create(result["results"], req)
                     self._json(200, result)
+                elif self.path in ("/api/audition", "/api/preference"):
+                    req = json.loads(self._read_body())
+                    if not isinstance(req, dict):
+                        raise ValueError("objet JSON attendu")
+                    comparison = str(req.get("comparison", ""))
+                    if self.path == "/api/preference":
+                        self._json(200, store.listening.record(
+                            comparison, str(req.get("choice", ""))))
+                    else:
+                        from .midi import parse_midi
+                        candidate = store.listening.candidate(comparison, str(req.get("slot", "")))
+                        self._json(200, preview_notes(parse_midi(candidate["path"])))
                 elif self.path == "/api/library_add":
                     if store.lib_path is None:
                         self._json(400, {"error": "aucune bibliothèque chargée"})
@@ -1025,18 +1102,22 @@ DEFAULT_PORT = 8787
 
 def serve(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
           lib_path: str | None = None, generator=None,
-          gen_modes: list[str] | None = None) -> ThreadingHTTPServer:
+          gen_modes: list[str] | None = None,
+          preferences_path: str | Path | None = None) -> ThreadingHTTPServer:
     """Crée le serveur (sans le lancer) — utilisé par la CLI et les tests."""
-    store = _Store(lib_path=lib_path, generator=generator, gen_modes=gen_modes)
+    store = _Store(lib_path=lib_path, generator=generator, gen_modes=gen_modes,
+                   preferences_path=preferences_path)
     return ThreadingHTTPServer((host, port), make_handler(store))
 
 
 def main(host: str = "127.0.0.1", port: int | None = None,
          lib_path: str | None = None, generator=None,
-         gen_modes: list[str] | None = None) -> int:
+         gen_modes: list[str] | None = None,
+         preferences_path: str | Path | None = None) -> int:
     import sys
     want = DEFAULT_PORT if port is None else port
-    kw = {"lib_path": lib_path, "generator": generator, "gen_modes": gen_modes}
+    kw = {"lib_path": lib_path, "generator": generator, "gen_modes": gen_modes,
+          "preferences_path": preferences_path}
     try:
         httpd = serve(host, want, **kw)
     except OSError as exc:

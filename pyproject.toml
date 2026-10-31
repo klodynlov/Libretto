@@ -24,3 +24,6 @@ packages = ["libretto", "libretto._generators"]
 
 [tool.setuptools.package-dir]
 "libretto._generators" = "examples"
+
+[tool.setuptools.package-data]
+libretto = ["*.js"]

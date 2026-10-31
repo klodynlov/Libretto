@@ -11,6 +11,62 @@ MIDI (.mid) ──parse──▶ MidiData ──build──▶ Score symbolique 
 
 ## Usage
 
+### Groove et choix à l'écoute
+
+```bash
+# Profil descriptif de la batterie GM, sans quantifier ni modifier le MIDI
+python3 -m libretto.cli groove batterie.mid --json groove.json
+
+# Génération, comparaison A/B/C et choix conservés sur ce Mac
+python3 -m libretto.cli serve --generate
+# Ou choisir explicitement le fichier de préférences
+python3 -m libretto.cli serve --generate --preferences mes-choix.json
+```
+
+Le panneau **À toi de choisir** propose jusqu'à trois séquences distinctes,
+issues de la sélection diverse de Forge. Leur ordre est aléatoire ; noms et
+scores restent masqués jusqu'au choix (ou « Voir les propositions sans
+voter »). Écouter chaque proposition active les boutons de préférence, dont
+« Aucune préférence ». Les propositions restent ensuite téléchargeables et
+envoyables vers REAPER et Gadget. Le terme « gagnant » du rapport historique
+Forge reste compatible en API ; l'interface présente des **propositions**, le
+classement fin n'étant pas validé par les écoutes existantes.
+
+L'audition intégrée utilise la même synthèse Web Audio déterministe pour
+tous : 20 premières secondes maximum, carte de tempo, microdécalages et
+vélocités conservés. **Timbres approximatifs et pédales non reproduites** ;
+ce choix porte sur ce rendu, pas sur la qualité d'un enregistrement final.
+Au-delà de 4 000 notes dans l'extrait, la limitation est annoncée. Les notes
+MIDI exportées ne sont jamais quantifiées ou modifiées par ces fonctions.
+
+Chaque choix est enregistré avec la version du rendu, les paramètres de
+génération, les scores et les empreintes SHA-256 des candidats, par défaut
+dans `~/Library/Application Support/Libretto/preferences.json`. L'écriture
+est atomique, les requêtes simultanées d'un même serveur sont sérialisées,
+et revoter sur la même comparaison remplace le choix sans gonfler le
+compteur. Le compteur survit au redémarrage ; les comparaisons non votées
+restent propres à la session. Utiliser des fichiers distincts pour des
+serveurs indépendants. **Aucun entraînement ni changement automatique des
+poids** n'est déclenché. Un fichier existant illisible ou incompatible est
+signalé et conservé.
+
+Le profil de groove est indépendant des 29 axes SMS, utilisable même sur une
+boucle de batterie dont le score global est non interprétable. Il mesure,
+par voix GM du **canal MIDI 10**, le décalage médian signé en millisecondes
+par rapport à la double-croche, sa dispersion (écart absolu médian), les
+vélocités et une empreinte de frappes par chiffrage. Les changements de
+tempo sont intégrés et les signatures ont des grilles séparées. Ces écarts
+**ne sont ni des erreurs ni une note de qualité** : le swing lui-même peut
+les produire. Le ratio long/court est estimé à partir d'au moins quatre
+paires de charley consécutives en mesure simple ; une matière insuffisante,
+un charley en doubles-croches ou une mesure composée ne produisent pas un
+faux « swing zéro ». Le mapping de batterie non-GM n'est pas inféré.
+
+Les tests couvrent des motifs contrôlés et la chaîne HTTP de génération,
+audition et sauvegarde. Ce sont des vérifications de fonctionnement ; une
+validation perceptive sur des performances humaines reste à réaliser avant
+d'en faire un juge du groove ou un modèle de préférence.
+
 ```bash
 # analyse d'un fichier MIDI (SMF format 0/1)
 python3 -m libretto.cli analyze chanson.mid

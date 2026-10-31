@@ -309,6 +309,10 @@ def main(argv: list[str] | None = None) -> int:
                            help="poids calibrés (sortie de `libretto calibrate`)")
     _add_common(p_analyze)
 
+    p_groove = sub.add_parser("groove", help="décrire le timing et les accents de batterie GM")
+    p_groove.add_argument("path", help="fichier .mid/.midi")
+    p_groove.add_argument("--json", metavar="OUT", help="écrire le profil descriptif JSON")
+
     p_demo = sub.add_parser("demo", help="analyser la partition de démonstration intégrée")
     _add_common(p_demo)
 
@@ -324,6 +328,9 @@ def main(argv: list[str] | None = None) -> int:
     p_serve.add_argument("--corpus", metavar="DIR", default=None,
                          help="dossier de .mid pour le modèle appris (active en plus "
                               "le mode « appris » dans le panneau de génération)")
+    p_serve.add_argument("--preferences", metavar="JSON", default=None,
+                         help="fichier des choix d'écoute (défaut : "
+                              "~/Library/Application Support/Libretto/preferences.json)")
 
     p_reaper = sub.add_parser("reaper", help="pousser un MIDI dans REAPER (pont Klody :9000) et jouer")
     p_reaper.add_argument("path", help="fichier .mid/.midi")
@@ -483,7 +490,21 @@ def main(argv: list[str] | None = None) -> int:
             except (ValueError, OSError, ImportError) as exc:
                 print(f"libretto: génération indisponible : {exc}", file=sys.stderr)
                 return 1
-        return serve_main(args.host, args.port, args.lib, generator, gen_modes)
+        return serve_main(args.host, args.port, args.lib, generator, gen_modes,
+                          preferences_path=args.preferences)
+
+    if args.command == "groove":
+        from .groove import analyze_groove, render_groove_text
+        try:
+            report = analyze_groove(parse_midi(args.path))
+            if args.json:
+                Path(args.json).write_text(json.dumps(report, ensure_ascii=False, indent=2),
+                                           encoding="utf-8")
+            print(render_groove_text(report))
+            return 0
+        except (OSError, ValueError) as exc:
+            print(f"libretto: {exc}", file=sys.stderr)
+            return 1
 
     if args.command == "reaper":
         from .reaper import BridgeError, push_mididata
